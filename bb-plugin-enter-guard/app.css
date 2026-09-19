@@ -1,0 +1,36 @@
+/* Glowing red flash on the prompt box border. Color derives from the host
+   theme's destructive token so it follows light/dark palettes. */
+[data-promptbox].enter-guard-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 60;
+  box-shadow:
+    0 0 0 2px var(--destructive),
+    0 0 24px 6px color-mix(in oklab, var(--destructive) 60%, transparent);
+  animation: enter-guard-glow-pulse var(--enter-guard-flash-ms, 1000ms)
+    ease-out forwards;
+}
+
+@keyframes enter-guard-glow-pulse {
+  0% {
+    opacity: 1;
+  }
+  18% {
+    opacity: 0.4;
+  }
+  36% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.55;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
