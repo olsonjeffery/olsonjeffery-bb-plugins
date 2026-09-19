@@ -5,7 +5,7 @@
 // (default 1000ms) sends the message. Typeahead selection, newline Enters, and
 // sends with a disabled submit button are left alone.
 import { useEffect } from "react";
-import { definePluginApp, useSettings } from "@bb/plugin-sdk/app";
+import { definePluginApp, useSettings } from "@get-bb/plugin-sdk/app";
 import { guardConfig, parseWindowMs } from "./guard-config";
 import "./app.css";
 

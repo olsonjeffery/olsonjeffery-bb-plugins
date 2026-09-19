@@ -3,7 +3,7 @@
 // The default export is a factory that receives the plugin API. All behavior
 // lives in the frontend (app.tsx); this backend only declares the settings the
 // UI reads via useSettings().
-import type { BbPluginApi } from "@bb/plugin-sdk";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 export default async function plugin(bb: BbPluginApi) {
   bb.settings.define({

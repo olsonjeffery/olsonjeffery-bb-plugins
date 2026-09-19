@@ -10,7 +10,9 @@ export const guardConfig = {
   windowMs: 1000,
 };
 
-export function parseWindowMs(value: string | boolean | undefined): number {
+export function parseWindowMs(
+  value: string | number | boolean | undefined,
+): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1000;
 }
