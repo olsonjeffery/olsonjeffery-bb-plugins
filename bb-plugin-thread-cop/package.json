@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Thread Cop",
-    "description": "Watches every thread's tool calls and nudges the agent when one hangs past the timeout: an 'Idle Tool Nudge' steer message, once per hang, capped at 3 per call.",
+    "description": "Watches every thread and keeps stalled work moving: idle-tool nudges, failed-turn retries, silent-turn watchdog, approval-stall alerts, context-pressure nudges, and a runaway-loop detector.",
     "branding": {
       "icon": "Timer"
     },

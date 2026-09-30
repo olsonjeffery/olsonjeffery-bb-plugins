@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PluginTurnFailedEvent } from "@get-bb/plugin-sdk";
 import {
   createFakePluginHost,
   makeThreadResponse,
@@ -59,17 +60,114 @@ function turnCompletedRow(threadId: string, seq: number, createdAt: number) {
   return row(threadId, seq, "turn/completed", { status: "completed" }, createdAt);
 }
 
+function interactionRow(
+  threadId: string,
+  seq: number,
+  interactionId: string,
+  status: string,
+  createdAt: number,
+) {
+  return row(
+    threadId,
+    seq,
+    "system/interaction/lifecycle",
+    { interaction: { id: interactionId, status, origin: { kind: "provider" } } },
+    createdAt,
+  );
+}
+
+function contextUsageRow(
+  threadId: string,
+  seq: number,
+  usedTokens: number,
+  modelContextWindow: number,
+  createdAt: number,
+) {
+  return row(
+    threadId,
+    seq,
+    "thread/contextWindowUsage/updated",
+    { contextWindowUsage: { usedTokens, modelContextWindow, estimated: false } },
+    createdAt,
+  );
+}
+
+function commandStartedRow(
+  threadId: string,
+  seq: number,
+  itemId: string,
+  command: string,
+  createdAt: number,
+) {
+  return row(
+    threadId,
+    seq,
+    "item/started",
+    { item: { type: "commandExecution", id: itemId, status: "pending", command } },
+    createdAt,
+  );
+}
+
+function turnFailedPayload(
+  overrides: Partial<PluginTurnFailedEvent> = {},
+): PluginTurnFailedEvent {
+  return {
+    threadId: "th_1",
+    requestId: "req_1",
+    turnId: "turn_1",
+    errorInfo: { category: "bad-request", httpStatusCode: 400, providerCode: null },
+    inputAccepted: false,
+    rateLimits: null,
+    attemptNumber: 1,
+    ...overrides,
+  };
+}
+
+async function emitTurnFailed(host: Host, payload: TurnFailedPayload): Promise<void> {
+  const emitted = await host.harness.behavior.emitThreadEvent("turn.failed", payload);
+  expect(emitted.errors).toEqual([]);
+}
+
+/** Attach a thread no pending tool calls, occupying capacity. */
+async function emitThreadCreated(host: Host, threadId: string): Promise<void> {
+  const emitted = await host.harness.behavior.emitThreadEvent("thread.created", {
+    thread: makeThreadResponse({ id: threadId, status: "active" }),
+  });
+  expect(emitted.errors).toEqual([]);
+}
+
+async function attachQuietThread(host: Host, threadId: string): Promise<void> {
+  host.eventLogs.set(threadId, []);
+  await emitThreadCreated(host, threadId);
+}
+
+async function advanceFollower(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(FOLLOWER_POLL_MS);
+}
+
 type SendCall = {
   threadId: string;
   mode: string;
   input: unknown[];
 };
 
+type RetryCall = {
+  threadId: string;
+  turnRequestId?: string;
+  sendAt?: number;
+  reason?: string;
+};
+
+type TurnFailedPayload = PluginTurnFailedEvent;
+
 function newHost() {
   const eventLogs = new Map<string, AnyRow[]>();
   const sends: SendCall[] = [];
   const stops: unknown[] = [];
   const metadataUpdates: unknown[] = [];
+  const threadMetadata = new Map<string, Record<string, unknown>>();
+  const retries: RetryCall[] = [];
+  const queuedRows = new Map<string, unknown[]>();
   let listRunningResult: Array<{ id: string; hostId: string }> = [];
   let sendImpl: (args: SendCall) => Promise<unknown> = async (args) => {
     sends.push(args);
@@ -82,6 +180,23 @@ function newHost() {
         listRunning: async () => listRunningResult,
         updatePluginMetadata: async (args: unknown) => {
           metadataUpdates.push(args);
+          const a = args as { threadId: string; set?: Record<string, unknown> };
+          const stored = threadMetadata.get(a.threadId) ?? {};
+          threadMetadata.set(a.threadId, { ...stored, ...(a.set ?? {}) });
+          return threadMetadata.get(a.threadId);
+        },
+        getPluginMetadata: async (args: unknown) => {
+          const a = args as { threadId: string };
+          return threadMetadata.get(a.threadId) ?? {};
+        },
+        queuedMessages: {
+          list: async (args: unknown) => {
+            const a = args as { threadId: string };
+            return queuedRows.get(a.threadId) ?? [];
+          },
+        },
+        retry: async (args: RetryCall) => {
+          retries.push(args);
           return {};
         },
         events: {
@@ -121,6 +236,9 @@ function newHost() {
     sends,
     stops,
     metadataUpdates,
+    threadMetadata,
+    retries,
+    queuedRows,
     setListRunning(value: Array<{ id: string; hostId: string }>) {
       listRunningResult = value;
     },
@@ -388,6 +506,395 @@ describe("bb-plugin-thread-cop", () => {
     await attachHungThread(host, "th_3", "call_3", T0 - 90_000);
     await host.harness.behavior.setSettings({ toolCallTimeoutMinutes: -5 });
     await runSweep(host.harness);
+    expect(host.sends).toHaveLength(2);
+  });
+
+  it("defines the v2 settings with the documented defaults", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    const d = host.harness.inspection.registrations.settingsDescriptors;
+    expect(d.failedTurnRetriesEnabled).toMatchObject({ type: "boolean", default: true });
+    expect(d.maxFailedTurnRetries).toMatchObject({ type: "number", default: 2 });
+    expect(d.silentTurnMinutes).toMatchObject({ type: "number", default: 15 });
+    expect(d.silentTurnPrompt).toMatchObject({ type: "string" });
+    expect(d.approvalStallMinutes).toMatchObject({ type: "number", default: 10 });
+    expect(d.contextPressureThresholdPct).toMatchObject({ type: "number", default: 85 });
+    expect(d.loopRepeatCount).toMatchObject({ type: "number", default: 8 });
+    expect(d.loopWindowMs).toMatchObject({ type: "number", default: 480000 });
+  });
+});
+
+describe("bb-plugin-thread-cop v2 — failed-turn policy (F1+F6)", () => {
+  it("escalates a permanent rejection: warns loudly, writes lastFailure metadata, never retries", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await emitTurnFailed(host, turnFailedPayload());
+
+    expect(host.retries).toHaveLength(0);
+    const failed = host.threadMetadata.get("th_1")!["v2"] as {
+      lastFailure?: Record<string, unknown>;
+    };
+    expect(failed.lastFailure).toMatchObject({
+      requestId: "req_1",
+      attemptNumber: 1,
+      category: "bad-request",
+    });
+    expect(
+      host.harness.logEntries.some(
+        (e) => e.level === "warn" && e.message.includes("FAILED TURN"),
+      ),
+    ).toBe(true);
+  });
+
+  it("reties a transient failure on the backoff ladder, capped at maxFailedTurnRetries", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    const transient = {
+      category: "stream-disconnected" as const,
+      httpStatusCode: null,
+      providerCode: null,
+    };
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({ errorInfo: transient, attemptNumber: 1, requestId: "req_1" }),
+    );
+    expect(host.retries).toHaveLength(1);
+    expect(host.retries[0]).toMatchObject({
+      threadId: "th_1",
+      turnRequestId: "req_1",
+      sendAt: T0 + 60_000,
+    });
+    expect(host.threadMetadata.get("th_1")!["v2"]).toMatchObject({
+      retriedFor: "req_1",
+    });
+
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({ errorInfo: transient, attemptNumber: 2, requestId: "req_2" }),
+    );
+    expect(host.retries).toHaveLength(2);
+    expect(host.retries[1]).toMatchObject({ sendAt: T0 + 5 * MIN });
+
+    // Attempt 3 is past the cap (1 + 2): escalate, not retry.
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({ errorInfo: transient, attemptNumber: 3, requestId: "req_3" }),
+    );
+    expect(host.retries).toHaveLength(2);
+    expect(
+      host.harness.logEntries.filter((e) => e.level === "warn" && e.message.includes("FAILED TURN")),
+    ).toHaveLength(1);
+  });
+
+  it("retries unknown failures only when they look server-side", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({
+        errorInfo: { category: "unknown", httpStatusCode: 502, providerCode: null },
+      }),
+    );
+    expect(host.retries).toHaveLength(1);
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({
+        threadId: "th_2",
+        errorInfo: { category: "unknown", httpStatusCode: 400, providerCode: null },
+      }),
+    );
+    expect(host.retries).toHaveLength(1);
+  });
+
+  it("stands down on a windowed rate limit (core already queued the verbatim retry)", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({
+        errorInfo: {
+          category: "rate-limit" as const,
+          httpStatusCode: 429,
+          providerCode: null,
+        },
+        rateLimits: {
+          kind: "subscription-window" as const,
+          overageReason: null,
+          overageStatus: null,
+          providerId: "p_1",
+          reachedReason: null,
+          status: "blocked" as const,
+          windows: [
+            { resetsAtMs: T0 + 5 * MIN, status: "blocked" as const, label: null, providerKey: null },
+          ],
+        },
+      }),
+    );
+    expect(host.retries).toHaveLength(0);
+    expect(host.threadMetadata.get("th_1")?.["v2"]).toBeUndefined();
+  });
+
+  it("stands down when a retry row is already queued for the thread", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    host.queuedRows.set("th_1", [{ id: "qm_1" }]);
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({
+        errorInfo: {
+          category: "stream-disconnected" as const,
+          httpStatusCode: null,
+          providerCode: null,
+        },
+      }),
+    );
+    expect(host.retries).toHaveLength(0);
+  });
+
+  it("never retries when the feature is disabled", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await host.harness.behavior.setSettings({ failedTurnRetriesEnabled: false });
+    await emitTurnFailed(
+      host,
+      turnFailedPayload({
+        errorInfo: {
+          category: "stream-disconnected" as const,
+          httpStatusCode: null,
+          providerCode: null,
+        },
+      }),
+    );
+    expect(host.retries).toHaveLength(0);
+  });
+
+  it("guards against a reload double-retry via the retriedFor metadata key", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    const payload = turnFailedPayload({
+      errorInfo: {
+        category: "stream-disconnected" as const,
+        httpStatusCode: null,
+        providerCode: null,
+      },
+    });
+    await emitTurnFailed(host, payload);
+    expect(host.retries).toHaveLength(1);
+
+    // A reload re-registers the listener; the same failure is announced again.
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+    const emitted = await reloaded.harness.behavior.emitThreadEvent("turn.failed", payload);
+    expect(emitted.errors).toEqual([]);
+    expect(host.retries).toHaveLength(1);
+  });
+});
+
+describe("bb-plugin-thread-cop v2 — silent-turn watchdog (F2)", () => {
+  it("nudges a zero-event active turn once per window, escalates to stop+fresh, caps at 2", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await attachQuietThread(host, "th_1");
+
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0); // 15 min window not elapsed
+
+    vi.setSystemTime(T0 + 15 * MIN + 1);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+    expect(host.sends[0]).toMatchObject({ threadId: "th_1", mode: "steer" });
+    expect(inputText(host.sends[0])).toContain("Silent Turn Nudge");
+
+    // Still silent a full window later: escalation is stop + fresh turn.
+    vi.setSystemTime(T0 + 30 * MIN + 2);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(2);
+    expect(host.sends[1]).toMatchObject({ threadId: "th_1", mode: "start" });
+    expect(host.stops).toHaveLength(1);
+
+    // Cap reached: a third window sends nothing.
+    vi.setSystemTime(T0 + 45 * MIN + 3);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(2);
+  });
+
+  it("skips the silence check while a pending interaction exists, resumes after it clears", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await attachQuietThread(host, "th_1");
+    host.eventLogs.get("th_1")!.push(
+      interactionRow("th_1", 1, "ix_1", "pending", T0 - 20 * MIN),
+    );
+    await advanceFollower();
+
+    vi.setSystemTime(T0 + 20 * MIN);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0);
+
+    host.eventLogs.get("th_1")!.push(interactionRow("th_1", 2, "ix_1", "resolved", T0));
+    await advanceFollower();
+    vi.setSystemTime(T0 + 20 * MIN + 1);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+  });
+
+  it("resumes the silence clock on any new event and clears the episode on turn/completed", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await attachQuietThread(host, "th_1");
+
+    vi.setSystemTime(T0 + 15 * MIN + 1);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+
+    // An event arrives (e.g. a started item): the clock restarts.
+    host.eventLogs.get("th_1")!.push(
+      startedRow("th_1", 1, toolCallItem("call_1", "pending"), T0 + 15 * MIN),
+    );
+    await advanceFollower();
+    vi.setSystemTime(T0 + 25 * MIN);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+
+    vi.setSystemTime(T0 + 30 * MIN + 15_000);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(2); // no second nudge 5 min in, per the restart
+
+    // turn/completed clears the episode: a later silence starts over at a steer.
+    host.eventLogs.get("th_1")!.push(turnCompletedRow("th_1", 2, T0 + 31 * MIN));
+    await advanceFollower();
+    vi.setSystemTime(T0 + 46 * MIN + 1); // 15 min past the completed turn
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(3);
+    expect(host.sends[2]).toMatchObject({ mode: "steer" });
+  });
+});
+
+describe("bb-plugin-thread-cop v2 — approval-stall alert (F3)", () => {
+  it("warns once per pending interaction past the stall window, logs again after an hour", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    host.eventLogs.set("th_1", [interactionRow("th_1", 1, "ix_1", "pending", T0 - 20 * MIN)]);
+    await emitThreadCreated(host, "th_1");
+
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0); // F3 alerts only; no steer
+    const warns = host.harness.logEntries.filter(
+      (e) => e.level === "warn" && e.message.includes("APPROVAL STALL"),
+    );
+    expect(warns).toHaveLength(1);
+    expect(host.threadMetadata.get("th_1")!["v2"]).toMatchObject({ approvalAlertAt: T0 });
+
+    // Same sweep window again: no re-alert inside the hour.
+    await runSweep(host.harness);
+    expect(
+      host.harness.logEntries.filter(
+        (e) => e.level === "warn" && e.message.includes("APPROVAL STALL"),
+      ),
+    ).toHaveLength(1);
+
+    // 61 minutes later: re-armed.
+    vi.setSystemTime(T0 + 61 * MIN);
+    await runSweep(host.harness);
+    expect(
+      host.harness.logEntries.filter(
+        (e) => e.level === "warn" && e.message.includes("APPROVAL STALL"),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("clears the stall when the interaction resolves and does not alert again", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    host.eventLogs.set("th_1", [interactionRow("th_1", 1, "ix_1", "pending", T0 - 20 * MIN)]);
+    await emitThreadCreated(host, "th_1");
+
+    await runSweep(host.harness);
+    expect(
+      host.harness.logEntries.filter(
+        (e) => e.level === "warn" && e.message.includes("APPROVAL STALL"),
+      ),
+    ).toHaveLength(1);
+
+    host.eventLogs.get("th_1")!.push(interactionRow("th_1", 2, "ix_1", "resolved", T0));
+    await advanceFollower();
+    vi.setSystemTime(T0 + 90 * MIN);
+    await runSweep(host.harness);
+    expect(
+      host.harness.logEntries.filter(
+        (e) => e.level === "warn" && e.message.includes("APPROVAL STALL"),
+      ),
+    ).toHaveLength(1);
+  });
+});
+
+describe("bb-plugin-thread-cop v2 — context-pressure nudge (F4)", () => {
+  it("nudges once on crossing the threshold and re-arms after 15 points of headroom", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    host.eventLogs.set("th_1", [contextUsageRow("th_1", 1, 860_000, 1_000_000, T0 - MIN)]);
+    await emitThreadCreated(host, "th_1");
+
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+    expect(inputText(host.sends[0])).toContain("Context Pressure Nudge");
+    expect(host.threadMetadata.get("th_1")!["v2"]).toMatchObject({ contextAlertAt: T0 });
+
+    // Still above threshold: no second nudge.
+    host.eventLogs.get("th_1")!.push(contextUsageRow("th_1", 2, 900_000, 1_000_000, T0));
+    await advanceFollower();
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+
+    // Usage falls to 68% (below 85 − 15): re-arm.
+    host.eventLogs.get("th_1")!.push(contextUsageRow("th_1", 3, 680_000, 1_000_000, T0));
+    await advanceFollower();
+    // Crossing again re-nudges.
+    host.eventLogs.get("th_1")!.push(contextUsageRow("th_1", 4, 890_000, 1_000_000, T0));
+    await advanceFollower();
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(2);
+  });
+});
+
+describe("bb-plugin-thread-cop v2 — runaway-loop detector (F5)", () => {
+  it("steers once when the repeat count of one signature lands in the window, re-arms on a distinct signature", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    const log: AnyRow[] = [];
+    for (let i = 1; i <= 8; i++) {
+      log.push(commandStartedRow("th_1", i, `cmd_${i}`, "npm   test", T0 - MIN + i));
+    }
+    host.eventLogs.set("th_1", log);
+    await emitThreadCreated(host, "th_1");
+    await advanceFollower();
+    await spin(() => host.sends.length >= 1, "loop steer");
+    expect(host.sends).toHaveLength(1);
+    expect(host.sends[0]).toMatchObject({ threadId: "th_1", mode: "steer" });
+    expect(inputText(host.sends[0])).toContain("Runaway Loop Nudge");
+    expect(inputText(host.sends[0])).toContain("npm test");
+
+    // More of the same stays quiet (one alert per loop run).
+    for (let i = 9; i <= 16; i++) {
+      host.eventLogs.get("th_1")!.push(
+        commandStartedRow("th_1", i, `cmd_${i}`, "npm test", T0 + i * 1000),
+      );
+    }
+    await advanceFollower();
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+
+    // A distinct signature interleaves, then the loop repeats: second alert.
+    let seq = 20;
+    host.eventLogs.get("th_1")!.push(
+      commandStartedRow("th_1", seq++, "cmd_x", "make all", T0 + 100_000),
+    );
+    for (let i = 0; i < 8; i++) {
+      host.eventLogs.get("th_1")!.push(
+        commandStartedRow("th_1", seq++, `cmd_y${i}`, "npm test", T0 + 110_000 + i),
+      );
+    }
+    await advanceFollower();
+    await spin(() => host.sends.length >= 2, "second loop steer");
     expect(host.sends).toHaveLength(2);
   });
 });
