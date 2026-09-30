@@ -48,9 +48,11 @@ type EventRow = Awaited<
 
 const SWEEP_INTERVAL_MS = 60_000;
 const FOLLOWER_POLL_MS = 5_000;
-const FOLLOWER_POLL_LIMIT = 500;
+// bb caps thread event pages at 100; asking for more 400s and (before 0.2.2)
+// took a busy thread's follower down after five failed polls.
+const FOLLOWER_POLL_LIMIT = 100;
 const SEED_LIMIT = 50;
-const SEED_FALLBACK_LIMIT = 500;
+const SEED_FALLBACK_LIMIT = 100;
 const MAX_MONITORS = 200;
 const MAX_NUDGES = 3;
 const FOLLOWER_FAILURE_LIMIT = 5;
