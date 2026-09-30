@@ -16,18 +16,28 @@ export function normalizeCommand(command: string): string {
 }
 
 /**
- * A signature for one observed call. toolCall → the tool name plus a
- * compact input summary when one is available; commandExecution → the
- * normalized command text.
+ * A signature for one observed call — or null when the observation is too
+ * coarse to trust and must not feed the detector.
+ *
+ * commandExecution: event-log `item/started` rows carry only the shell
+ * binary ("bash"), so < 2 meaningful tokens is meaningless. Full command
+ * text arrives on `item/completed`.
+ *
+ * toolCall: bb's event log can strip the arguments (they come through as
+ * `{}`); a tool name alone would flag ordinary bursts of `Read` calls as
+ * loops, so a toolCall is signed only when its input is actually visible.
  */
 export function signatureOf(observation: {
   kind: "tool" | "command";
-  name: string;
+  name?: string;
   input?: unknown;
   command?: string;
-}): string {
+}): string | null {
   if (observation.kind === "command") {
-    return `command:${normalizeCommand(observation.command ?? "")}`;
+    const text = normalizeCommand(observation.command ?? "");
+    const tokens = text.split(" ").filter((token) => token.length > 0);
+    if (tokens.length < 2) return null;
+    return `command:${text}`;
   }
   const input = observation.input;
   let summary = "";
@@ -40,7 +50,9 @@ export function signatureOf(observation: {
       summary = "";
     }
   }
-  return `tool:${observation.name}${summary.length > 0 ? `(${summary})` : ""}`;
+  // `{}` and empty strings mean the log stripped the input — skip.
+  if (summary.length === 0 || summary === "{}") return null;
+  return `tool:${observation.name}(${summary})`;
 }
 
 /** Push an observation and trim the buffer to observations still inside the window. */

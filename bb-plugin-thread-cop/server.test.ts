@@ -108,6 +108,26 @@ function commandStartedRow(
   );
 }
 
+/**
+ * A completed commandExecution row: the real command text only reaches the
+ * log here (started rows carry just the shell binary).
+ */
+function commandCompletedRow(
+  threadId: string,
+  seq: number,
+  itemId: string,
+  command: string,
+  createdAt: number,
+) {
+  return row(
+    threadId,
+    seq,
+    "item/completed",
+    { item: { type: "commandExecution", id: itemId, status: "completed", command } },
+    createdAt,
+  );
+}
+
 function turnFailedPayload(
   overrides: Partial<PluginTurnFailedEvent> = {},
 ): PluginTurnFailedEvent {
@@ -857,15 +877,24 @@ describe("bb-plugin-thread-cop v2 — context-pressure nudge (F4)", () => {
 });
 
 describe("bb-plugin-thread-cop v2 — runaway-loop detector (F5)", () => {
+  /** N identical completed runs of one command across started+completed pairs. */
+  function pushLoopRuns(host: Host, threadId: string, count: number, fromSeq: number, fromMs: number, text = "npm test"): number {
+    let seq = fromSeq;
+    for (let i = 0; i < count; i++) {
+      const log = host.eventLogs.get(threadId)!;
+      const id = `cmd_${seq}`;
+      log.push(commandStartedRow(threadId, seq++, id, "bash", fromMs + 2 * i));
+      log.push(commandCompletedRow(threadId, seq++, id, text, fromMs + 2 * i + 1));
+    }
+    return seq;
+  }
+
   it("steers once when the repeat count of one signature lands in the window, re-arms on a distinct signature", async () => {
     const host = freshHost();
     await plugin(host.bb);
-    const log: AnyRow[] = [];
-    for (let i = 1; i <= 8; i++) {
-      log.push(commandStartedRow("th_1", i, `cmd_${i}`, "npm   test", T0 - MIN + i));
-    }
-    host.eventLogs.set("th_1", log);
+    host.eventLogs.set("th_1", []);
     await emitThreadCreated(host, "th_1");
+    pushLoopRuns(host, "th_1", 8, 1, T0 - MIN);
     await advanceFollower();
     await spin(() => host.sends.length >= 1, "loop steer");
     expect(host.sends).toHaveLength(1);
@@ -874,27 +903,51 @@ describe("bb-plugin-thread-cop v2 — runaway-loop detector (F5)", () => {
     expect(inputText(host.sends[0])).toContain("npm test");
 
     // More of the same stays quiet (one alert per loop run).
-    for (let i = 9; i <= 16; i++) {
-      host.eventLogs.get("th_1")!.push(
-        commandStartedRow("th_1", i, `cmd_${i}`, "npm test", T0 + i * 1000),
-      );
-    }
+    pushLoopRuns(host, "th_1", 8, 20, T0 + 100_000);
     await advanceFollower();
     await runSweep(host.harness);
     expect(host.sends).toHaveLength(1);
 
     // A distinct signature interleaves, then the loop repeats: second alert.
-    let seq = 20;
+    let seq = 44;
     host.eventLogs.get("th_1")!.push(
-      commandStartedRow("th_1", seq++, "cmd_x", "make all", T0 + 100_000),
+      commandCompletedRow("th_1", seq++, "cmd_x", "make all", T0 + 200_000),
     );
-    for (let i = 0; i < 8; i++) {
-      host.eventLogs.get("th_1")!.push(
-        commandStartedRow("th_1", seq++, `cmd_y${i}`, "npm test", T0 + 110_000 + i),
-      );
-    }
+    pushLoopRuns(host, "th_1", 8, seq, T0 + 210_000);
     await advanceFollower();
     await spin(() => host.sends.length >= 2, "second loop steer");
     expect(host.sends).toHaveLength(2);
+  });
+
+  it("ignores coarse started-row commands (the shell binary) and never fires from history seeding", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    // History is full of an old loop before the plugin attaches.
+    const history: AnyRow[] = [];
+    for (let i = 1; i <= 8; i++) {
+      history.push(commandCompletedRow("th_hist", i, `cmd_${i}`, "npm test", T0 - 3 * MIN + i));
+    }
+    host.eventLogs.set("th_hist", history);
+    await emitThreadCreated(host, "th_hist");
+    await advanceFollower();
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0); // seeding never feeds the buffer
+
+    // Started rows differ only by the shell binary: not a signature.
+    for (let i = 10; i < 24; i++) {
+      host.eventLogs.get("th_hist")!.push(
+        commandStartedRow("th_hist", i, `cmd_${i}`, "bash", T0 + i * 1000),
+      );
+    }
+    await advanceFollower();
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0);
+
+    // Live completed rows do accumulate: the 8th live run trips.
+    pushLoopRuns(host, "th_hist", 8, 40, T0 + 100_000);
+    await advanceFollower();
+    await spin(() => host.sends.length >= 1, "live loop steer");
+    expect(host.sends).toHaveLength(1);
+    expect(inputText(host.sends[0])).toContain("Runaway Loop Nudge");
   });
 });

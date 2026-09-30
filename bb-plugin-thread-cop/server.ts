@@ -419,7 +419,11 @@ export default async function plugin(bb: BbPluginApi) {
     };
   }
 
-  function processEventRow(monitor: ThreadMonitor, row: EventRow): void {
+  function processEventRow(
+    monitor: ThreadMonitor,
+    row: EventRow,
+    opts: { seeding?: boolean } = {},
+  ): void {
     if (row.seq > monitor.lastSequence) monitor.lastSequence = row.seq;
     // Every row refreshes the silence clock (F2), not just progress events.
     if (row.createdAt > monitor.lastEventAt) monitor.lastEventAt = row.createdAt;
@@ -440,8 +444,6 @@ export default async function plugin(bb: BbPluginApi) {
             tool,
             startedAt: row.createdAt,
           });
-          // F5: feed the loop detector with this call's signature.
-          recordLoopObservation(monitor, item, tool, row.createdAt);
         } else {
           registerToolEnd(monitor.entries, monitor.threadId, id);
         }
@@ -454,6 +456,15 @@ export default async function plugin(bb: BbPluginApi) {
         const id = item["id"];
         if (typeof id === "string") {
           registerToolEnd(monitor.entries, monitor.threadId, id);
+        }
+        // F5: the real command text only reaches the log on completion
+        // (started rows carry the shell binary), so commandExecution
+        // signatures are keyed here. History seeding never feeds the loop
+        // buffer: replaying old rows would re-fire loops that already ran
+        // before the plugin attached.
+        if (opts.seeding !== true) {
+          const signature = loopSignatureFromItem(item);
+          if (signature !== null) recordLoopSignature(monitor, signature, row.createdAt);
         }
         return;
       }
@@ -535,20 +546,27 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
-  /** F5: observe one started call and steer when a loop trip lands. */
-  function recordLoopObservation(
+  /** F5: any event-log item the detector can sign — command text or a toolCall with visible input. */
+  function loopSignatureFromItem(item: Record<string, unknown>): string | null {
+    if (item["type"] === "commandExecution") {
+      return signatureOf({
+        kind: "command",
+        command: typeof item["command"] === "string" ? item["command"] : "",
+      });
+    }
+    if (item["type"] === "toolCall") {
+      const input = item["input"] ?? item["arguments"];
+      return signatureOf({ kind: "tool", name: String(item["tool"] ?? ""), input });
+    }
+    return null;
+  }
+
+  /** F5: observe one signed call and steer when a loop trip lands. */
+  function recordLoopSignature(
     monitor: ThreadMonitor,
-    item: Record<string, unknown>,
-    tool: string,
+    signature: string,
     at: number,
   ): void {
-    const observation = {
-      kind: item["type"] === "commandExecution" ? ("command" as const) : ("tool" as const),
-      name: tool,
-      input: item["type"] === "toolCall" ? item["input"] : undefined,
-      command: item["type"] === "commandExecution" ? tool : undefined,
-    };
-    const signature = signatureOf(observation);
     // A distinct signature re-arms the detector (F5's re-arm rule).
     monitor.lastAlertedSignature = noteObservedSignature(
       monitor.lastAlertedSignature,
@@ -603,7 +621,7 @@ export default async function plugin(bb: BbPluginApi) {
       );
       rows = await listEvents(monitor, { limit: SEED_FALLBACK_LIMIT });
     }
-    for (const row of rows) processEventRow(monitor, row);
+    for (const row of rows) processEventRow(monitor, row, { seeding: true });
   }
 
   async function runFollower(monitor: ThreadMonitor): Promise<void> {

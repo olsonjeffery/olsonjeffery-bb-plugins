@@ -27,14 +27,28 @@ describe("signatureOf", () => {
     );
   });
 
+  it("skips coarse command signatures: fewer than two meaningful tokens", () => {
+    // bb's event-log started rows carry only the shell binary.
+    expect(signatureOf({ kind: "command", command: "bash" })).toBeNull();
+    expect(signatureOf({ kind: "command", command: "   \n" })).toBeNull();
+    expect(signatureOf({ kind: "command", command: "zsh" })).toBeNull();
+  });
+
   it("builds a tool signature from the tool name plus a compact input summary", () => {
-    expect(signatureOf({ kind: "tool", name: "Bash" })).toBe("tool:Bash");
     expect(signatureOf({ kind: "tool", name: "Bash", input: { command: "ls" } })).toBe(
       'tool:Bash({"command":"ls"})',
     );
     expect(signatureOf({ kind: "tool", name: "Read", input: "some long string input" })).toBe(
       "tool:Read(some long string input)",
     );
+  });
+
+  it("skips toolCall signatures the event log stripped (empty or {} input)", () => {
+    expect(signatureOf({ kind: "tool", name: "Read" })).toBeNull();
+    expect(signatureOf({ kind: "tool", name: "Read", input: undefined })).toBeNull();
+    expect(signatureOf({ kind: "tool", name: "Read", input: null })).toBeNull();
+    expect(signatureOf({ kind: "tool", name: "read", input: {} })).toBeNull();
+    expect(signatureOf({ kind: "tool", name: "read", input: "" })).toBeNull();
   });
 });
 
