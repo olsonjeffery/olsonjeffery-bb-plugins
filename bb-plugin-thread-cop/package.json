@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-thread-cop",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "bb": ">=0.39.0",
+    "bbPluginSdk": ">=0.4.8"
+  },
+  "bb": {
+    "name": "Thread Cop",
+    "description": "Watches every thread's tool calls and nudges the agent when one hangs past the timeout: an 'Idle Tool Nudge' steer message, once per hang, capped at 3 per call.",
+    "branding": {
+      "icon": "Timer"
+    },
+    "server": "./server.ts",
+    "skills": []
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.5.29",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.3.0",
+    "better-sqlite3": "^12.11.1",
+    "cron-parser": "^5.10.1",
+    "hono": "^4.13.12",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
