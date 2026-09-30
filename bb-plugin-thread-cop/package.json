@@ -4,7 +4,7 @@
   "type": "module",
   "engines": {
     "bb": ">=0.44.0",
-    "bbPluginSdk": ">=0.5.31"
+    "bbPluginSdk": ">=0.5.29"
   },
   "bb": {
     "name": "Thread Cop",
