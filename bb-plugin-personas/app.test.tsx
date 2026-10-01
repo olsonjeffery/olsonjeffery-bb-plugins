@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, waitFor } from "@testing-library/react";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { EMOJIS } from "./personas";
 
@@ -234,8 +235,7 @@ const FLOATING_NOTES = {
 };
 
 const RPC = {
-  listRail: () => ({ personas: RAIL_PERSONAS }),
-  getPersona: (input: unknown) => {
+  listRail: () => ({ personas: RAIL_PERSONAS }),  getPersona: (input: unknown) => {
     const { personaId } = input as { personaId: string };
     return { persona: PERSONAS_BY_ID[personaId] ?? null };
   },
@@ -303,6 +303,53 @@ async function loadPanel() {
   const [panel] = app.navPanels;
   expect(panel).toBeDefined();
   return panel!;
+}
+
+/** A full PluginSidebarThread with idle defaults, for sidebarThreads fixtures. */
+function sidebarThread(
+  overrides: Partial<PluginSidebarThread> & Pick<PluginSidebarThread, "id">,
+): PluginSidebarThread {
+  return {
+    projectId: "proj_work",
+    title: null,
+    titleFallback: "New chat",
+    displayTitle: "New chat",
+    parentThreadId: null,
+    lifecycleOwnerThreadId: null,
+    sourceThreadId: null,
+    sectionId: null,
+    originKind: null,
+    originPluginId: "personas",
+    providerId: "codex",
+    status: "idle",
+    runtimeStatus: "idle",
+    queuedWork: "none",
+    hasPendingInteraction: false,
+    activity: {
+      workflows: 0,
+      backgroundAgents: 0,
+      backgroundCommands: 0,
+      planMode: 0,
+      goals: 0,
+    },
+    indicator: "none",
+    indicatorLabel: null,
+    isUnread: false,
+    isPinned: false,
+    pinnedAt: null,
+    pinSortKey: null,
+    isArchived: false,
+    archivedAt: null,
+    href: "/projects/proj_work/threads/thr_fixture",
+    isHidden: false,
+    environment: null,
+    host: null,
+    createdAt: 0,
+    updatedAt: 0,
+    lastReadAt: null,
+    latestAttentionAt: 0,
+    ...overrides,
+  };
 }
 
 describe("personas nav panel", () => {
@@ -1146,6 +1193,142 @@ describe("personas nav panel", () => {
       };
     },
   };
+
+  // Same chat list but with a just-updated row, so the idle timestamp reads
+  // "now" and the difference from the running state is observable.
+  const RECENT_CHAT_RPC = {
+    ...RPC,
+    listChats: (input: unknown) => {
+      const { personaId } = input as { personaId: string };
+      if (personaId !== "persona_1") return { chats: [], archivedChats: [] };
+      return {
+        chats: [
+          {
+            threadId: "thr_new",
+            title: "Ahoy there",
+            status: "active",
+            updatedAt: Date.now(),
+            pinnedAt: null,
+            archivedAt: null,
+          },
+        ],
+        archivedChats: [],
+      };
+    },
+  };
+
+  // -- Running-chat spinner ------------------------------------------------
+  //
+  // ChatRow asks the host's live sidebar view whether work is running on
+  // the thread; the harness feeds that view through renderSlot's
+  // sidebarThreads behavior.
+
+  it("shows a spinner instead of the timestamp while the chat is running", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(
+      panel,
+      { subPath: "persona_1/new" },
+      {
+        rpc: RECENT_CHAT_RPC,
+        sidebarThreads: {
+          status: "ready",
+          threads: [
+            sidebarThread({ id: "thr_new", status: "active" }),
+          ],
+        },
+      },
+    );
+
+    await slot.findByText("Chats (1)");
+    await slot.findByLabelText("Running");
+    expect(slot.queryByText("now")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("treats the busy execution statuses — starting, active, stopping — as running, and idle as not", async () => {
+    const panel = await loadPanel();
+    for (const status of ["starting", "active", "stopping"] as const) {
+      const slot = renderSlot(
+        panel,
+        { subPath: "persona_1/new" },
+        {
+          rpc: RECENT_CHAT_RPC,
+          sidebarThreads: {
+            status: "ready",
+            threads: [sidebarThread({ id: "thr_new", status })],
+          },
+        },
+      );
+      await slot.findByText("Chats (1)");
+      await slot.findByLabelText("Running");
+      expect(slot.queryByText("now")).toBeNull();
+      slot.lifecycle.unmount();
+    }
+
+    const idle = renderSlot(
+      panel,
+      { subPath: "persona_1/new" },
+      {
+        rpc: RECENT_CHAT_RPC,
+        sidebarThreads: {
+          status: "ready",
+          threads: [sidebarThread({ id: "thr_new", status: "idle" })],
+        },
+      },
+    );
+    await idle.findByText("Chats (1)");
+    await idle.findByText("now");
+    expect(idle.queryByLabelText("Running")).toBeNull();
+    idle.lifecycle.unmount();
+  });
+
+  it("shows the relative timestamp when the chat is not running", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(
+      panel,
+      { subPath: "persona_1/new" },
+      {
+        rpc: RECENT_CHAT_RPC,
+        sidebarThreads: {
+          status: "ready",
+          threads: [sidebarThread({ id: "thr_new" })],
+        },
+      },
+    );
+
+    await slot.findByText("Chats (1)");
+    await slot.findByText("now");
+    expect(slot.queryByLabelText("Running")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("never shows a running spinner on an archived chat row", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(
+      panel,
+      { subPath: "persona_1/new" },
+      {
+        rpc: CHAT_ROW_RPC,
+        sidebarThreads: {
+          status: "ready",
+          threads: [
+            sidebarThread({
+              id: "thr_old",
+              status: "active",
+              isArchived: true,
+              archivedAt: 60,
+            }),
+          ],
+        },
+      },
+    );
+
+    await slot.findByText("Archived (1)");
+    fireEvent.click(slot.getByText("Archived (1)"));
+    await slot.findByText("Buried treasure");
+    expect(slot.queryByLabelText("Running")).toBeNull();
+    slot.lifecycle.unmount();
+  });
 
   it("fires Pin from a chat row's ⋯ menu despite the trigger losing focus to the item", async () => {
     const panel = await loadPanel();

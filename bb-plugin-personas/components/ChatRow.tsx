@@ -1,5 +1,9 @@
 import { useRef, useState } from "react";
-import { experimental_useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
+import {
+  experimental_useSidebarThreadActions,
+  experimental_useSidebarThreads,
+} from "@get-bb/plugin-sdk/app";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
@@ -8,6 +12,25 @@ import { usePersonasRpc } from "@/components/use-query";
 import { cn } from "@/lib/utils";
 
 const RENAME_LIMIT = 200;
+
+/**
+ * Whether the host's live sidebar view sees work running on this thread:
+ * its execution status is one of bb's busy values ("starting", "active",
+ * "stopping"). An unknown value reads as "idle" and a missing thread (view
+ * still loading, row already gone) as not running — the timestamp stays.
+ */
+export function isThreadRunning(
+  threads: readonly PluginSidebarThread[],
+  threadId: string,
+): boolean {
+  const thread = threads.find((candidate) => candidate.id === threadId);
+  if (thread === undefined) return false;
+  return (
+    thread.status === "starting" ||
+    thread.status === "active" ||
+    thread.status === "stopping"
+  );
+}
 
 /** The subset of server.ts's ChatSchema a row needs to render and act on. */
 export interface RowChat {
@@ -37,6 +60,7 @@ export function ChatRow({
 }) {
   const rpc = usePersonasRpc();
   const actions = experimental_useSidebarThreadActions();
+  const { threads } = experimental_useSidebarThreads();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(chat.title ?? "");
@@ -125,6 +149,8 @@ export function ChatRow({
   }
 
   const isPinned = chat.pinnedAt !== null;
+  // Archived threads can't run; the sidebar view is the "active" check.
+  const isRunning = !archived && isThreadRunning(threads, chat.threadId);
 
   return (
     <div
@@ -186,9 +212,15 @@ export function ChatRow({
           </span>
         </button>
       )}
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {formatRelative(chat.updatedAt)}
-      </span>
+      {isRunning ? (
+        <span aria-label="Running" className="shrink-0 text-muted-foreground">
+          <Icon name="Spinner" className="size-3.5 animate-spin" aria-hidden />
+        </span>
+      ) : (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {formatRelative(chat.updatedAt)}
+        </span>
+      )}
       {isEditing ? null : (
         <Icon
           name="ChevronRight"

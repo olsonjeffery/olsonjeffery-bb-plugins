@@ -82,7 +82,11 @@ trashcan ("Delete persona") that opens the delete confirmation.
 
 The composer view routes live at `<personaId>` and the equivalent
 `<personaId>/new` (both parse to the same PersonaHome); the editor is
-`<personaId>/edit`.
+`<personaId>/edit`. Each row in the chat list shows a spinning glyph instead
+of its relative timestamp while the host's live sidebar view sees work
+running on the thread (`isThreadRunning`: status "starting"/"active"/
+"stopping"); unknown status reads idle, missing threads never spin, and
+archived rows never spin.
 
 ## Homepage launcher
 
