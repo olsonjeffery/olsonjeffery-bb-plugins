@@ -82,6 +82,7 @@ export const DEFAULT_LOOP_PROMPT =
   "The same call has repeated many times in a row: {signature}. This looks like a runaway loop — stop and take a different approach.";
 
 const FOLLOWER_EVENT_TYPES = [
+  "turn/started",
   "item/started",
   "item/completed",
   "item/toolCall/progress",
@@ -668,7 +669,15 @@ export default async function plugin(bb: BbPluginApi) {
   async function attachMonitor(threadId: string, active: boolean): Promise<void> {
     if (monitors.has(threadId)) {
       const existing = monitors.get(threadId)!;
-      if (active) existing.active = true;
+      if (active) {
+        // A drained (idle/failed) monitor carries a silence clock frozen at
+        // the previous episode — 15+ idle minutes would instantly expire the
+        // F2 window when the thread resumes. Restart it on the false→true
+        // transition.
+        const wasActive = existing.active;
+        existing.active = true;
+        if (!wasActive) existing.lastEventAt = Date.now();
+      }
       return;
     }
     if (monitors.size >= MAX_MONITORS) {

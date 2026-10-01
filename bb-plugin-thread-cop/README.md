@@ -106,6 +106,11 @@ Invalid values safe-degrade to the defaults. Settings edits apply live via
   `turn/completed` / `thread.idle`. Skipped while a pending interaction
   exists (the agent can't respond while blocked) and while a watched tool
   call is pending (that call owns the thread — B1's beat).
+- **The silence clock restarts with the thread, not the turn**: `turn/started`
+  is a watched event type and every watched row refreshes `lastEventAt`, and a
+  monitor reactivated after `thread.idle`/`thread.failed` (drained, still
+  resident) resets `lastEventAt` on the inactive → active transition — an
+  idle gap never carries over into a resumed turn's window.
 - **F5 runaway-loop detector** (experimental): a per-thread ring buffer of
   normalized call signatures (command text for commandExecution; tool name +
   compact input summary for toolCall). When `loopRepeatCount` identical
