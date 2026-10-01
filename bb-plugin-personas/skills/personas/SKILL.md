@@ -67,16 +67,30 @@ on every turn.
   removable — `updatePersonaPrompt` rejects them server-side; remove and
   re-attach instead.
 
-## Live-edit detail view
+## Detail view and settings
 
-Clicking a persona in the rail lands directly in its live editor — the
-detail view and the settings screen are one page. Every field (name, icon,
-color, prompt pool, provider, model, reasoning, project) autosaves on change
-(`savePersona`'s field-diffing patch); while a save is in flight the header
-shows a spinner plus "Saving…", then "Saved ✓". A published persona's
-"Done" button flushes the pending save and moves to its new-chat page. There
-is no gear/settings button anywhere on a persona; the ⋯ menu offers only
-New chat and Delete persona.
+Clicking a persona in the rail (or choosing one from the launcher section on
+BB's New Thread screen) lands in its **composer view** — PersonaHome: the
+persona's composer above its chat list. The header carries a gear button
+("Edit persona settings") that opens the live editor; "Done" in the editor
+flushes the pending save and returns to the composer view. Every editor field
+(name, icon, color, prompt pool, provider, model, reasoning, project)
+autosaves on change (`savePersona`'s field-diffing patch); while a save is in
+flight the header shows a spinner plus "Saving…", then "Saved ✓". The ⋯ menu
+offers only New chat and Delete persona.
+
+The composer view routes live at `<personaId>` and the equivalent
+`<personaId>/new` (both parse to the same PersonaHome); the editor is
+`<personaId>/edit`.
+
+## Homepage launcher
+
+Personas registers a `homepageSection` slot ("persona-launcher") rendered on
+BB's generic New Thread screen: a compact list of the published personas
+(drafts excluded) with their prompt-pool preview. Choosing a persona
+navigates into the Personas panel's composer view for that persona instead
+of starting an unpersonad thread; with no personas the section shows a muted
+"No personas yet."
 
 ## Settings
 

@@ -46,6 +46,8 @@ With Personas, you can:
 - keep personas without a project for everyday conversations
 - create drafts before making a persona available to chat with
 - keep chat history as normal BB threads
+- pick a persona straight from BB's New Thread screen — its launcher section
+  lists your published personas and jumps into that persona's composer
 
 A persona is not a separate chat app. It lives in BB and uses BB's existing thread,
 composer, attachment, archive, and delete experience.
@@ -73,8 +75,9 @@ Requires BB `>=0.39.0`.
 3. Give the persona a name, pick its icon and color, and add prompts to its prompt pool.
 4. Choose its provider, model, and reasoning level.
 5. Optionally select a project if the persona should work with a repository.
-6. Click **Publish**.
-7. Start a chat.
+6. Click **Publish** — Done returns you to the persona's composer.
+7. Start a chat. You can reopen the settings screen any time from the gear
+   button in the persona's composer header.
 
 <img alt="The Set up persona form: name, emoji, prompt pool, provider, model, reasoning level and project, with Publish persona disabled until the required fields are filled." src="assets/screenshots/persona-creation-light.png">
 

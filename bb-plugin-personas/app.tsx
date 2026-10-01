@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { parseRoute } from "@/personas";
 import { PersonaChatView } from "@/components/PersonaChatView";
 import { PersonaEditor } from "@/components/PersonaEditor";
+import { PersonaHomepageSection } from "@/components/PersonaHomepageSection";
 import { PersonaHome } from "@/components/PersonaHome";
 import { PersonaRail } from "@/components/PersonaRail";
 import { PluginHealthSection } from "@/components/PluginHealthSection";
@@ -103,18 +104,18 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
       );
       break;
     case "persona":
+    case "newChat":
+      // Clicking a persona in the rail lands in its composer view: the
+      // persona's NewThreadComposer above its chat list. The editor is a
+      // separate settings screen the header's gear button opens.
+      content = <PersonaHome personaId={route.personaId} onBack={onBack} />;
+      break;
     case "edit":
-      // The persona detail page IS the live edit: clicking a persona in the
-      // rail lands straight in its editor (every field autosaves), so there
-      // is no separate settings/config screen to gear into.
       content = (
         <DocumentPane onBack={onBack}>
           <PersonaEditor personaId={route.personaId} />
         </DocumentPane>
       );
-      break;
-    case "newChat":
-      content = <PersonaHome personaId={route.personaId} onBack={onBack} />;
       break;
     case "chat":
       content = (
@@ -158,6 +159,15 @@ export default definePluginApp((app) => {
     icon: "personas/speaking",
     path: PANEL_PATH,
     component: PersonasPanel,
+  });
+
+  // The Personas section on BB's generic New Thread screen: choosing a
+  // published persona there moves to that persona's composer view inside
+  // the Personas panel instead of starting an unpersonad thread.
+  app.slots.homepageSection({
+    id: "persona-launcher",
+    title: "Personas",
+    component: PersonaHomepageSection,
   });
 
   // The Personas settings page: an install-source row (local in-progress

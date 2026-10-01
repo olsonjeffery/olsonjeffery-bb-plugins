@@ -36,6 +36,7 @@ export function PersonaHeader({
   onNewChat,
   onDeletePersona,
   onGoToPersonaPage,
+  onOpenSettings,
 }: {
   persona: Persona;
   onBack?: () => void;
@@ -43,6 +44,8 @@ export function PersonaHeader({
   onDeletePersona: () => void;
   /** Omit when already on the persona's own page — the name renders as plain text. */
   onGoToPersonaPage?: () => void;
+  /** Omit on chat views — settings live on the persona's composer page. */
+  onOpenSettings?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -144,6 +147,16 @@ export function PersonaHeader({
           </div>
         ) : null}
       </div>
+      {onOpenSettings === undefined ? null : (
+        <button
+          type="button"
+          aria-label="Edit persona settings"
+          onClick={onOpenSettings}
+          className={`${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} inline-flex shrink-0 items-center justify-center hover:bg-accent`}
+        >
+          <Icon name="Settings" aria-hidden />
+        </button>
+      )}
 
       {/* Deleting is irreversible, so it always goes through this confirmation
           rather than firing straight off the menu click. */}
@@ -258,6 +271,9 @@ export function PersonaHome({
           navigate.toPluginPanel(PANEL_PATH, { subPath: `${personaId}/new` })
         }
         onDeletePersona={() => void remove()}
+        onOpenSettings={() =>
+          navigate.toPluginPanel(PANEL_PATH, { subPath: `${personaId}/edit` })
+        }
       />
       <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
         <div className="mx-auto w-full max-w-2xl space-y-5">

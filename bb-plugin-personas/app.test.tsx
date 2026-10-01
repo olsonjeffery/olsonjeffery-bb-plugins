@@ -357,12 +357,54 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("lands the persona detail view in the live editor with no redirect", async () => {
+  it("lands the persona detail view in the composer, not the editor", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_1" }, { rpc: RPC });
 
-    await slot.findByText("Live edit");
+    await slot.findByTestId("bb-new-thread-composer");
+    await slot.findByText("Chats (1)");
     expect(slot.inspection.navigateCalls).toEqual([]);
+    slot.lifecycle.unmount();
+  });
+
+  it("opens the settings screen from the composer header's gear button, and Done returns to the composer", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
+
+    await slot.findByTestId("bb-new-thread-composer");
+    expect(slot.queryByLabelText("Edit persona settings")).not.toBeNull();
+    (await slot.findByLabelText("Edit persona settings")).click();
+
+    expect(slot.inspection.navigateCalls).toContainEqual({
+      method: "toPluginPanel",
+      path: "personas",
+      options: { subPath: "persona_2/edit" },
+    });
+    slot.lifecycle.unmount();
+
+    // Done in the editor hands back to the composer.
+    const editor = renderSlot(panel, { subPath: "persona_2/edit" }, { rpc: RPC });
+    (await editor.findByText("Done")).click();
+    await waitFor(() =>
+      expect(editor.inspection.navigateCalls).toContainEqual({
+        method: "toPluginPanel",
+        path: "personas",
+        options: { subPath: "persona_2/new", replace: true },
+      }),
+    );
+    editor.lifecycle.unmount();
+  });
+
+  it("shows no gear/settings button on a persona chat view", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(
+      panel,
+      { subPath: "persona_1/thr_new" },
+      { rpc: RPC },
+    );
+
+    await slot.findByText("Ahoy there");
+    expect(slot.queryByLabelText("Edit persona settings")).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -494,12 +536,18 @@ describe("personas nav panel", () => {
     draft.lifecycle.unmount();
   });
 
-  it("shows no gear/settings button anywhere on the persona header", async () => {
+  it("renders the settings gear only on the composer page, not in the ⋯ menu", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
 
-    await slot.findByLabelText("More actions");
-    expect(slot.queryByLabelText("Edit persona settings")).toBeNull();
+    await slot.findByTestId("bb-new-thread-composer");
+    expect(slot.getByLabelText("Edit persona settings")).not.toBeNull();
+
+    const menuButton = await slot.findByLabelText("More actions");
+    menuButton.click();
+    await slot.findByRole("menu");
+    expect(slot.queryByRole("menuitem", { name: /settings/i })).toBeNull();
+
     slot.lifecycle.unmount();
   });
 
@@ -1376,6 +1424,52 @@ describe("personas nav panel", () => {
       );
       expect(call?.input).toEqual({ threadId: "thr_old" });
     });
+    slot.lifecycle.unmount();
+  });
+});
+
+describe("persona launcher homepage section", () => {
+  async function loadSection() {
+    const app = await loadPluginApp(() => import("./app"));
+    const [section] = app.homepageSections;
+    expect(section).toBeDefined();
+    return section!;
+  }
+
+  it("registers one homepage section at the New Thread screen", async () => {
+    const section = await loadSection();
+    expect(section.id).toBe("persona-launcher");
+    expect(section.title).toBe("Personas");
+  });
+
+  it("lists the published personas; choosing one moves to its composer view", async () => {
+    const section = await loadSection();
+    const slot = renderSlot(section, { projectId: null }, { rpc: RPC });
+
+    await slot.findByText("Pirate");
+    await slot.findByText("Builder");
+    // Drafts can't chat yet, so they never appear in the launcher.
+    expect(slot.queryByText("DRAFT")).toBeNull();
+    expect(slot.queryByTestId("bb-new-thread-composer")).toBeNull();
+
+    (await slot.findByText("Builder")).click();
+    expect(slot.inspection.navigateCalls).toContainEqual({
+      method: "toPluginPanel",
+      path: "personas",
+      options: { subPath: "persona_2" },
+    });
+    slot.lifecycle.unmount();
+  });
+
+  it("shows a muted empty state when no personas exist", async () => {
+    const section = await loadSection();
+    const slot = renderSlot(
+      section,
+      { projectId: null },
+      { rpc: { ...RPC, listRail: () => ({ personas: [] }) } },
+    );
+
+    await slot.findByText("No personas yet.");
     slot.lifecycle.unmount();
   });
 });
