@@ -56,6 +56,11 @@ Rendered on the plugin's settings page by the host:
 - **Runaway loop nudge prompt** (`loopPrompt`, multi-line, `{signature}`
   placeholder).
 
+Every nudge prompt is capped at 1000 characters (host-validated; the settings
+page shows a message under the field and `bb plugin config` rejects longer
+values). The host decides the text area's height and any live counter — the
+plugin cannot restyle it.
+
 Invalid values safe-degrade to the defaults. Settings edits apply live via
 `onChange`, no reload needed.
 

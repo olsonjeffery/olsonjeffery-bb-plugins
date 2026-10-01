@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-cop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "engines": {
     "bb": ">=0.44.0",
@@ -29,5 +29,8 @@
   "allowScripts": {
     "better-sqlite3@12.11.1": true,
     "esbuild@0.28.2": true
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
   }
 }

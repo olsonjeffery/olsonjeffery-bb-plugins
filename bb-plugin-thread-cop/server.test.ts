@@ -4,7 +4,10 @@ import {
   createFakePluginHost,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
-import plugin, { DEFAULT_NUDGE_PROMPT } from "./server.js";
+import plugin, {
+  DEFAULT_NUDGE_PROMPT,
+  PROMPT_MAX_CHARS,
+} from "./server.js";
 
 const MIN = 60_000;
 const T0 = 1_700_000_000_000;
@@ -341,6 +344,33 @@ describe("bb-plugin-thread-cop", () => {
       experimental_multiline: true,
       default: DEFAULT_NUDGE_PROMPT,
     });
+  });
+
+  it("caps every nudge prompt at 1000 characters", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    const registry =
+      host.harness.inspection.registrations.settingsDescriptors;
+    const promptKeys = [
+      "hungToolNudgePrompt",
+      "silentTurnPrompt",
+      "contextPressurePrompt",
+      "loopPrompt",
+    ];
+    for (const key of promptKeys) {
+      await host.harness.behavior.setSettings({
+        [key]: "y".repeat(PROMPT_MAX_CHARS),
+      });
+      await expect(
+        host.harness.behavior.setSettings({
+          [key]: "y".repeat(PROMPT_MAX_CHARS + 1),
+        }),
+      ).rejects.toThrow(/Prompt must be at most 1000 characters/);
+      await expect(
+        host.harness.behavior.setSettings({ [key]: null }),
+      ).resolves.toBeUndefined();
+    }
+    expect(promptKeys).toHaveLength(4);
   });
 
   it("attaches on thread.created, tags pluginMetadata, nudges once per hang window, caps at 3", async () => {
