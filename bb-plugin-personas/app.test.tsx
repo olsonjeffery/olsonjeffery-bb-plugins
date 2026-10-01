@@ -443,51 +443,12 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  // Regression coverage for the shipped bug: the "⋯" trigger had both
-  // onClick and onBlur, so moving focus from the trigger to any menu item
-  // fired the trigger's blur (closing and unmounting the menu) before the
-  // item's own click could land. Every item was dead. This drives the same
-  // focus transfer a real mousedown-then-click does — trigger.focus(), then
-  // item.focus() (which fires the trigger's blur with relatedTarget set to
-  // the item), then item.click() — so it fails under the old handler and
-  // passes only because the container-level blur now checks relatedTarget.
-  it("fires New chat from the ⋯ menu despite the trigger losing focus to the item", async () => {
+  it("deletes a persona from the header trashcan through the confirmation dialog", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
 
-    const menuButton = await slot.findByLabelText("More actions");
-    menuButton.focus();
-    menuButton.click();
-    const newChatItem = await slot.findByText("New chat");
-    fireEvent.focusOut(menuButton, { relatedTarget: newChatItem });
-    expect(newChatItem.isConnected).toBe(true);
-    newChatItem.click();
-
-    expect(slot.inspection.navigateCalls).toContainEqual({
-      method: "toPluginPanel",
-      path: "personas",
-      options: { subPath: "persona_2/new" },
-    });
-    slot.lifecycle.unmount();
-  });
-
-  it("opens the ⋯ menu, confirms Delete persona, and calls deletePersona", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-
-    const menuButton = await slot.findByLabelText("More actions");
-    menuButton.focus();
-    menuButton.click();
-    const deleteItem = await slot.findByText("Delete persona");
-
-    // The bug this pins: focus leaves the trigger for the menu item on
-    // mousedown, and the old handler closed the menu right then — unmounting
-    // the item before its click could land. jsdom's .focus() alone doesn't
-    // reproduce that, so dispatch the focusout React actually listens for and
-    // assert the item SURVIVES it before clicking.
-    fireEvent.focusOut(menuButton, { relatedTarget: deleteItem });
-    expect(deleteItem.isConnected).toBe(true);
-    deleteItem.click();
+    await slot.findByTestId("bb-new-thread-composer");
+    (await slot.findByLabelText("Delete persona")).click();
 
     await slot.findByText("Delete Builder?");
     (await slot.findByRole("button", { name: "Delete" })).click();
@@ -521,8 +482,8 @@ describe("personas nav panel", () => {
   it("renders the header subtitle only when the persona has provider, model, or reasoning to show", async () => {
     const panel = await loadPanel();
     const configured = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-    const configuredHeader = (await configured.findByLabelText("More actions"))
-      .closest("div.relative")!.parentElement!;
+    const configuredHeader = (await configured.findByLabelText("Delete persona"))
+      .closest("div")!;
     expect(configuredHeader.textContent).toContain("codex · gpt-5.5 · medium");
     configured.lifecycle.unmount();
 
@@ -530,43 +491,21 @@ describe("personas nav panel", () => {
     // reasoningLevel, so the joined subtitle must collapse away entirely
     // rather than rendering the separators around missing parts.
     const draft = renderSlot(panel, { subPath: "persona_3/new" }, { rpc: RPC });
-    const draftHeader = (await draft.findByLabelText("More actions"))
-      .closest("div.relative")!.parentElement!;
+    const draftHeader = (await draft.findByLabelText("Delete persona"))
+      .closest("div")!;
     expect(draftHeader.textContent).not.toContain("·");
     draft.lifecycle.unmount();
   });
 
-  it("renders the settings gear only on the composer page, not in the ⋯ menu", async () => {
+  it("has no ⋯ menu: gear and trashcan are the only header actions", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
 
     await slot.findByTestId("bb-new-thread-composer");
-    expect(slot.getByLabelText("Edit persona settings")).not.toBeNull();
-
-    const menuButton = await slot.findByLabelText("More actions");
-    menuButton.click();
-    await slot.findByRole("menu");
-    expect(slot.queryByRole("menuitem", { name: /settings/i })).toBeNull();
-
-    slot.lifecycle.unmount();
-  });
-
-  it("exposes the ⋯ menu as an ARIA menu, with aria-expanded tracking open state", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-
-    const menuButton = await slot.findByLabelText("More actions");
-    expect(menuButton.getAttribute("aria-haspopup")).toBe("menu");
-    expect(menuButton.getAttribute("aria-expanded")).toBe("false");
+    expect(slot.queryByLabelText("More actions")).toBeNull();
     expect(slot.queryByRole("menu")).toBeNull();
-
-    menuButton.click();
-
-    await slot.findByRole("menu");
-    expect(menuButton.getAttribute("aria-expanded")).toBe("true");
-    expect(
-      slot.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["New chat", "Delete persona"]);
+    expect(slot.getByLabelText("Edit persona settings")).not.toBeNull();
+    expect(slot.getByLabelText("Delete persona")).not.toBeNull();
 
     slot.lifecycle.unmount();
   });
@@ -1213,8 +1152,8 @@ describe("personas nav panel", () => {
     const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: CHAT_ROW_RPC });
 
     await slot.findByText("Chats (1)");
-    // Two "More actions" triggers exist on this page (the header's and the
-    // chat row's); the row's is the last one rendered.
+    // The persona header no longer renders a "More actions" trigger, so the
+    // chat row's ⋯ menu is the page's only one.
     const menuButtons = await slot.findAllByLabelText("More actions");
     const menuButton = menuButtons[menuButtons.length - 1]!;
     menuButton.focus();

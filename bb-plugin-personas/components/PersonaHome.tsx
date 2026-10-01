@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   experimental_NewThreadComposer as NewThreadComposer,
   useBbNavigate,
@@ -25,48 +25,27 @@ import { cn } from "@/lib/utils";
 import { displayName, draftBlockers, joinedPromptText, type Persona } from "@/personas";
 
 /**
- * The content-pane header shared by PersonaHome and PersonaChatView. There's no
- * dropdown primitive vendored under components/ui and this plugin adds no
- * new dependencies, so the more-actions menu is a plain absolutely-positioned
- * panel of buttons rather than a radix dropdown.
+ * The content-pane header shared by PersonaHome and PersonaChatView: back
+ * affordance, persona identity, then gear (when a settings screen exists)
+ * and trashcan actions. Deleting always goes through a confirmation dialog
+ * rather than firing straight off the button click.
  */
 export function PersonaHeader({
   persona,
   onBack,
-  onNewChat,
   onDeletePersona,
   onGoToPersonaPage,
   onOpenSettings,
 }: {
   persona: Persona;
   onBack?: () => void;
-  onNewChat: () => void;
   onDeletePersona: () => void;
   /** Omit when already on the persona's own page — the name renders as plain text. */
   onGoToPersonaPage?: () => void;
   /** Omit on chat views — settings live on the persona's composer page. */
   onOpenSettings?: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  // The menu used to close on the trigger's own onBlur, which fires on
-  // mousedown — before a menu item's click ever lands, so every item was
-  // dead. Closing on the *container's* blur instead, and only when focus
-  // actually left the container, lets focus move from the trigger to an
-  // item without closing the menu out from under the click.
-  function onMenuContainerBlur(event: React.FocusEvent<HTMLDivElement>) {
-    const next = event.relatedTarget;
-    if (next !== null && event.currentTarget.contains(next)) return;
-    setMenuOpen(false);
-  }
-
-  function onMenuContainerKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Escape") return;
-    setMenuOpen(false);
-    triggerRef.current?.focus();
-  }
 
   const subtitle = [persona.providerId, persona.model, persona.reasoningLevel]
     .filter((part) => part !== null && part !== "")
@@ -101,52 +80,6 @@ export function PersonaHeader({
           <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
-      <div
-        className="relative shrink-0"
-        onBlur={onMenuContainerBlur}
-        onKeyDown={onMenuContainerKeyDown}
-      >
-        <button
-          ref={triggerRef}
-          type="button"
-          aria-label="More actions"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-          className={`${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} inline-flex items-center justify-center hover:bg-accent`}
-        >
-          <Icon name="MoreHorizontal" aria-hidden />
-        </button>
-        {menuOpen ? (
-          <div
-            role="menu"
-            className="absolute right-0 top-full z-10 mt-1 w-36 rounded-md border border-border bg-popover p-1 shadow-md"
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                onNewChat();
-              }}
-              className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-            >
-              New chat
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                setDeleteDialogOpen(true);
-              }}
-              className="block w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent"
-            >
-              Delete persona
-            </button>
-          </div>
-        ) : null}
-      </div>
       {onOpenSettings === undefined ? null : (
         <button
           type="button"
@@ -157,6 +90,14 @@ export function PersonaHeader({
           <Icon name="Settings" aria-hidden />
         </button>
       )}
+      <button
+        type="button"
+        aria-label="Delete persona"
+        onClick={() => setDeleteDialogOpen(true)}
+        className={`${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} inline-flex shrink-0 items-center justify-center text-destructive hover:bg-accent`}
+      >
+        <Icon name="Trash2" aria-hidden />
+      </button>
 
       {/* Deleting is irreversible, so it always goes through this confirmation
           rather than firing straight off the menu click. */}
@@ -267,9 +208,6 @@ export function PersonaHome({
       <PersonaHeader
         persona={persona}
         onBack={onBack}
-        onNewChat={() =>
-          navigate.toPluginPanel(PANEL_PATH, { subPath: `${personaId}/new` })
-        }
         onDeletePersona={() => void remove()}
         onOpenSettings={() =>
           navigate.toPluginPanel(PANEL_PATH, { subPath: `${personaId}/edit` })
