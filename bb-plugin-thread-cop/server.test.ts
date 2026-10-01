@@ -63,6 +63,10 @@ function turnCompletedRow(threadId: string, seq: number, createdAt: number) {
   return row(threadId, seq, "turn/completed", { status: "completed" }, createdAt);
 }
 
+function turnStartedRow(threadId: string, seq: number, createdAt: number) {
+  return row(threadId, seq, "turn/started", { providerThreadId: "ses_1" }, createdAt);
+}
+
 function interactionRow(
   threadId: string,
   seq: number,
@@ -816,6 +820,52 @@ describe("bb-plugin-thread-cop v2 — silent-turn watchdog (F2)", () => {
     await runSweep(host.harness);
     expect(host.sends).toHaveLength(3);
     expect(host.sends[2]).toMatchObject({ mode: "steer" });
+  });
+
+  it("restarts the silence clock when an idle thread reactivates (drained monitor, stale clock)", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await attachQuietThread(host, "th_1");
+
+    // Thread goes idle: the monitor drains but stays resident, and its clock
+    // keeps counting from the reference thread idling away.
+    await host.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: makeThreadResponse({ id: "th_1", status: "idle" }),
+      lastAssistantText: null,
+    });
+
+    // The thread resumes long after idling — the stale pre-idle clock must
+    // not expire the F2 window the moment the monitor wakes up.
+    vi.setSystemTime(T0 + 45 * MIN);
+    await host.harness.behavior.emitThreadEvent("thread.active", {
+      thread: makeThreadResponse({ id: "th_1", status: "active" }),
+    });
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0);
+
+    // The clock did restart: normal silence still nudges 15 min in.
+    vi.setSystemTime(T0 + 60 * MIN + 1);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1);
+    expect(inputText(host.sends[0])).toContain("Silent Turn Nudge");
+  });
+
+  it("treats turn/started as activity that refreshes the silence clock", async () => {
+    const host = freshHost();
+    await plugin(host.bb);
+    await attachQuietThread(host, "th_1");
+    // A resumed turn begins long after the clock ran quiet: turn/started lands
+    // in the log but no followed item has arrived yet.
+    host.eventLogs.get("th_1")!.push(turnStartedRow("th_1", 1, T0 + 14 * MIN));
+    await advanceFollower();
+
+    vi.setSystemTime(T0 + 29 * MIN);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(0); // 15 min past the turn/started — still inside the window
+
+    vi.setSystemTime(T0 + 29 * MIN + 1);
+    await runSweep(host.harness);
+    expect(host.sends).toHaveLength(1); // the window expired on the turn/started row
   });
 });
 
