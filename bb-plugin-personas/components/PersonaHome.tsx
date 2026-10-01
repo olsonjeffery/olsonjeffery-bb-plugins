@@ -106,7 +106,8 @@ export function PersonaHeader({
           <DialogHeader>
             <DialogTitle>Delete {displayName(persona)}?</DialogTitle>
             <DialogDescription>
-              Its chats stay in BB but stop following these instructions.
+              Chats stay in BB as normal threads — they just stop getting
+              this persona's prompts.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
