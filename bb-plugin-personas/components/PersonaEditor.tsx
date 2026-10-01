@@ -495,7 +495,11 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   return (
     <div className="space-y-5">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-medium">{isDraft ? "Set up persona" : "Live edit"}</h2>
+        <h2 className="text-sm font-medium">
+          {isDraft
+            ? "Set up persona"
+            : `Settings for ${displayName(currentPersona)}`}
+        </h2>
         <span
           aria-live="polite"
           className="flex items-center gap-1.5 text-xs text-muted-foreground"

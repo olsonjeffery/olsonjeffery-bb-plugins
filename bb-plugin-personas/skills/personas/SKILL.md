@@ -72,7 +72,7 @@ on every turn.
 Clicking a persona in the rail (or choosing one from the launcher section on
 BB's New Thread screen) lands in its **composer view** — PersonaHome: the
 persona's composer above its chat list. The header carries a gear button
-("Edit persona settings") that opens the live editor; "Done" in the editor
+("Edit persona settings") that opens the settings screen; "Done" in the editor
 flushes the pending save and returns to the composer view. Every editor field
 (name, icon, color, prompt pool, provider, model, reasoning, project)
 autosaves on change (`savePersona`'s field-diffing patch); while a save is in
