@@ -19,6 +19,7 @@ import type {
   JsonValue,
   PluginTurnFailedEvent,
 } from "@get-bb/plugin-sdk";
+import { z } from "zod";
 import {
   clearThread,
   dueToolCalls,
@@ -68,6 +69,8 @@ export const CONTEXT_PRESSURE_REARM_POINTS = 15;
 export const DEFAULT_LOOP_REPEAT_COUNT = 8;
 export const DEFAULT_LOOP_WINDOW_MS = 480_000;
 export const DEFAULT_MAX_FAILED_TURN_RETRIES = 2;
+// Nudge prompts are host-rendered text areas; a cap keeps stored values sane.
+export const PROMPT_MAX_CHARS = 1000;
 const MAX_SILENCE_INTERVENTIONS = 2;
 const ALERT_RE_ARM_MS = 60 * 60_000;
 
@@ -211,6 +214,16 @@ function validNumber(value: unknown, floor: number): number | null {
   return value;
 }
 
+/** Rejects nudges prompts over the host-textarea cap; message shows under the field. */
+function promptSchema(): z.ZodString {
+  return z
+    .string()
+    .max(
+      PROMPT_MAX_CHARS,
+      `Prompt must be at most ${PROMPT_MAX_CHARS} characters`,
+    );
+}
+
 function errorInfoSummary(errorInfo: PluginTurnFailedEvent["errorInfo"]): string {
   if (errorInfo === null) return "no classification";
   return `${errorInfo.category}${errorInfo.httpStatusCode !== null ? ` (http ${errorInfo.httpStatusCode})` : ""}${errorInfo.providerCode ? ` code=${errorInfo.providerCode}` : ""}`;
@@ -228,6 +241,7 @@ export default async function plugin(bb: BbPluginApi) {
     hungToolNudgePrompt: {
       type: "string",
       experimental_multiline: true,
+      experimental_schema: promptSchema(),
       label: "Hung Tool nudge prompt",
       description: "The message sent to the agent when a tool call hangs.",
       default: DEFAULT_NUDGE_PROMPT,
@@ -256,6 +270,7 @@ export default async function plugin(bb: BbPluginApi) {
     silentTurnPrompt: {
       type: "string",
       experimental_multiline: true,
+      experimental_schema: promptSchema(),
       label: "Silent turn nudge prompt",
       description: "The message sent to the agent when a turn goes silent.",
       default: DEFAULT_SILENT_TURN_PROMPT,
@@ -277,6 +292,7 @@ export default async function plugin(bb: BbPluginApi) {
     contextPressurePrompt: {
       type: "string",
       experimental_multiline: true,
+      experimental_schema: promptSchema(),
       label: "Context pressure nudge prompt",
       description: "The message sent to the agent when context pressure crosses the threshold.",
       default: DEFAULT_CONTEXT_PRESSURE_PROMPT,
@@ -297,6 +313,7 @@ export default async function plugin(bb: BbPluginApi) {
     loopPrompt: {
       type: "string",
       experimental_multiline: true,
+      experimental_schema: promptSchema(),
       label: "Runaway loop nudge prompt",
       description: "{signature} is replaced with the repeated call's signature.",
       default: DEFAULT_LOOP_PROMPT,
