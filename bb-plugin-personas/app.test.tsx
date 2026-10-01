@@ -476,7 +476,7 @@ describe("personas nav panel", () => {
     editor.lifecycle.unmount();
   });
 
-  it("shows no gear/settings button on a persona chat view", async () => {
+  it("shows no gear or delete button on a persona chat view", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(
       panel,
@@ -486,6 +486,7 @@ describe("personas nav panel", () => {
 
     await slot.findByText("Ahoy there");
     expect(slot.queryByLabelText("Edit persona settings")).toBeNull();
+    expect(slot.queryByLabelText("Delete persona")).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -525,14 +526,17 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("deletes a persona from the header trashcan through the confirmation dialog", async () => {
+  it("deletes a published persona from the editor through the confirmation dialog", async () => {
     const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
+    const slot = renderSlot(panel, { subPath: "persona_2/edit" }, { rpc: RPC });
 
-    await slot.findByTestId("bb-new-thread-composer");
-    (await slot.findByLabelText("Delete persona")).click();
+    (await slot.findByText("Delete persona")).click();
 
     await slot.findByText("Delete Builder?");
+    // The published delete explains what happens to the chats.
+    await slot.findByText(
+      "Chats stay in BB as normal threads — they just stop getting this persona's prompts.",
+    );
     (await slot.findByRole("button", { name: "Delete" })).click();
 
     await waitFor(() => {
@@ -551,6 +555,19 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
+  it("shows no delete affordance on the persona composer page — deletion lives in settings", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
+
+    await slot.findByTestId("bb-new-thread-composer");
+    expect(slot.queryByLabelText("Delete persona")).toBeNull();
+    expect(slot.queryByText("Delete persona")).toBeNull();
+    expect(slot.queryByRole("menu")).toBeNull();
+    expect(slot.getByLabelText("Edit persona settings")).not.toBeNull();
+
+    slot.lifecycle.unmount();
+  });
+
   it("clamps instructions with a working Show more / Show less toggle", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
@@ -564,7 +581,7 @@ describe("personas nav panel", () => {
   it("renders the header subtitle only when the persona has provider, model, or reasoning to show", async () => {
     const panel = await loadPanel();
     const configured = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-    const configuredHeader = (await configured.findByLabelText("Delete persona"))
+    const configuredHeader = (await configured.findByLabelText("Edit persona settings"))
       .closest("div")!;
     expect(configuredHeader.textContent).toContain("codex · gpt-5.5 · medium");
     configured.lifecycle.unmount();
@@ -573,23 +590,10 @@ describe("personas nav panel", () => {
     // reasoningLevel, so the joined subtitle must collapse away entirely
     // rather than rendering the separators around missing parts.
     const draft = renderSlot(panel, { subPath: "persona_3/new" }, { rpc: RPC });
-    const draftHeader = (await draft.findByLabelText("Delete persona"))
+    const draftHeader = (await draft.findByLabelText("Edit persona settings"))
       .closest("div")!;
     expect(draftHeader.textContent).not.toContain("·");
     draft.lifecycle.unmount();
-  });
-
-  it("has no ⋯ menu: gear and trashcan are the only header actions", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-
-    await slot.findByTestId("bb-new-thread-composer");
-    expect(slot.queryByLabelText("More actions")).toBeNull();
-    expect(slot.queryByRole("menu")).toBeNull();
-    expect(slot.getByLabelText("Edit persona settings")).not.toBeNull();
-    expect(slot.getByLabelText("Delete persona")).not.toBeNull();
-
-    slot.lifecycle.unmount();
   });
 
   it("confirms before deleting a draft from the editor", async () => {

@@ -6,15 +6,6 @@ import {
 import type { NewThreadRequest } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
@@ -26,27 +17,22 @@ import { displayName, draftBlockers, joinedPromptText, type Persona } from "@/pe
 
 /**
  * The content-pane header shared by PersonaHome and PersonaChatView: back
- * affordance, persona identity, then gear (when a settings screen exists)
- * and trashcan actions. Deleting always goes through a confirmation dialog
- * rather than firing straight off the button click.
+ * affordance, persona identity, and the gear into the settings screen.
+ * Deleting lives in the settings screen, not here.
  */
 export function PersonaHeader({
   persona,
   onBack,
-  onDeletePersona,
   onGoToPersonaPage,
   onOpenSettings,
 }: {
   persona: Persona;
   onBack?: () => void;
-  onDeletePersona: () => void;
   /** Omit when already on the persona's own page — the name renders as plain text. */
   onGoToPersonaPage?: () => void;
   /** Omit on chat views — settings live on the persona's composer page. */
   onOpenSettings?: () => void;
 }) {
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
   const subtitle = [persona.providerId, persona.model, persona.reasoningLevel]
     .filter((part) => part !== null && part !== "")
     .join(" · ");
@@ -90,42 +76,6 @@ export function PersonaHeader({
           <Icon name="Settings" aria-hidden />
         </button>
       )}
-      <button
-        type="button"
-        aria-label="Delete persona"
-        onClick={() => setDeleteDialogOpen(true)}
-        className={`${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} inline-flex shrink-0 items-center justify-center text-destructive hover:bg-accent`}
-      >
-        <Icon name="Trash2" aria-hidden />
-      </button>
-
-      {/* Deleting is irreversible, so it always goes through this confirmation
-          rather than firing straight off the menu click. */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete {displayName(persona)}?</DialogTitle>
-            <DialogDescription>
-              Chats stay in BB as normal threads — they just stop getting
-              this persona's prompts.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteDialogOpen(false);
-                onDeletePersona();
-              }}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -172,9 +122,6 @@ export function PersonaHome({
   const { personalProjectId } = data[1];
   const chats = data[2].chats;
   const archivedChats = data[2].archivedChats;
-  // TS's control-flow narrowing of `persona` doesn't reach into the closures
-  // below, so the name is captured here rather than re-read from `persona`.
-  const personaName = displayName(persona);
 
   // The composer only clears its draft when onSubmit resolves and keeps it
   // if onSubmit throws, so a failed create never loses the user's message
@@ -192,16 +139,6 @@ export function PersonaHome({
     }
   }
 
-  async function remove() {
-    try {
-      await rpc.call("deletePersona", { personaId });
-      toast.success(`Deleted ${personaName}`);
-      navigate.toPluginPanel(PANEL_PATH, { subPath: "", replace: true });
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
   const isDraft = persona.status === "draft";
   const blockers = draftBlockers(persona);
 
@@ -210,7 +147,6 @@ export function PersonaHome({
       <PersonaHeader
         persona={persona}
         onBack={onBack}
-        onDeletePersona={() => void remove()}
         onOpenSettings={() =>
           navigate.toPluginPanel(PANEL_PATH, { subPath: `${personaId}/edit` })
         }

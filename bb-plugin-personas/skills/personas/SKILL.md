@@ -76,9 +76,10 @@ persona's composer above its chat list. The header carries a gear button
 flushes the pending save and returns to the composer view. Every editor field
 (name, icon, color, prompt pool, provider, model, reasoning, project)
 autosaves on change (`savePersona`'s field-diffing patch); while a save is in
-flight the header shows a spinner plus "Saving…", then "Saved ✓". The header
-actions are just the gear ("Edit persona settings", composer view only) and a
-trashcan ("Delete persona") that opens the delete confirmation.
+flight the header shows a spinner plus "Saving…", then "Saved ✓". The composer
+header has no delete affordance — deletion lives only in the settings screen,
+whose footer shows "Delete draft" for a draft and "Delete persona" for a
+published persona, both behind the same confirmation dialog.
 
 The composer view routes live at `<personaId>` and the equivalent
 `<personaId>/new` (both parse to the same PersonaHome); the editor is

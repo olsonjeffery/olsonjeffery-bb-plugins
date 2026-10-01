@@ -1,11 +1,16 @@
 import { ThreadChat, useBbNavigate } from "@get-bb/plugin-sdk/app";
-import { toast } from "sonner";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
 import { PersonaHeader } from "@/components/PersonaHome";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
 
+/**
+ * The embedded chat view, reachable only on a deep link to
+ * `<personaId>/<threadId>` — normal flow opens chats on BB's real thread
+ * route (navigate.toThread). No delete affordance here: deleting a persona
+ * lives in its settings screen.
+ */
 export function PersonaChatView({
   personaId,
   threadId,
@@ -19,19 +24,6 @@ export function PersonaChatView({
   const navigate = useBbNavigate();
   const { data, error } = useQuery(() => rpc.call("getPersona", { personaId }), `chat:${personaId}`);
   const persona = data?.persona ?? null;
-
-  // Deleting a persona leaves its chats intact (they just stop receiving the
-  // persona), so this stays reachable from an already-open chat.
-  async function remove() {
-    if (persona === null) return;
-    try {
-      await rpc.call("deletePersona", { personaId });
-      toast.success(`Deleted ${persona.name}`);
-      navigate.toPluginPanel(PANEL_PATH, { subPath: "", replace: true });
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -57,7 +49,6 @@ export function PersonaChatView({
         <PersonaHeader
           persona={persona}
           onBack={onBack}
-          onDeletePersona={() => void remove()}
           onGoToPersonaPage={() =>
             navigate.toPluginPanel(PANEL_PATH, { subPath: personaId })
           }

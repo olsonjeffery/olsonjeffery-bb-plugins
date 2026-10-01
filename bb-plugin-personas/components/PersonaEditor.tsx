@@ -390,7 +390,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
     }
   }
 
-  async function removeDraft() {
+  async function remove() {
     setIsBusy(true);
     try {
       await rpc.call("deletePersona", { personaId });
@@ -815,39 +815,52 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
             >
               Delete draft
             </Button>
-            {/* Deleting is irreversible, so it always goes through this
-                confirmation rather than firing straight off the click. */}
-            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete {displayName(currentPersona)}?</DialogTitle>
-                  <DialogDescription>
-                    This draft was never published, so nothing else changes.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      setDeleteDialogOpen(false);
-                      void removeDraft();
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </>
         ) : (
-          <Button disabled={isBusy} onClick={() => void saveAndClose()}>
-            Done
-          </Button>
+          <>
+            <Button disabled={isBusy} onClick={() => void saveAndClose()}>
+              Done
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-destructive"
+              disabled={isBusy}
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              Delete persona
+            </Button>
+          </>
         )}
       </div>
+
+      {/* Deleting is irreversible, so it always goes through this
+          confirmation rather than firing straight off the click. */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {displayName(currentPersona)}?</DialogTitle>
+            <DialogDescription>
+              {isDraft
+                ? "This draft was never published, so nothing else changes."
+                : "Chats stay in BB as normal threads — they just stop getting this persona's prompts."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                void remove();
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {picker === "note" ? (
         <FloatingNotePickerDialog
