@@ -385,6 +385,40 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
+  it("marks a persona's rail row with a spinner while one of its chats is running", async () => {
+    const panel = await loadPanel();
+
+    const running = renderSlot(
+      panel,
+      { subPath: "" },
+      {
+        rpc: RPC,
+        sidebarThreads: {
+          status: "ready",
+          threads: [sidebarThread({ id: "thr_new", status: "active" })],
+        },
+      },
+    );
+    await running.findByText("Pirate");
+    await running.findByLabelText("Running");
+    running.lifecycle.unmount();
+
+    const idle = renderSlot(
+      panel,
+      { subPath: "" },
+      {
+        rpc: RPC,
+        sidebarThreads: {
+          status: "ready",
+          threads: [sidebarThread({ id: "thr_new", status: "idle" })],
+        },
+      },
+    );
+    await idle.findByText("Pirate");
+    expect(idle.queryByLabelText("Running")).toBeNull();
+    idle.lifecycle.unmount();
+  });
+
   it("creates a persona from the rail's new-persona button and routes to its editor", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "" }, { rpc: RPC });
@@ -469,10 +503,11 @@ describe("personas nav panel", () => {
     expect(chatRowLabel).toBeDefined();
     chatRowLabel!.closest("button")!.click();
 
+    // Opening a chat goes to BB's real thread route, where the host's right
+    // side panel connects — not to the embedded in-panel chat view.
     expect(slot.inspection.navigateCalls).toContainEqual({
-      method: "toPluginPanel",
-      path: "personas",
-      options: { subPath: "persona_1/thr_new" },
+      method: "toThread",
+      threadId: "thr_new",
     });
     slot.lifecycle.unmount();
   });
@@ -915,9 +950,8 @@ describe("personas nav panel", () => {
 
     await waitFor(() =>
       expect(slot.inspection.navigateCalls).toContainEqual({
-        method: "toPluginPanel",
-        path: "personas",
-        options: { subPath: "persona_2/thr_from_home" },
+        method: "toThread",
+        threadId: "thr_from_home",
       }),
     );
     const startChatCall = slot.inspection.rpcCalls.find(
@@ -1240,7 +1274,12 @@ describe("personas nav panel", () => {
     );
 
     await slot.findByText("Chats (1)");
-    await slot.findByLabelText("Running");
+    // Both the rail row and the chat list row spin; the chat list's one is
+    // what this test pins.
+    const spinners = await slot.findAllByLabelText("Running");
+    expect(
+      spinners.filter((spinner) => spinner.closest("ul.divide-y") !== null),
+    ).toHaveLength(1);
     expect(slot.queryByText("now")).toBeNull();
     slot.lifecycle.unmount();
   });
@@ -1260,7 +1299,7 @@ describe("personas nav panel", () => {
         },
       );
       await slot.findByText("Chats (1)");
-      await slot.findByLabelText("Running");
+      expect((await slot.findAllByLabelText("Running")).length).toBeGreaterThan(0);
       expect(slot.queryByText("now")).toBeNull();
       slot.lifecycle.unmount();
     }

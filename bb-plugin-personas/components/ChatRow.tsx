@@ -7,6 +7,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
+import { RunningSpinner } from "@/components/RunningSpinner";
 import { formatRelative } from "@/components/PersonaRail";
 import { usePersonasRpc } from "@/components/use-query";
 import { cn } from "@/lib/utils";
@@ -213,9 +214,7 @@ export function ChatRow({
         </button>
       )}
       {isRunning ? (
-        <span aria-label="Running" className="shrink-0 text-muted-foreground">
-          <Icon name="Spinner" className="size-3.5 animate-spin" aria-hidden />
-        </span>
+        <RunningSpinner />
       ) : (
         <span className="shrink-0 text-xs text-muted-foreground">
           {formatRelative(chat.updatedAt)}

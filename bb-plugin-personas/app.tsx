@@ -118,6 +118,10 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
       );
       break;
     case "chat":
+      // Deep-link surface only: opening a chat from the plugin now goes to
+      // BB's real thread route (navigate.toThread), where the host's right
+      // side panel connects. Anything landing at <personaId>/<threadId>
+      // (old bookmarks, history entries) still renders the embedded view.
       content = (
         <PersonaChatView
           personaId={route.personaId}

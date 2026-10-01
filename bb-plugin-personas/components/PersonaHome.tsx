@@ -181,9 +181,10 @@ export function PersonaHome({
   async function startChat(request: NewThreadRequest) {
     try {
       const started = await rpc.call("startChat", { personaId, request });
-      navigate.toPluginPanel(PANEL_PATH, {
-        subPath: `${personaId}/${started.threadId}`,
-      });
+      // Open on BB's real thread route: the host's right side panel (side
+      // chats, terminal, other plugins' actions) only attaches to the main
+      // thread view, and a ThreadChat embedded in this panel never gets it.
+      navigate.toThread(started.threadId);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause));
       throw cause;
@@ -298,11 +299,7 @@ export function PersonaHome({
                         <ChatRow
                           chat={chat}
                           archived={false}
-                          onOpen={() =>
-                            navigate.toPluginPanel(PANEL_PATH, {
-                              subPath: `${personaId}/${chat.threadId}`,
-                            })
-                          }
+                          onOpen={() => navigate.toThread(chat.threadId)}
                           reload={reload}
                         />
                       </li>
@@ -335,11 +332,7 @@ export function PersonaHome({
                           <ChatRow
                             chat={chat}
                             archived
-                            onOpen={() =>
-                              navigate.toPluginPanel(PANEL_PATH, {
-                                subPath: `${personaId}/${chat.threadId}`,
-                              })
-                            }
+                            onOpen={() => navigate.toThread(chat.threadId)}
                             reload={reload}
                           />
                         </li>

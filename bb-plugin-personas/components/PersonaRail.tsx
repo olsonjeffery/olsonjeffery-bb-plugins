@@ -1,10 +1,15 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useBbNavigate } from "@get-bb/plugin-sdk/app";
+import {
+  experimental_useSidebarThreads,
+  useBbNavigate,
+} from "@get-bb/plugin-sdk/app";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
+import { RunningSpinner } from "@/components/RunningSpinner";
+import { isThreadRunning } from "@/components/ChatRow";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
 import { cn } from "@/lib/utils";
@@ -69,6 +74,7 @@ export function PersonaRail({ selectedPersonaId }: { selectedPersonaId: string |
   const rpc = usePersonasRpc();
   const navigate = useBbNavigate();
   const { data, error } = useQuery(() => rpc.call("listRail", null), "rail");
+  const { threads } = experimental_useSidebarThreads();
   const [width, setWidth] = useState<number>(() => readStoredWidth());
   const [isCreating, setIsCreating] = useState(false);
 
@@ -156,6 +162,9 @@ export function PersonaRail({ selectedPersonaId }: { selectedPersonaId: string |
               const isSelected = persona.id === selectedPersonaId;
               const isDraft = persona.status === "draft";
               const newestChat = persona.chats[0];
+              const isRunning = persona.chats.some((chat) =>
+                isThreadRunning(threads, chat.threadId),
+              );
               const secondary =
                 newestChat === undefined
                   ? previewInstructions(joinedPromptText(persona.prompts))
@@ -197,9 +206,15 @@ export function PersonaRail({ selectedPersonaId }: { selectedPersonaId: string |
                               DRAFT
                             </Badge>
                           ) : null}
-                          <span className="ml-auto shrink-0 pl-1 text-[10px] text-muted-foreground">
-                            {formatRelative(persona.lastActivityAt)}
-                          </span>
+                          {isRunning ? (
+                            <span className="ml-auto shrink-0 pl-1">
+                              <RunningSpinner size="xs" />
+                            </span>
+                          ) : (
+                            <span className="ml-auto shrink-0 pl-1 text-[10px] text-muted-foreground">
+                              {formatRelative(persona.lastActivityAt)}
+                            </span>
+                          )}
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
                           {secondary}

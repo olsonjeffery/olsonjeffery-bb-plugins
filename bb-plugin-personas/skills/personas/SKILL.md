@@ -82,11 +82,18 @@ trashcan ("Delete persona") that opens the delete confirmation.
 
 The composer view routes live at `<personaId>` and the equivalent
 `<personaId>/new` (both parse to the same PersonaHome); the editor is
-`<personaId>/edit`. Each row in the chat list shows a spinning glyph instead
-of its relative timestamp while the host's live sidebar view sees work
-running on the thread (`isThreadRunning`: status "starting"/"active"/
-"stopping"); unknown status reads idle, missing threads never spin, and
-archived rows never spin.
+`<personaId>/edit`. Wherever a chat is working — a chat-list row and its
+persona's rail row alike — a green spinning glyph (`RunningSpinner`:
+BB's Spinner icon in `text-emerald-600 dark:text-emerald-400`) replaces the
+relative timestamp (`isThreadRunning`: execution status "starting", "active",
+or "stopping"; unknown status reads idle; a missing sidebar thread and
+archived rows never spin).
+
+Opening a chat (row click, or submitting the composer) navigates to BB's
+real thread route (`navigate.toThread`) — the host's right side panel only
+attaches to the main thread view, never to a `ThreadChat` embedded in a
+plugin panel. `<personaId>/<threadId>` still renders the embedded
+`PersonaChatView` for old deep links.
 
 ## Homepage launcher
 
