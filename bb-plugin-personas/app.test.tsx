@@ -4,6 +4,12 @@ import { fireEvent, waitFor } from "@testing-library/react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { EMOJIS } from "./personas";
+import {
+  composerDraftText,
+  DEFAULT_MESSAGE_FLASH_CLASS,
+  DEFAULT_MESSAGE_FLASH_MS,
+  flashDefaultMessageIfRejected,
+} from "./components/default-user-message";
 
 const PERSONA_WITH_CHATS = {
   id: "persona_1",
@@ -25,6 +31,7 @@ const PERSONA_WITH_CHATS = {
   model: "gpt-5.5",
   reasoningLevel: "medium" as const,
   projectId: null,
+  defaultUserMessage: "",
   status: "published" as const,
   createdAt: 0,
   updatedAt: 100,
@@ -50,6 +57,7 @@ const PERSONA_NO_CHATS = {
   model: "gpt-5.5",
   reasoningLevel: "medium" as const,
   projectId: null,
+  defaultUserMessage: "",
   status: "published" as const,
   createdAt: 0,
   updatedAt: 50,
@@ -65,6 +73,7 @@ const PERSONA_DRAFT = {
   model: "",
   reasoningLevel: null,
   projectId: null,
+  defaultUserMessage: "",
   status: "draft" as const,
   createdAt: 0,
   updatedAt: 10,
@@ -80,6 +89,7 @@ const PERSONA_NAMED_DRAFT = {
   model: "gpt-5.5",
   reasoningLevel: "medium" as const,
   projectId: null,
+  defaultUserMessage: "",
   status: "draft" as const,
   createdAt: 0,
   updatedAt: 10,
@@ -108,9 +118,36 @@ const PERSONA_WITH_NOTE = {
   model: "gpt-5.5",
   reasoningLevel: "medium" as const,
   projectId: null,
+  defaultUserMessage: "",
   status: "published" as const,
   createdAt: 0,
   updatedAt: 5,
+};
+
+// One published persona whose composer page injects a Default User Message.
+const PERSONA_WITH_MESSAGE = {
+  id: "persona_6",
+  name: "Standup",
+  emoji: "🧭",
+  color: "blue" as const,
+  prompts: [],
+  providerId: "codex",
+  model: "gpt-5.5",
+  reasoningLevel: "medium" as const,
+  projectId: null,
+  defaultUserMessage: "Summarize yesterday's commits, then list today's plan.",
+  status: "published" as const,
+  createdAt: 0,
+  updatedAt: 1,
+};
+
+// Whitespace-only is none-provided: the composer must stay empty.
+const PERSONA_WITH_BLANK_MESSAGE = {
+  ...PERSONA_WITH_MESSAGE,
+  id: "persona_7",
+  name: "Blank",
+  defaultUserMessage: "   \n\t  ",
+  updatedAt: 0,
 };
 
 const RAIL_PERSONAS = [
@@ -131,11 +168,15 @@ const PERSONAS_BY_ID: Record<
   | typeof PERSONA_NO_CHATS
   | typeof PERSONA_DRAFT
   | typeof PERSONA_WITH_NOTE
+  | typeof PERSONA_WITH_MESSAGE
+  | typeof PERSONA_WITH_BLANK_MESSAGE
 > = {
   persona_1: PERSONA_WITH_CHATS,
   persona_2: PERSONA_NO_CHATS,
   persona_3: PERSONA_DRAFT,
   persona_5: PERSONA_WITH_NOTE,
+  persona_6: PERSONA_WITH_MESSAGE,
+  persona_7: PERSONA_WITH_BLANK_MESSAGE,
 };
 
 // The getPluginHealth RPC's self field: where this Personas install came
@@ -949,6 +990,9 @@ describe("personas nav panel", () => {
     expect(composer.getAttribute("data-default-reasoning-level")).toBe(
       "medium",
     );
+    // No Default User Message on persona_2: the composer's text area starts empty.
+    expect(composerDraftText(composer as HTMLElement)).toBe("");
+    expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
 
     (await slot.findByTestId("bb-new-thread-composer-submit")).click();
 
@@ -965,6 +1009,35 @@ describe("personas nav panel", () => {
       personaId: "persona_2",
       request: { providerId: "codex", model: "gpt-5.5" },
     });
+    slot.lifecycle.unmount();
+  });
+
+  it("injects the persona's Default User Message into the composer's text area", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
+
+    const composer = (await slot.findByTestId(
+      "bb-new-thread-composer",
+    )) as HTMLElement;
+    expect(composerDraftText(composer)).toBe(
+      PERSONA_WITH_MESSAGE.defaultUserMessage,
+    );
+    // The message IS the seed, not a rejected injection: no red flash.
+    expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
+
+    slot.lifecycle.unmount();
+  });
+
+  it("injects nothing for a whitespace-only Default User Message", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_7" }, { rpc: RPC });
+
+    const composer = (await slot.findByTestId(
+      "bb-new-thread-composer",
+    )) as HTMLElement;
+    expect(composerDraftText(composer)).toBe("");
+    expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
+
     slot.lifecycle.unmount();
   });
 
@@ -1729,5 +1802,173 @@ describe("plugin health settings section", () => {
     await slot.findByText("plugins.list unavailable");
     expect(slot.queryByText("Floating Notes")).toBeNull();
     slot.lifecycle.unmount();
+  });
+});
+
+describe("Default User Message editor field", () => {
+  it("renders with its 500-character budget in the label, a hard maxLength, and a counter", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_1/edit" }, { rpc: RPC });
+
+    await slot.findByText(`Default user message (max 500 characters)`);
+    const textarea = (await slot.findByLabelText(
+      "Default user message",
+    )) as HTMLTextAreaElement;
+    expect(textarea.maxLength).toBe(500);
+    expect(textarea.value).toBe("");
+    await slot.findByText("0 / 500");
+
+    slot.lifecycle.unmount();
+  });
+
+  it("seeds from the stored message and autosaves the trimmed edit after the debounce", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_6/edit" }, { rpc: RPC });
+
+    const textarea = (await slot.findByLabelText(
+      "Default user message",
+    )) as HTMLTextAreaElement;
+    expect(textarea.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
+    await slot.findByText(
+      `${PERSONA_WITH_MESSAGE.defaultUserMessage.length} / 500`,
+    );
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(textarea, { target: { value: "  Stand up.  " } });
+      await vi.advanceTimersByTimeAsync(600);
+
+      const saveCall = slot.inspection.rpcCalls.find(
+        (call) => call.method === "savePersona",
+      );
+      expect(saveCall?.input).toMatchObject({
+        personaId: "persona_6",
+        patch: { defaultUserMessage: "Stand up." },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    slot.lifecycle.unmount();
+  });
+
+  it("autosaves whitespace-only as none-provided", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_6/edit" }, { rpc: RPC });
+
+    const textarea = (await slot.findByLabelText(
+      "Default user message",
+    )) as HTMLTextAreaElement;
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(textarea, { target: { value: "   \n\t  " } });
+      await vi.advanceTimersByTimeAsync(600);
+
+      const saveCall = slot.inspection.rpcCalls.find(
+        (call) => call.method === "savePersona",
+      );
+      expect(saveCall?.input).toMatchObject({
+        personaId: "persona_6",
+        patch: { defaultUserMessage: "" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    slot.lifecycle.unmount();
+  });
+});
+
+describe("Default User Message rejection flash", () => {
+  const DEFAULT = "Summarize yesterday's commits, then list today's plan.";
+
+  /** A composer DOM the way the host renders it, with `text` as the draft. */
+  function makeComposerDom(text: string): {
+    root: HTMLElement;
+    box: HTMLElement;
+  } {
+    const root = document.createElement("div");
+    const box = document.createElement("div");
+    box.setAttribute("data-promptbox", "");
+    const editor = document.createElement("div");
+    editor.setAttribute("data-promptbox-editor-content", "");
+    editor.textContent = text;
+    box.appendChild(editor);
+    root.appendChild(box);
+    document.body.appendChild(root);
+    return { root, box };
+  }
+
+  afterEach(() => {
+    document.body.textContent = "";
+  });
+
+  it("flashes the prompt box when the draft holds other work-in-progress text, then cleans up", () => {
+    vi.useFakeTimers();
+    try {
+      const { root, box } = makeComposerDom("My half-typed prompt");
+      const cleanup = flashDefaultMessageIfRejected(root, DEFAULT);
+      expect(cleanup).not.toBeNull();
+      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(true);
+      expect(root.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
+
+      // The flash is momentary: it removes itself once the pulse ends.
+      vi.advanceTimersByTime(DEFAULT_MESSAGE_FLASH_MS);
+      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
+      cleanup?.();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not flash an empty draft, whitespace, or the seed that just landed", () => {
+    const wip = makeComposerDom("My half-typed prompt");
+    expect(flashDefaultMessageIfRejected(wip.root, DEFAULT)).not.toBeNull();
+    wip.root.remove();
+
+    const seeded = makeComposerDom(DEFAULT);
+    expect(flashDefaultMessageIfRejected(seeded.root, DEFAULT)).toBeUndefined();
+    seeded.root.remove();
+
+    const empty = makeComposerDom("");
+    expect(flashDefaultMessageIfRejected(empty.root, DEFAULT)).toBeUndefined();
+    empty.root.remove();
+
+    const whitespace = makeComposerDom("  \n\t  ");
+    expect(flashDefaultMessageIfRejected(whitespace.root, DEFAULT)).toBeUndefined();
+    whitespace.root.remove();
+  });
+
+  it("removes the flash early when the caller cleans up before the pulse ends", () => {
+    vi.useFakeTimers();
+    try {
+      const { root, box } = makeComposerDom("My half-typed prompt");
+      const cleanup = flashDefaultMessageIfRejected(root, DEFAULT);
+      cleanup?.();
+      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
+      // Late timer must not resurrect the class on a detached node path.
+      vi.advanceTimersByTime(DEFAULT_MESSAGE_FLASH_MS);
+      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads the draft from the harness textarea when no host editor region exists", () => {
+    const root = document.createElement("div");
+    const area = document.createElement("textarea");
+    area.setAttribute("data-testid", "bb-new-thread-composer-input");
+    area.value = "Harness WIP";
+    root.appendChild(area);
+    document.body.appendChild(root);
+
+    const cleanup = flashDefaultMessageIfRejected(root, DEFAULT);
+    expect(cleanup).not.toBeNull();
+    // No [data-promptbox] here: the flash lands on the wrapper itself.
+    expect(root.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(true);
+    cleanup?.();
+    expect(root.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
+    root.remove();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   avatarTint,
+  clampDefaultUserMessage,
   clampPromptText,
   decodeNotePromptRef,
   displayName,
@@ -13,6 +14,7 @@ import {
   isPersonaColor,
   isSingleEmoji,
   joinedPromptText,
+  MAX_DEFAULT_USER_MESSAGE,
   MAX_INSTRUCTIONS,
   MAX_PROMPT_TEXT,
   newPromptId,
@@ -60,6 +62,7 @@ const persona: Persona = {
   model: "gpt-5.5",
   reasoningLevel: "medium",
   projectId: null,
+  defaultUserMessage: "",
   status: "published",
   createdAt: 0,
   updatedAt: 0,
@@ -449,10 +452,16 @@ describe("rowToPersona", () => {
     model: "gpt-5.5",
     reasoning_level: "medium",
     project_id: null,
+    default_user_message: "",
     status: "published",
     created_at: 0,
     updated_at: 0,
   };
+
+  it("carries the stored default user message", () => {
+    expect(rowToPersona({ ...row, default_user_message: "Check the notes." }, []).defaultUserMessage).toBe("Check the notes.");
+    expect(rowToPersona({ ...row, default_user_message: "" }, []).defaultUserMessage).toBe("");
+  });
 
   it("keeps a chosen color and reads an unrecognized stored color as auto", () => {
     expect(rowToPersona({ ...row, color: "rose" }, []).color).toBe("rose");
@@ -473,6 +482,24 @@ describe("rowToPersona", () => {
   it("assigns the given prompt pool by reference so pool writes reach the persona", () => {
     const prompts: PersonaPrompt[] = [];
     expect(rowToPersona(row, prompts).prompts).toBe(prompts);
+  });
+});
+
+describe("clampDefaultUserMessage", () => {
+  it("trims surrounding whitespace", () => {
+    expect(clampDefaultUserMessage("  Check the notes.  ")).toBe("Check the notes.");
+  });
+
+  it("collapses whitespace-only input to none-provided", () => {
+    expect(clampDefaultUserMessage("   \n\t  ")).toBe("");
+    expect(clampDefaultUserMessage("")).toBe("");
+  });
+
+  it("slices to the 500-character budget", () => {
+    expect(MAX_DEFAULT_USER_MESSAGE).toBe(500);
+    expect(clampDefaultUserMessage("z".repeat(MAX_DEFAULT_USER_MESSAGE + 10))).toBe(
+      "z".repeat(MAX_DEFAULT_USER_MESSAGE),
+    );
   });
 });
 

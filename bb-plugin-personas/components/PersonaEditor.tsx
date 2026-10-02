@@ -34,6 +34,7 @@ import {
   clampPromptText,
   displayName,
   draftBlockers,
+  MAX_DEFAULT_USER_MESSAGE,
   MAX_NAME,
   MAX_PROMPT_TEXT,
   pickEmoji,
@@ -59,6 +60,7 @@ interface DraftFields {
   model: string;
   reasoningLevel: ReasoningLevel | null;
   projectId: string; // NO_PROJECT sentinel or a real project id
+  defaultUserMessage: string;
 }
 
 type PersonaPatch = Partial<{
@@ -69,6 +71,7 @@ type PersonaPatch = Partial<{
   model: string;
   reasoningLevel: ReasoningLevel | null;
   projectId: string | null;
+  defaultUserMessage: string;
 }>;
 
 /** Only the fields that changed since `base`, plus the baseline they leave behind. */
@@ -107,6 +110,13 @@ function diffDraft(
     patch.projectId = current.projectId === NO_PROJECT ? null : current.projectId;
     nextBase.projectId = current.projectId;
   }
+  // Stored trimmed — whitespace-only collapses to "" (none provided) — so the
+  // diff compares the normalized value, and a save that lands keeps matching.
+  const trimmedDefaultUserMessage = current.defaultUserMessage.trim();
+  if (trimmedDefaultUserMessage !== base.defaultUserMessage) {
+    patch.defaultUserMessage = trimmedDefaultUserMessage;
+    nextBase.defaultUserMessage = trimmedDefaultUserMessage;
+  }
   if (Object.keys(patch).length === 0) return null;
   return { patch, nextBase };
 }
@@ -135,6 +145,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   const [model, setModel] = useState("");
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | null>(null);
   const [projectId, setProjectId] = useState(NO_PROJECT);
+  const [defaultUserMessage, setDefaultUserMessage] = useState("");
   const [isSeeded, setIsSeeded] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -176,6 +187,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
     model,
     reasoningLevel,
     projectId,
+    defaultUserMessage,
   });
   draftRef.current = {
     name,
@@ -185,6 +197,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
     model,
     reasoningLevel,
     projectId,
+    defaultUserMessage,
   };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -251,6 +264,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
     setModel(persona.model);
     setReasoningLevel(persona.reasoningLevel);
     setProjectId(persona.projectId ?? NO_PROJECT);
+    setDefaultUserMessage(persona.defaultUserMessage);
     // The real baseline: what the server has, not the provider fallback
     // above. That fallback still needs to autosave once seeding lands.
     savedRef.current = {
@@ -261,6 +275,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
       model: persona.model,
       reasoningLevel: persona.reasoningLevel,
       projectId: persona.projectId ?? NO_PROJECT,
+      defaultUserMessage: persona.defaultUserMessage,
     };
     setIsSeeded(true);
   }, [options, persona, isSeeded]);
@@ -309,7 +324,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSeeded, name, emoji, color, providerId, model, reasoningLevel, projectId]);
+  }, [isSeeded, name, emoji, color, providerId, model, reasoningLevel, projectId, defaultUserMessage]);
 
   // A user hitting Cmd-W (or Alt-Tab, etc.) moments after typing must not
   // lose that keystroke, so flush on both unmount and window blur — blur
@@ -719,6 +734,32 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
             current content — edit the note and this persona follows.
           </p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="persona-default-user-message">
+            Default user message (max {MAX_DEFAULT_USER_MESSAGE} characters)
+          </Label>
+          <span className="text-xs text-muted-foreground">
+            {defaultUserMessage.length} / {MAX_DEFAULT_USER_MESSAGE}
+          </span>
+        </div>
+        <Textarea
+          id="persona-default-user-message"
+          aria-label="Default user message"
+          value={defaultUserMessage}
+          rows={3}
+          maxLength={MAX_DEFAULT_USER_MESSAGE}
+          placeholder="Optional — pre-fills the chat composer when this persona's page opens, e.g. Work on the current ticket."
+          onChange={(event) => setDefaultUserMessage(event.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Injected into the composer&apos;s text area when this persona&apos;s
+          composer page opens. Only typed when the composer is empty — your own
+          work-in-progress text always wins. Empty or whitespace-only means
+          none provided, so nothing is injected.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -6,10 +6,12 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  clampDefaultUserMessage,
   clampPromptText,
   decodeNotePromptRef,
   draftBlockers,
   encodeNotePromptRef,
+  MAX_DEFAULT_USER_MESSAGE,
   MAX_NAME,
   MAX_PROMPT_TEXT,
   newPersonaId,
@@ -73,6 +75,9 @@ const PersonaSchema = z.object({
   model: z.string(),
   reasoningLevel: ReasoningLevel.nullable(),
   projectId: z.string().nullable(),
+  // Optional Default User Message: injected into the composer's text area
+  // when the persona's composer view opens. "" = none provided.
+  defaultUserMessage: z.string(),
   status: z.enum(["draft", "published"]),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
@@ -90,6 +95,7 @@ const PersonaPatchSchema = z
     model: z.string(),
     reasoningLevel: ReasoningLevel.nullable(),
     projectId: z.string().nullable(),
+    defaultUserMessage: z.string().max(MAX_DEFAULT_USER_MESSAGE),
   })
   .partial()
   .strict();
@@ -386,6 +392,9 @@ export default async function plugin(bb: BbPluginApi) {
     // NULL = auto: the stable hash-derived avatar tint. Existing rows keep
     // looking exactly as they did before the column existed.
     `ALTER TABLE personas ADD COLUMN color TEXT`,
+    // The persona's optional Default User Message. '' = none provided, so
+    // the DEFAULT backfills every existing row as nothing-injected.
+    `ALTER TABLE personas ADD COLUMN default_user_message TEXT NOT NULL DEFAULT ''`,
   ]);
 
   // One-time carry-over from the pre-rename schema (tables `bots` and
@@ -615,14 +624,16 @@ export default async function plugin(bb: BbPluginApi) {
         model: "",
         reasoningLevel: null,
         projectId: null,
+        defaultUserMessage: "",
         status: "draft",
         createdAt: now,
         updatedAt: now,
       };
       db.prepare(
         `INSERT INTO personas (id, name, emoji, color, instructions, provider_id, model,
-                            reasoning_level, project_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)`,
+                            reasoning_level, project_id, default_user_message, status,
+                            created_at, updated_at)
+         VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, '', ?, ?, ?)`,
       ).run(
         persona.id,
         persona.name,
@@ -644,6 +655,8 @@ export default async function plugin(bb: BbPluginApi) {
     // Applies only the keys the editor actually sent — an autosave from a
     // half-typed form must never blow away fields the user hasn't touched
     // yet — and never touches status; that's publishPersona's job alone.
+    // The Default User Message normalizes here: trimmed, length-bounded,
+    // whitespace-only collapsed to "" (none provided).
     savePersona: ({ personaId, patch }) => {
       const existing = readPersona(personaId);
       const persona: Persona = {
@@ -661,12 +674,16 @@ export default async function plugin(bb: BbPluginApi) {
         ...(patch.projectId !== undefined
           ? { projectId: patch.projectId }
           : {}),
+        ...(patch.defaultUserMessage !== undefined
+          ? { defaultUserMessage: clampDefaultUserMessage(patch.defaultUserMessage) }
+          : {}),
         updatedAt: Date.now(),
       };
       db.prepare(
         `UPDATE personas
             SET name = ?, emoji = ?, color = ?, provider_id = ?,
-                model = ?, reasoning_level = ?, project_id = ?, updated_at = ?
+                model = ?, reasoning_level = ?, project_id = ?,
+                default_user_message = ?, updated_at = ?
           WHERE id = ?`,
       ).run(
         persona.name,
@@ -676,6 +693,7 @@ export default async function plugin(bb: BbPluginApi) {
         persona.model,
         persona.reasoningLevel,
         persona.projectId,
+        persona.defaultUserMessage,
         persona.updatedAt,
         persona.id,
       );

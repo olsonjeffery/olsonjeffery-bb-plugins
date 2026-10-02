@@ -1,0 +1,37 @@
+/* Momentary red flash on a persona composer's prompt box: the persona's
+   Default User Message was NOT applied because the composer opened already
+   holding work-in-progress text. Color derives from the host theme's
+   destructive token so it follows light/dark palettes. */
+[data-promptbox].personas-default-message-flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 60;
+  box-shadow:
+    0 0 0 2px var(--destructive),
+    0 0 24px 6px color-mix(in oklab, var(--destructive) 60%, transparent);
+  animation: personas-default-message-flash-pulse 1200ms ease-out forwards;
+}
+
+@keyframes personas-default-message-flash-pulse {
+  0% {
+    opacity: 1;
+  }
+  18% {
+    opacity: 0.4;
+  }
+  36% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.55;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

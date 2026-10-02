@@ -831,6 +831,84 @@ describe("persistence", () => {
     ).rejects.toThrow();
   });
 
+  it("saves a default user message, keeps it across a reload, and collapses whitespace-only to none-provided", async () => {
+    const { personaId } = (await host.harness.behavior.callRpc(
+      "createPersona",
+      null,
+    )) as { personaId: string };
+
+    // Fresh personas have no default user message.
+    const { persona: fresh } = (await host.harness.behavior.callRpc(
+      "getPersona",
+      { personaId },
+    )) as { persona: { defaultUserMessage: string } | null };
+    expect(fresh?.defaultUserMessage).toBe("");
+
+    await host.harness.behavior.callRpc("savePersona", {
+      personaId,
+      patch: { defaultUserMessage: "Check the notes first." },
+    });
+    const { persona } = (await host.harness.behavior.callRpc("getPersona", {
+      personaId,
+    })) as { persona: { defaultUserMessage: string } | null };
+    expect(persona?.defaultUserMessage).toBe("Check the notes first.");
+
+    // Whitespace-only is none-provided, not prose of spaces.
+    await host.harness.behavior.callRpc("savePersona", {
+      personaId,
+      patch: { defaultUserMessage: "   \n\t  " },
+    });
+    const { persona: blank } = (await host.harness.behavior.callRpc(
+      "getPersona",
+      { personaId },
+    )) as { persona: { defaultUserMessage: string } | null };
+    expect(blank?.defaultUserMessage).toBe("");
+
+    // Durable storage, not session state.
+    await host.harness.behavior.callRpc("savePersona", {
+      personaId,
+      patch: { defaultUserMessage: "Check the notes first." },
+    });
+    await host.harness.lifecycle.reload(plugin);
+    const { persona: reloaded } = (await host.harness.behavior.callRpc(
+      "getPersona",
+      { personaId },
+    )) as { persona: { defaultUserMessage: string } | null };
+    expect(reloaded?.defaultUserMessage).toBe("Check the notes first.");
+  });
+
+  it("rejects a default-user-message patch over the 500-character limit at the schema", async () => {
+    const { personaId } = (await host.harness.behavior.callRpc(
+      "createPersona",
+      null,
+    )) as { personaId: string };
+    await expect(
+      host.harness.behavior.callRpc("savePersona", {
+        personaId,
+        patch: { defaultUserMessage: "x".repeat(501) },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("reads a persona from before the default-user-message column existed as none-provided", async () => {
+    // Simulates a row written by an earlier schema version: the ALTER's
+    // DEFAULT '' is what backfills it, exactly like the status column.
+    const db = host.bb.storage.database();
+    db.prepare(
+      `INSERT INTO personas (id, name, emoji, instructions, provider_id, model,
+                         reasoning_level, project_id, created_at, updated_at)
+       VALUES ('persona_nomessage', 'Legacy', '🤖', 'Be legacy.', 'codex', 'gpt-5.5',
+               'medium', NULL, 1, 1)`,
+    ).run();
+
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+
+    const { persona } = (await reloaded.harness.behavior.callRpc("getPersona", {
+      personaId: "persona_nomessage",
+    })) as { persona: { defaultUserMessage: string } | null };
+    expect(persona?.defaultUserMessage).toBe("");
+  });
+
   it("carries a pre-pool instructions column into exactly one text prompt, and only once", async () => {
     // Simulates a database last written before the prompt pool existed: the
     // persona's standing text lives in the legacy `instructions` column.

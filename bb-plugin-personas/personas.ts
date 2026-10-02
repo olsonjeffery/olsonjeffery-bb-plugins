@@ -13,6 +13,12 @@ export const MAX_INSTRUCTIONS = 3500;
 export const MAX_NAME = 60;
 
 /**
+ * Character budget for a persona's optional Default User Message — the text
+ * injected into the composer's text area when its composer view opens.
+ */
+export const MAX_DEFAULT_USER_MESSAGE = 500;
+
+/**
  * The curated emoji set, grouped for the picker UI. Order within and across
  * groups matches the flat EMOJIS list below, which is derived from this so
  * the two can never drift apart.
@@ -94,6 +100,11 @@ export interface Persona {
   reasoningLevel: ReasoningLevel | null;
   /** null = projectless chat in BB's personal project. */
   projectId: string | null;
+  /**
+   * Optional Default User Message: injected into the composer's text area
+   * when this persona's composer view opens. Empty string = none provided.
+   */
+  defaultUserMessage: string;
   status: PersonaStatus;
   createdAt: number;
   updatedAt: number;
@@ -241,6 +252,15 @@ export function newPromptId(): string {
 /** Trims and length-bounds a prompt's text for storage and transport. */
 export function clampPromptText(text: string): string {
   return text.trim().slice(0, MAX_PROMPT_TEXT);
+}
+
+/**
+ * Normalizes a Default User Message for storage: trimmed, length-bounded,
+ * and collapsed to "" when only whitespace — empty means none provided, so
+ * nothing gets injected into the composer.
+ */
+export function clampDefaultUserMessage(text: string): string {
+  return text.trim().slice(0, MAX_DEFAULT_USER_MESSAGE);
 }
 
 /**
@@ -439,6 +459,7 @@ export interface PersonaRow {
   model: string;
   reasoning_level: string | null;
   project_id: string | null;
+  default_user_message: string;
   status: string;
   created_at: number;
   updated_at: number;
@@ -522,6 +543,7 @@ export function rowToPersona(row: PersonaRow, prompts: PersonaPrompt[]): Persona
       ? (row.reasoning_level as ReasoningLevel)
       : null,
     projectId: row.project_id,
+    defaultUserMessage: row.default_user_message,
     // Any unexpected stored value reads as published rather than stranding
     // a persona as an un-publishable draft.
     status: row.status === "draft" ? "draft" : "published",

@@ -67,6 +67,27 @@ on every turn.
   removable — `updatePersonaPrompt` rejects them server-side; remove and
   re-attach instead.
 
+## Default User Message
+
+- An optional per-persona message (500 characters max, `MAX_DEFAULT_USER_MESSAGE` /
+  `clampDefaultUserMessage` in `personas.ts`; the `default_user_message` column,
+  backfilled '' by its migration) stored with the persona and edited in the
+  settings screen's textarea, whose label states the limit and which autosaves
+  like every other field.
+- When a persona's composer view (PersonaHome) opens for a published persona
+  whose message is non-blank after trimming, the message is passed to the
+  composer as `initialPrompt`. The host seeds the draft only while it is still
+  empty, which is the whole WIP contract: the user's own work-in-progress text
+  always wins and is never overwritten.
+- Because the seed silently refuses when the composer's text area already holds
+  content, PersonaHome probes the composer's editable text (DOM, right after
+  the composer's first commit — `composerDraftText` /
+  `flashDefaultMessageIfRejected` in `components/default-user-message.ts`).
+  Non-whitespace text that isn't the message itself gets one momentary red
+  flash on the prompt box border (`app.css`, the same destructive glow styling
+  and pulse shape as the Enter Guard plugin) and nothing else.
+- Whitespace-only stored messages read as "" — none provided, nothing injected.
+
 ## Detail view and settings
 
 Clicking a persona in the rail (or choosing one from the launcher section on

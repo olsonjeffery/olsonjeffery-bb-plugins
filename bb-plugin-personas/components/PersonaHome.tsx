@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   experimental_NewThreadComposer as NewThreadComposer,
   useBbNavigate,
@@ -10,10 +10,17 @@ import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-
 import { Icon } from "@/components/ui/icon";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
 import { ChatRow } from "@/components/ChatRow";
+import { flashDefaultMessageIfRejected } from "@/components/default-user-message";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
 import { cn } from "@/lib/utils";
-import { displayName, draftBlockers, joinedPromptText, type Persona } from "@/personas";
+import {
+  clampDefaultUserMessage,
+  displayName,
+  draftBlockers,
+  joinedPromptText,
+  type Persona,
+} from "@/personas";
 
 /**
  * The content-pane header shared by PersonaHome and PersonaChatView: back
@@ -91,6 +98,7 @@ export function PersonaHome({
   const navigate = useBbNavigate();
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const composerWrapRef = useRef<HTMLDivElement | null>(null);
 
   // One round trip: the persona, the picker options the composer needs, and its
   // chat list, so this pane never waterfalls into a second call after load.
@@ -103,6 +111,27 @@ export function PersonaHome({
       ]),
     `home:${personaId}`,
   );
+
+  // The Default User Message this composer page injects: trimmed, "" when
+  // none provided (whitespace-only counts as none — nothing is injected).
+  // Read defensively because this runs during the loading render too.
+  const defaultUserMessage = clampDefaultUserMessage(
+    data?.[0]?.persona?.defaultUserMessage ?? "",
+  );
+
+  // The composer opens with the persona's Default User Message in its text
+  // area — via the host's initialPrompt seed, which applies only while the
+  // draft is still empty. When the composer opened holding work-in-progress
+  // text instead, the seed was refused, so flash the prompt box border red
+  // once to say the message was not applied. The probe runs right after the
+  // composer's first commit, before its async seed lands, so the text it
+  // reads is exactly the draft the composer opened with.
+  useEffect(() => {
+    if (defaultUserMessage === "") return;
+    const root = composerWrapRef.current;
+    if (root === null) return;
+    return flashDefaultMessageIfRejected(root, defaultUserMessage);
+  }, [defaultUserMessage]);
 
   if (error !== null) {
     return <p className="p-4 text-sm text-destructive">{error}</p>;
@@ -208,18 +237,23 @@ export function PersonaHome({
             </div>
           ) : (
             <>
-              <NewThreadComposer
-                defaultProjectId={persona.projectId ?? personalProjectId ?? undefined}
-                defaultProviderId={persona.providerId}
-                defaultModel={persona.model}
-                {...(persona.reasoningLevel === null
-                  ? {}
-                  : { defaultReasoningLevel: persona.reasoningLevel })}
-                placeholder={`Message ${displayName(persona)}…`}
-                layout="document"
-                draftKey={`personas:start:${personaId}`}
-                onSubmit={startChat}
-              />
+              <div ref={composerWrapRef}>
+                <NewThreadComposer
+                  defaultProjectId={persona.projectId ?? personalProjectId ?? undefined}
+                  defaultProviderId={persona.providerId}
+                  defaultModel={persona.model}
+                  {...(persona.reasoningLevel === null
+                    ? {}
+                    : { defaultReasoningLevel: persona.reasoningLevel })}
+                  {...(defaultUserMessage === ""
+                    ? {}
+                    : { initialPrompt: defaultUserMessage })}
+                  placeholder={`Message ${displayName(persona)}…`}
+                  layout="document"
+                  draftKey={`personas:start:${personaId}`}
+                  onSubmit={startChat}
+                />
+              </div>
 
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">

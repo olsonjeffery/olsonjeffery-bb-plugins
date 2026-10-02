@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { definePluginApp, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
+import "./app.css";
 import { parseRoute } from "@/personas";
 import { PersonaChatView } from "@/components/PersonaChatView";
 import { PersonaEditor } from "@/components/PersonaEditor";

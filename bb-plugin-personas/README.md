@@ -48,6 +48,8 @@ With Personas, you can:
 - keep chat history as normal BB threads
 - pick a persona straight from BB's New Thread screen — its launcher section
   lists your published personas and jumps into that persona's composer
+- give each persona an optional Default User Message that pre-fills its chat
+  composer when you open it
 
 A persona is not a separate chat app. It lives in BB and uses BB's existing thread,
 composer, attachment, archive, and delete experience.
@@ -138,6 +140,21 @@ While Floating Notes is not installed and enabled, the dropdown (and any
 Add-note affordance) disappears entirely and **+ Add** stays a plain typed-text
 button. Personas already holding note entries keep working: their text falls
 back to "[Floating note is unavailable]" until the plugin returns.
+
+### The Default User Message
+
+Below the prompt pool sits an optional **Default user message** (max 500
+characters). When you open the persona's composer page, its chat composer's
+text area starts with this message already typed in — handy for a recurring
+kicker like "Summarize yesterday's commits, then list today's plan."
+
+Two rules keep it from ever stepping on you:
+
+- **Empty or whitespace-only means none provided** — nothing is injected.
+- **Your own work-in-progress text always wins.** If the composer's text area
+  already holds content when the page opens, the message is not applied.
+  Instead the composer's border flashes red for a moment — the same treatment
+  the Enter Guard plugin uses — and nothing else changes.
 
 New personas start as drafts. This gives you space to set up their prompt pool,
 provider, and model before using them.
