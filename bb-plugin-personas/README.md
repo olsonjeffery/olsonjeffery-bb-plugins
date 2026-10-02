@@ -48,8 +48,10 @@ With Personas, you can:
 - keep chat history as normal BB threads
 - pick a persona straight from BB's New Thread screen — its launcher section
   lists your published personas and jumps into that persona's composer
-- give each persona an optional Default User Message that pre-fills its chat
-  composer when you open it
+- share the composer: the persona's chat input is the same draft BB's New
+  Thread screen holds, so text follows you between the two
+- give each persona an optional Default User Message — a fallback seeded into
+  the composer only when both sides are empty
 
 A persona is not a separate chat app. It lives in BB and uses BB's existing thread,
 composer, attachment, archive, and delete experience.
@@ -141,14 +143,19 @@ Add-note affordance) disappears entirely and **+ Add** stays a plain typed-text
 button. Personas already holding note entries keep working: their text falls
 back to "[Floating note is unavailable]" until the plugin returns.
 
+### The shared composer
+
+The persona's chat composer is not a private scratchpad — it shows the same
+draft text BB's generic New Thread screen holds. Whatever you type on one
+side is there when you open the other, and sending clears it, like one
+shared input. (One deliberate limit: an empty field never wipes the other
+side, so opening a persona page can't erase work-in-progress text.)
+
 ### The Default User Message
 
-Below the prompt pool sits an optional **Default user message** (max 500
-characters). When you open the persona's composer page, its chat composer's
-text area starts with this message already typed in — handy for a recurring
-kicker like "Summarize yesterday's commits, then list today's plan."
-
-Two rules keep it from ever stepping on you:
+Each persona also has a **Default user message** (max 500 characters, noted
+right on the field) — a seed the composer's text area starts with **only when
+both sides are empty**. Two rules keep it from ever stepping on you:
 
 - **Empty or whitespace-only means none provided** — nothing is injected.
 - **Your own work-in-progress text always wins.** If the composer's text area

@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   experimental_NewThreadComposer as NewThreadComposer,
   useBbNavigate,
+  useComposer,
+  useComposerView,
 } from "@get-bb/plugin-sdk/app";
 import type { NewThreadRequest } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -10,7 +12,7 @@ import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-
 import { Icon } from "@/components/ui/icon";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
 import { ChatRow } from "@/components/ChatRow";
-import { flashDefaultMessageIfRejected } from "@/components/default-user-message";
+import { composerShare } from "@/components/composer-share";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
 import { cn } from "@/lib/utils";
@@ -98,7 +100,11 @@ export function PersonaHome({
   const navigate = useBbNavigate();
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const composerWrapRef = useRef<HTMLDivElement | null>(null);
+  // Route-bound composer hooks: outside the host composer subtree these bind
+  // to BB's global New Thread composer draft — the input shared with this
+  // persona's composer below.
+  const globalComposer = useComposer();
+  const globalComposerView = useComposerView();
 
   // One round trip: the persona, the picker options the composer needs, and its
   // chat list, so this pane never waterfalls into a second call after load.
@@ -119,19 +125,46 @@ export function PersonaHome({
     data?.[0]?.persona?.defaultUserMessage ?? "",
   );
 
-  // The composer opens with the persona's Default User Message in its text
-  // area — via the host's initialPrompt seed, which applies only while the
-  // draft is still empty. When the composer opened holding work-in-progress
-  // text instead, the seed was refused, so flash the prompt box border red
-  // once to say the message was not applied. The probe runs right after the
-  // composer's first commit, before its async seed lands, so the text it
-  // reads is exactly the draft the composer opened with.
+  // Report the global composer draft into the bridge, so the in-composer
+  // banner can adopt it when the persona composer opens.
   useEffect(() => {
-    if (defaultUserMessage === "") return;
-    const root = composerWrapRef.current;
-    if (root === null) return;
-    return flashDefaultMessageIfRejected(root, defaultUserMessage);
-  }, [defaultUserMessage]);
+    composerShare.set({ globalText: globalComposerView.draft.text });
+  }, [globalComposerView.draft.text]);
+
+  // Mirror work-in-progress typed into the persona composer back into the
+  // global draft, so it follows the user to BB's New Thread screen. Blank
+  // text never propagates (mounting empty must not erase the global draft),
+  // and the Default User Message seed is left out — it's configuration, not
+  // something the user typed.
+  useEffect(() => {
+    return composerShare.subscribe((origin) => {
+      if (origin !== "persona") return;
+      const { personaText, msg } = composerShare;
+      if (personaText.trim().length === 0) return;
+      if (personaText === msg && globalComposer.text.trim().length === 0) {
+        return;
+      }
+      if (globalComposer.text === personaText) return;
+      globalComposer.setText(personaText);
+    });
+  }, [globalComposer]);
+
+  // Announce the open so the in-composer banner resolves this open exactly
+  // once: adopts the shared text over an empty persona draft, injects the
+  // Default User Message when both sides are blank, and flashes the prompt
+  // box border when the message could not be applied. Gated on the load so
+  // the loading render doesn't announce with an empty message; identity-only
+  // reloads (same persona, same message) don't re-resolve.
+  const hasData = data !== null;
+  useEffect(() => {
+    if (!hasData) return;
+    composerShare.set({
+      open: true,
+      msg: defaultUserMessage,
+      openToken: composerShare.openToken + 1,
+    });
+    return () => composerShare.set({ open: false });
+  }, [personaId, defaultUserMessage, hasData]);
 
   if (error !== null) {
     return <p className="p-4 text-sm text-destructive">{error}</p>;
@@ -237,23 +270,18 @@ export function PersonaHome({
             </div>
           ) : (
             <>
-              <div ref={composerWrapRef}>
-                <NewThreadComposer
-                  defaultProjectId={persona.projectId ?? personalProjectId ?? undefined}
-                  defaultProviderId={persona.providerId}
-                  defaultModel={persona.model}
-                  {...(persona.reasoningLevel === null
-                    ? {}
-                    : { defaultReasoningLevel: persona.reasoningLevel })}
-                  {...(defaultUserMessage === ""
-                    ? {}
-                    : { initialPrompt: defaultUserMessage })}
-                  placeholder={`Message ${displayName(persona)}…`}
-                  layout="document"
-                  draftKey={`personas:start:${personaId}`}
-                  onSubmit={startChat}
-                />
-              </div>
+              <NewThreadComposer
+                defaultProjectId={persona.projectId ?? personalProjectId ?? undefined}
+                defaultProviderId={persona.providerId}
+                defaultModel={persona.model}
+                {...(persona.reasoningLevel === null
+                  ? {}
+                  : { defaultReasoningLevel: persona.reasoningLevel })}
+                placeholder={`Message ${displayName(persona)}…`}
+                layout="document"
+                draftKey={`personas:start:${personaId}`}
+                onSubmit={startChat}
+              />
 
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">

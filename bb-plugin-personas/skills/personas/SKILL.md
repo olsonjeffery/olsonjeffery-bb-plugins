@@ -74,19 +74,44 @@ on every turn.
   backfilled '' by its migration) stored with the persona and edited in the
   settings screen's textarea, whose label states the limit and which autosaves
   like every other field.
-- When a persona's composer view (PersonaHome) opens for a published persona
-  whose message is non-blank after trimming, the message is passed to the
-  composer as `initialPrompt`. The host seeds the draft only while it is still
-  empty, which is the whole WIP contract: the user's own work-in-progress text
-  always wins and is never overwritten.
-- Because the seed silently refuses when the composer's text area already holds
-  content, PersonaHome probes the composer's editable text (DOM, right after
-  the composer's first commit — `composerDraftText` /
-  `flashDefaultMessageIfRejected` in `components/default-user-message.ts`).
-  Non-whitespace text that isn't the message itself gets one momentary red
-  flash on the prompt box border (`app.css`, the same destructive glow styling
-  and pulse shape as the Enter Guard plugin) and nothing else.
-- Whitespace-only stored messages read as "" — none provided, nothing injected.
+- Injected by the shared-composer bridge's open-time resolution
+  (`resolveComposerOpen` in `components/composer-share.ts`): the composer's
+  text area is seeded with the message ONLY when the global draft and the
+  persona draft are both blank at open. Whitespace-only stored messages read
+  as "" — none provided, nothing injected.
+- When the message can't be applied because the composer already holds
+  non-whitespace text, one momentary red flash on the prompt box border
+  (`flashPromptBox` / `promptBoxForBridge` in
+  `components/default-user-message.ts`; `app.css` — the same destructive glow
+  styling and pulse shape as the Enter Guard plugin) is the only signal, and
+  nothing else changes.
+
+## Shared composer draft
+
+The persona composer's text is BB's global New Thread composer draft — the
+same input, two views. A small module-level store
+(`components/composer-share.ts`) bridges the host's two composer scopes:
+
+- Inside the persona's `NewThreadComposer` (via an in-composer banner),
+  `useComposer()`/`useComposerView()` read and write THAT composer's own
+  draft (a `plugin-new-thread` slot keyed by the `personas:start:<personaId>`
+  draft key); outside it — PersonaHome's panel — the same hooks bind to the
+  route composer, which for a plugin panel is the shared New Thread composer
+  draft.
+- The bridge banner (`ComposerShareBridge` in `app.tsx`, registered via
+  `app.composer.customize`, scoped to new-thread composers, chrome "bare")
+  reports the persona composer's text; PersonaHome reports the global draft's
+  text. Each side adopts the other's NON-BLANK text while the persona page is
+  open: persona-typed WIP flows into the global draft (so it follows the user
+  to the New Thread screen), and external changes to the global draft flow
+  into the open persona composer. Blank text never propagates — mounting
+  empty must not erase the other side. Reports emit with an origin
+  ("global" / "persona" / "open") so neither side reacts to the echo of its
+  own write; the Default User Message seed is deliberately not mirrored into
+  the global draft (it's configuration, not typed content).
+- PersonaHome bumps `openToken` once per open (gated on the persona record
+  being loaded; identity-only reloads don't re-resolve). The banner resolves
+  each open exactly once via `resolveComposerOpen`.
 
 ## Detail view and settings
 

@@ -5,11 +5,15 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { EMOJIS } from "./personas";
 import {
-  composerDraftText,
   DEFAULT_MESSAGE_FLASH_CLASS,
   DEFAULT_MESSAGE_FLASH_MS,
-  flashDefaultMessageIfRejected,
+  flashPromptBox,
+  promptBoxForBridge,
 } from "./components/default-user-message";
+import {
+  composerShare,
+  resolveComposerOpen,
+} from "./components/composer-share";
 
 const PERSONA_WITH_CHATS = {
   id: "persona_1",
@@ -991,7 +995,10 @@ describe("personas nav panel", () => {
       "medium",
     );
     // No Default User Message on persona_2: the composer's text area starts empty.
-    expect(composerDraftText(composer as HTMLElement)).toBe("");
+    const input = composer.querySelector<HTMLTextAreaElement>(
+      "textarea[data-testid='bb-new-thread-composer-input']",
+    );
+    expect(input?.value).toBe("");
     expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
 
     (await slot.findByTestId("bb-new-thread-composer-submit")).click();
@@ -1012,31 +1019,30 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("injects the persona's Default User Message into the composer's text area", async () => {
+  it("announces the open to the shared-draft bridge with the persona's Default User Message", async () => {
+    const tokenBefore = composerShare.openToken;
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
 
-    const composer = (await slot.findByTestId(
-      "bb-new-thread-composer",
-    )) as HTMLElement;
-    expect(composerDraftText(composer)).toBe(
-      PERSONA_WITH_MESSAGE.defaultUserMessage,
-    );
-    // The message IS the seed, not a rejected injection: no red flash.
+    await slot.findByTestId("bb-new-thread-composer");
+    expect(composerShare.open).toBe(true);
+    expect(composerShare.msg).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
+    expect(composerShare.openToken).toBe(tokenBefore + 1);
+    // The message is persona configuration flowing to the banner; the
+    // textarea itself stays empty in the harness — no rejected flash.
     expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
 
     slot.lifecycle.unmount();
+    expect(composerShare.open).toBe(false);
   });
 
-  it("injects nothing for a whitespace-only Default User Message", async () => {
+  it("announces a whitespace-only Default User Message as none-provided", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_7" }, { rpc: RPC });
 
-    const composer = (await slot.findByTestId(
-      "bb-new-thread-composer",
-    )) as HTMLElement;
-    expect(composerDraftText(composer)).toBe("");
-    expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
+    await slot.findByTestId("bb-new-thread-composer");
+    expect(composerShare.open).toBe(true);
+    expect(composerShare.msg).toBe("");
 
     slot.lifecycle.unmount();
   });
@@ -1881,94 +1887,159 @@ describe("Default User Message editor field", () => {
 });
 
 describe("Default User Message rejection flash", () => {
-  const DEFAULT = "Summarize yesterday's commits, then list today's plan.";
-
-  /** A composer DOM the way the host renders it, with `text` as the draft. */
-  function makeComposerDom(text: string): {
-    root: HTMLElement;
-    box: HTMLElement;
-  } {
-    const root = document.createElement("div");
-    const box = document.createElement("div");
-    box.setAttribute("data-promptbox", "");
-    const editor = document.createElement("div");
-    editor.setAttribute("data-promptbox-editor-content", "");
-    editor.textContent = text;
-    box.appendChild(editor);
-    root.appendChild(box);
-    document.body.appendChild(root);
-    return { root, box };
-  }
-
   afterEach(() => {
     document.body.textContent = "";
   });
 
-  it("flashes the prompt box when the draft holds other work-in-progress text, then cleans up", () => {
+  it("flashes the composer's shell prompt box found beside the bridge", () => {
     vi.useFakeTimers();
     try {
-      const { root, box } = makeComposerDom("My half-typed prompt");
-      const cleanup = flashDefaultMessageIfRejected(root, DEFAULT);
-      expect(cleanup).not.toBeNull();
+      const container = document.createElement("div");
+      container.setAttribute("data-promptbox-shell", "");
+      const box = document.createElement("div");
+      box.setAttribute("data-promptbox", "");
+      const bridge = document.createElement("span");
+      container.appendChild(box);
+      container.appendChild(bridge);
+      document.body.appendChild(container);
+
+      expect(promptBoxForBridge(bridge)).toBe(box);
+      const cleanup = flashPromptBox(box);
       expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(true);
-      expect(root.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
 
       // The flash is momentary: it removes itself once the pulse ends.
       vi.advanceTimersByTime(DEFAULT_MESSAGE_FLASH_MS);
       expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
-      cleanup?.();
+      cleanup();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("does not flash an empty draft, whitespace, or the seed that just landed", () => {
-    const wip = makeComposerDom("My half-typed prompt");
-    expect(flashDefaultMessageIfRejected(wip.root, DEFAULT)).not.toBeNull();
-    wip.root.remove();
+  it("leaves the flash alone when no prompt box exists", () => {
+    const bridge = document.createElement("span");
+    document.body.appendChild(bridge);
+    expect(promptBoxForBridge(bridge)).toBeNull();
+    bridge.remove();
+  });
+});
 
-    const seeded = makeComposerDom(DEFAULT);
-    expect(flashDefaultMessageIfRejected(seeded.root, DEFAULT)).toBeUndefined();
-    seeded.root.remove();
-
-    const empty = makeComposerDom("");
-    expect(flashDefaultMessageIfRejected(empty.root, DEFAULT)).toBeUndefined();
-    empty.root.remove();
-
-    const whitespace = makeComposerDom("  \n\t  ");
-    expect(flashDefaultMessageIfRejected(whitespace.root, DEFAULT)).toBeUndefined();
-    whitespace.root.remove();
+describe("shared draft bridge", () => {
+  afterEach(() => {
+    composerShare.reset();
   });
 
-  it("removes the flash early when the caller cleans up before the pulse ends", () => {
-    vi.useFakeTimers();
-    try {
-      const { root, box } = makeComposerDom("My half-typed prompt");
-      const cleanup = flashDefaultMessageIfRejected(root, DEFAULT);
-      cleanup?.();
-      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
-      // Late timer must not resurrect the class on a detached node path.
-      vi.advanceTimersByTime(DEFAULT_MESSAGE_FLASH_MS);
-      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
+  describe("resolveComposerOpen", () => {
+    const msg = "Summarize yesterday's commits, then list today's plan.";
+
+    it("adopts the shared draft over an empty persona draft", () => {
+      expect(
+        resolveComposerOpen({ sharedText: "From the landing page", personaText: "", msg: "" }),
+      ).toEqual({ adopt: "From the landing page", flash: false });
+    });
+
+    it("does not adopt when the persona draft already holds the shared content", () => {
+      expect(
+        resolveComposerOpen({ sharedText: "From the landing page", personaText: "From the landing page", msg: "" }),
+      ).toEqual({ adopt: null, flash: false });
+    });
+
+    it("injects the Default User Message when both sides are blank", () => {
+      expect(
+        resolveComposerOpen({ sharedText: "", personaText: "", msg }),
+      ).toEqual({ adopt: msg, flash: false });
+      expect(
+        resolveComposerOpen({ sharedText: "   ", personaText: "\n\t", msg }),
+      ).toEqual({ adopt: msg, flash: false });
+    });
+
+    it("keeps non-blank persona work-in-progress and flashes the unapplied message", () => {
+      expect(
+        resolveComposerOpen({ sharedText: "", personaText: "My half-typed prompt", msg }),
+      ).toEqual({ adopt: null, flash: true });
+    });
+
+    it("flashes when the shared draft is other work-in-progress than the message", () => {
+      expect(
+        resolveComposerOpen({ sharedText: "From the landing page", personaText: "", msg }),
+      ).toEqual({ adopt: "From the landing page", flash: true });
+    });
+
+    it("does not flash when the shared content IS the message itself", () => {
+      expect(
+        resolveComposerOpen({ sharedText: msg, personaText: msg, msg }),
+      ).toEqual({ adopt: null, flash: false });
+    });
+
+    it("does nothing when there is no message and both sides are blank", () => {
+      expect(
+        resolveComposerOpen({ sharedText: "", personaText: "", msg: "" }),
+      ).toEqual({ adopt: null, flash: false });
+    });
   });
 
-  it("reads the draft from the harness textarea when no host editor region exists", () => {
-    const root = document.createElement("div");
-    const area = document.createElement("textarea");
-    area.setAttribute("data-testid", "bb-new-thread-composer-input");
-    area.value = "Harness WIP";
-    root.appendChild(area);
-    document.body.appendChild(root);
+  describe("in the panel", () => {
+    it("reports the global New Thread composer draft into the bridge", async () => {
+      const panel = await loadPanel();
+      const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
+      await slot.findByTestId("bb-new-thread-composer");
+      expect(composerShare.globalText).toBe("");
 
-    const cleanup = flashDefaultMessageIfRejected(root, DEFAULT);
-    expect(cleanup).not.toBeNull();
-    // No [data-promptbox] here: the flash lands on the wrapper itself.
-    expect(root.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(true);
-    cleanup?.();
-    expect(root.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
-    root.remove();
+      await slot.behavior.setComposerText("From the landing page");
+      expect(composerShare.globalText).toBe("From the landing page");
+
+      slot.lifecycle.unmount();
+    });
+
+    it("mirrors work-in-progress typed into the persona composer into the global draft", async () => {
+      const panel = await loadPanel();
+      const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
+      await slot.findByTestId("bb-new-thread-composer");
+
+      composerShare.set({ personaText: "Typed in the persona composer" });
+      await waitFor(() =>
+        expect(slot.composer.text).toBe("Typed in the persona composer"),
+      );
+
+      slot.lifecycle.unmount();
+    });
+
+    it("never propagates blank text in either direction", async () => {
+      const panel = await loadPanel();
+      const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
+      await slot.findByTestId("bb-new-thread-composer");
+
+      await slot.behavior.setComposerText("Work in progress");
+      expect(composerShare.globalText).toBe("Work in progress");
+
+      // An empty persona draft mounting must not erase the global draft.
+      composerShare.set({ personaText: "  \n\t  " });
+      expect(slot.composer.text).toBe("Work in progress");
+
+      slot.lifecycle.unmount();
+    });
+
+    it("does not mirror the Default User Message seed into the global draft", async () => {
+      const panel = await loadPanel();
+      const slot = renderSlot(panel, { subPath: "persona_6/new" }, { rpc: RPC });
+      await slot.findByTestId("bb-new-thread-composer");
+      expect(composerShare.msg).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
+
+      // The seed lands in the persona composer, not in the global draft.
+      composerShare.set({ personaText: PERSONA_WITH_MESSAGE.defaultUserMessage });
+      expect(slot.composer.text).toBe("");
+
+      // Any user edit breaks the equality and flows through.
+      composerShare.set({
+        personaText: `${PERSONA_WITH_MESSAGE.defaultUserMessage} And notes.`,
+      });
+      await waitFor(() =>
+        expect(slot.composer.text).toBe(
+          `${PERSONA_WITH_MESSAGE.defaultUserMessage} And notes.`,
+        ),
+      );
+
+      slot.lifecycle.unmount();
+    });
   });
 });
