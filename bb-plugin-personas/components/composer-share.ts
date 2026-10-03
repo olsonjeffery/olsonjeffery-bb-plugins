@@ -1,81 +1,136 @@
-// The shared draft bridge between a persona's composer (rendered by
-// PersonaHome) and BB's global New Thread composer draft — the input the user
-// expects to be one and the same.
+// The persona composer and BB's homepage New Thread composer are independent:
+// the plugin never writes either draft's live text, so nothing trickles
+// between them. What still connects them is handled here:
 //
-// The host gives Personas two sanctioned seams:
+// - Every open of a persona's composer page seeds a FRESH draft slot with the
+//   persona's Default User Message — or nothing. The seed travels through the
+//   host composer's own `initialPrompt` prop ("only while the draft is still
+//   empty": a freshly claimed slot is empty, so it always applies). The
+//   persona's own typed work-in-progress never leaves its composer, and the
+//   homepage draft is left alone.
 //
-// - Inside the persona's NewThreadComposer subtree (an in-composer banner),
-//   `useComposer()`/`useComposerView()` bind to THAT composer's own draft —
-//   read and write.
-// - Outside it (PersonaHome's panel surface), the same hooks bind to the
-//   route draft — BB's global New Thread composer.
+// - The one-shot homepage handoff: choosing a persona from the homepage
+//   launcher captures the homepage composer draft at click time. When it is
+//   non-blank, that text is stored here and — read reactively by the persona
+//   page — seeds the fresh persona slot instead, with the Default User
+//   Message yielding to it (a difference flashes). The persona screen's own
+//   list never sets one, so its selections only ever produce empty-or-Default.
 //
-// This module is the plugin-local store that bridges them: each side reports
-// its draft text, and each side adopts the other's non-blank text while the
-// persona composer page is open. Reports emit with an origin so neither side
-// reacts to the echo of its own write.
+// The in-composer banner (`ComposerShareBridge` in app.tsx) only turns the
+// announced flash into the red prompt-box pulse; no banner ever writes text.
 
-export type ComposerShareOrigin = "global" | "persona" | "open";
+import { useSyncExternalStore } from "react";
+
+export interface ComposerCarry {
+  personaId: string;
+  text: string;
+}
 
 interface ComposerShareState {
-  /** The global New Thread composer draft's text (reported by PersonaHome). */
-  globalText: string;
-  /** The persona composer draft's text (reported by the in-composer banner). */
-  personaText: string;
+  /** The homepage handoff, waiting to be read once. */
+  carry: ComposerCarry | null;
   /** True while a persona composer page has its composer open. */
   open: boolean;
-  /** The open persona's Default User Message; "" = none provided. */
-  msg: string;
-  /** Bumped on every open; the banner resolves each open exactly once. */
+  /** Whether the in-composer banner should flash at the open. */
+  flash: boolean;
+  /** Bumped on every open; the banner reacts to each open exactly once. */
   openToken: number;
 }
 
 const state: ComposerShareState = {
-  globalText: "",
-  personaText: "",
+  carry: null,
   open: false,
-  msg: "",
+  flash: false,
   openToken: 0,
 };
 
-type ShareListener = (origin: ComposerShareOrigin) => void;
+type ShareListener = () => void;
 const listeners = new Set<ShareListener>();
 
-function emit(origin: ComposerShareOrigin): void {
-  for (const listener of [...listeners]) listener(origin);
+function emit(): void {
+  for (const listener of [...listeners]) listener();
 }
 
-/** Which reported field drove this change; the open push is its own origin. */
-function originOf(patch: Partial<ComposerShareState>): ComposerShareOrigin {
-  if (patch.globalText !== undefined) return "global";
-  if (patch.personaText !== undefined) return "persona";
-  return "open";
+/**
+ * What a persona composer page seeds at open, given the one-shot homepage
+ * carry (null = none) and the persona's Default User Message (""). The
+ * carried homepage draft wins over the message; when both are absent the
+ * seed is empty. The message's own red-flash rule lives in `flash`: it fires
+ * only when a carried draft is in and the message differed — that seed could
+ * not apply, and that is the whole signal.
+ */
+export function resolveComposerOpen({
+  carry,
+  msg,
+}: {
+  carry: string | null;
+  msg: string;
+}): { seedText: string; flash: boolean } {
+  if (carry === null || carry.trim().length === 0) {
+    return { seedText: msg, flash: false };
+  }
+  return { seedText: carry, flash: msg.length > 0 && carry !== msg };
 }
+
+/** Monotonic per-frontend-session touch, for fresh draft slot names. */
+let openSessionVisits = 0;
 
 export const composerShare = {
-  get globalText(): string {
-    return state.globalText;
-  },
-  get personaText(): string {
-    return state.personaText;
-  },
   get open(): boolean {
     return state.open;
-  },
-  get msg(): string {
-    return state.msg;
   },
   get openToken(): number {
     return state.openToken;
   },
-  set(patch: Partial<ComposerShareState>): void {
-    let changed = false;
-    for (const [key, value] of Object.entries(patch)) {
-      if (state[key as keyof ComposerShareState] === value) continue;
-      state[key as keyof ComposerShareState] = value as never;
-      changed = true;
-    }
-    if (changed) emit(originOf(patch));
+  get flash(): boolean {
+    return state.flash;
+  },
+  /** A name for a fresh per-visit draft slot that no earlier visit used. */
+  claimVisit(): string {
+    openSessionVisits += 1;
+    return `${openSessionVisits}-${crypto.randomUUID()}`;
+  },
+  /**
+   * Homepage handoff, stored at launcher-click time (the homepage composer
+   * draft read as the click happens). Always overwrites the previous carry —
+   * the latest selection is the only intent. A blank text still counts as a
+   * fresh intent: it reads the same as carrying nothing.
+   */
+  setHomepageCarry(personaId: string, text: string): void {
+    state.carry = { personaId, text };
+    emit();
+  },
+  /** Pure read for React: the carried text for this persona, null otherwise. */
+  carryFor(personaId: string): string | null {
+    const carry = state.carry;
+    return carry !== null && carry.personaId === personaId ? carry.text : null;
+  },
+  /**
+   * The consuming read, once per open: the carried text for this persona, or
+   * null. Any open clears the carry — a different persona opening first
+   * invalidates the handoff, and the matched one uses it exactly once, so
+   * no later visit or homepage change re-seeds old carried text.
+   */
+  takeCarry(personaId: string): string | null {
+    const text = this.carryFor(personaId);
+    state.carry = null;
+    emit();
+    return text;
+  },
+  /**
+   * Announce a composer-page open, exactly once per open (PersonaHome gates
+   * on the persona record being loaded). Resolves the open's flash flag; the
+   * banner turns it into the prompt-box pulse for each composer it sits in.
+   */
+  announce(flash: boolean): void {
+    state.open = true;
+    state.flash = flash;
+    state.openToken += 1;
+    emit();
+  },
+  /** A persona composer page unmounting takes the open with it. */
+  close(): void {
+    state.open = false;
   },
   subscribe(listener: ShareListener): () => void {
     listeners.add(listener);
@@ -84,40 +139,24 @@ export const composerShare = {
     };
   },
   reset(): void {
-    state.globalText = "";
-    state.personaText = "";
+    state.carry = null;
     state.open = false;
-    state.msg = "";
+    state.flash = false;
     state.openToken = 0;
+    openSessionVisits = 0;
   },
 };
 
 /**
- * What a persona composer should show when its page opens, given the shared
- * draft's text (the global composer), the persona draft it hydrated, and the
- * persona's Default User Message. The user's own text always wins: the shared
- * content is adopted, and the Default User Message is typed only when BOTH
- * sides are blank. When it can't be applied over non-blank text, `flash`
- * alerts the user — the momentary red border, and nothing else.
+ * Reactive read of the one-shot homepage handoff for a persona's page: the
+ * carried homepage draft while one waits for this persona, else null. The
+ * persona screen's own selections leave the store untouched, so this reads
+ * as null there and the composer opens empty-or-Default.
  */
-export function resolveComposerOpen({
-  sharedText,
-  personaText,
-  msg,
-}: {
-  sharedText: string;
-  personaText: string;
-  msg: string;
-}): { adopt: string | null; flash: boolean } {
-  if (sharedText.trim().length > 0) {
-    return {
-      adopt: sharedText !== personaText ? sharedText : null,
-      flash: msg.length > 0 && sharedText !== msg,
-    };
-  }
-  if (msg.length > 0) {
-    if (personaText.trim().length === 0) return { adopt: msg, flash: false };
-    if (personaText !== msg) return { adopt: null, flash: true };
-  }
-  return { adopt: null, flash: false };
+export function useComposerCarryShare(personaId: string): string | null {
+  return useSyncExternalStore(
+    composerShare.subscribe,
+    () => composerShare.carryFor(personaId),
+    () => composerShare.carryFor(personaId),
+  );
 }

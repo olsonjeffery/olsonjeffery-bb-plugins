@@ -7,17 +7,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   definePluginApp,
   useBbNavigate,
-  useComposer,
-  useComposerView,
 } from "@get-bb/plugin-sdk/app";
 import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import "./app.css";
 import { parseRoute } from "@/personas";
-import {
-  composerShare,
-  resolveComposerOpen,
-} from "@/components/composer-share";
+import { composerShare } from "@/components/composer-share";
 import {
   flashPromptBox,
   promptBoxForBridge,
@@ -171,55 +166,29 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
 }
 
 /**
- * The in-composer half of the shared-draft bridge: mounted inside every
- * new-thread composer the panel renders, it reports that composer's draft
- * text into the bridge and adopts the shared text when it changes —
- * including the open-time resolution (shared text over an empty draft,
- * Default User Message when both are blank, red flash when unapplied).
+ * The rejection-flash half of the composer bridge: mounted inside every
+ * new-thread composer the host renders, it turns PersonaHome's announced
+ * open — the one-shot homepage handoff winning over a differing Default
+ * User Message — into the momentary red pulse on that composer's own prompt
+ * box. It performs no writes; there is no live mirroring to bridge.
  * Renders nothing visible.
  */
 function ComposerShareBridge() {
-  const view = useComposerView();
-  const composer = useComposer();
   const appliedTokenRef = useRef(-1);
   const selfRef = useRef<HTMLSpanElement | null>(null);
 
-  // Report this composer's draft text into the bridge.
   useEffect(() => {
-    composerShare.set({ personaText: view.draft.text });
-  }, [view.draft.text]);
-
-  // Adopt the shared draft: the open-time resolution runs once per open;
-  // afterwards, external changes to the global draft flow in live.
-  useEffect(() => {
-    return composerShare.subscribe((origin) => {
+    return composerShare.subscribe(() => {
       if (!composerShare.open) return;
-      const { globalText } = composerShare;
-      if (origin === "open") {
-        if (appliedTokenRef.current === composerShare.openToken) return;
-        appliedTokenRef.current = composerShare.openToken;
-        const outcome = resolveComposerOpen({
-          sharedText: globalText,
-          personaText: composer.text,
-          msg: composerShare.msg,
-        });
-        if (outcome.adopt !== null && composer.text !== outcome.adopt) {
-          composer.setText(outcome.adopt);
-        }
-        if (outcome.flash) {
-          const self = selfRef.current;
-          if (self !== null) {
-            const box = promptBoxForBridge(self);
-            if (box !== null) flashPromptBox(box);
-          }
-        }
-        return;
-      }
-      if (origin !== "global") return;
-      if (globalText.trim().length === 0) return;
-      if (composer.text !== globalText) composer.setText(globalText);
+      if (appliedTokenRef.current === composerShare.openToken) return;
+      appliedTokenRef.current = composerShare.openToken;
+      if (!composerShare.flash) return;
+      const self = selfRef.current;
+      if (self === null) return;
+      const box = promptBoxForBridge(self);
+      if (box !== null) flashPromptBox(box);
     });
-  }, [composer]);
+  }, []);
 
   return <span ref={selfRef} aria-hidden style={{ display: "none" }} />;
 }
@@ -233,11 +202,11 @@ export default definePluginApp((app) => {
     component: PersonasPanel,
   });
 
-  // The shared-draft bridge: inside every new-thread composer this panel
-  // renders, a bare banner that reports the composer's draft text and adopts
-  // the shared text (BB's global New Thread composer) — the open-time
-  // resolution included. The root compose surface's own new-thread composer
-  // also matches, but its draft IS the shared one, so it no-ops there.
+  // The rejection-flash bridge: inside every new-thread composer bb renders
+  // for this plugin (including the root compose surface), a bare banner that
+  // pulses the prompt box when PersonaHome announces an open whose carried
+  // homepage draft won over a differing Default User Message. It never
+  // writes draft text — the composers keep their own drafts by construction.
   app.composer.customize({
     id: "composer-share",
     scopes: ["new-thread"],

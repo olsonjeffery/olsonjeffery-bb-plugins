@@ -1019,17 +1019,21 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("announces the open to the shared-draft bridge with the persona's Default User Message", async () => {
+  it("announces the open to the shared-draft bridge and seeds the Default User Message", async () => {
     const tokenBefore = composerShare.openToken;
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
 
-    await slot.findByTestId("bb-new-thread-composer");
+    const composer = await slot.findByTestId("bb-new-thread-composer");
     expect(composerShare.open).toBe(true);
-    expect(composerShare.msg).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
+    expect(composerShare.flash).toBe(false);
     expect(composerShare.openToken).toBe(tokenBefore + 1);
-    // The message is persona configuration flowing to the banner; the
-    // textarea itself stays empty in the harness — no rejected flash.
+    // The Default User Message rides the composer's own initialPrompt seed,
+    // which the harness paints into the textarea at mount.
+    const input = composer.querySelector<HTMLTextAreaElement>(
+      "textarea[data-testid='bb-new-thread-composer-input']",
+    );
+    expect(input?.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
     expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
 
     slot.lifecycle.unmount();
@@ -1040,9 +1044,12 @@ describe("personas nav panel", () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_7" }, { rpc: RPC });
 
-    await slot.findByTestId("bb-new-thread-composer");
+    const composer = await slot.findByTestId("bb-new-thread-composer");
+    const input = composer.querySelector<HTMLTextAreaElement>(
+      "textarea[data-testid='bb-new-thread-composer-input']",
+    );
+    expect(input?.value).toBe("");
     expect(composerShare.open).toBe(true);
-    expect(composerShare.msg).toBe("");
 
     slot.lifecycle.unmount();
   });
@@ -1673,6 +1680,10 @@ describe("personas nav panel", () => {
 });
 
 describe("persona launcher homepage section", () => {
+  afterEach(() => {
+    composerShare.reset();
+  });
+
   async function loadSection() {
     const app = await loadPluginApp(() => import("./app"));
     const [section] = app.homepageSections;
@@ -1702,6 +1713,33 @@ describe("persona launcher homepage section", () => {
       path: "personas",
       options: { subPath: "persona_2" },
     });
+    slot.lifecycle.unmount();
+  });
+
+  it("hands the homepage composer draft to the persona chosen at click time", async () => {
+    const section = await loadSection();
+    const slot = renderSlot(section, { projectId: null }, { rpc: RPC });
+
+    await slot.findByText("Builder");
+    await slot.behavior.setComposerText("From the landing page");
+
+    (await slot.findByText("Builder")).click();
+    expect(slot.inspection.navigateCalls).toContainEqual({
+      method: "toPluginPanel",
+      path: "personas",
+      options: { subPath: "persona_2" },
+    });
+    expect(composerShare.takeCarry("persona_2")).toBe("From the landing page");
+    slot.lifecycle.unmount();
+  });
+
+  it("hands a blank homepage draft as an empty carry — the persona page seeds nothing", async () => {
+    const section = await loadSection();
+    const slot = renderSlot(section, { projectId: null }, { rpc: RPC });
+
+    await slot.findByText("Pirate");
+    (await slot.findByText("Pirate")).click();
+    expect(composerShare.takeCarry("persona_1")).toBe("");
     slot.lifecycle.unmount();
   });
 
@@ -1924,120 +1962,151 @@ describe("Default User Message rejection flash", () => {
   });
 });
 
-describe("shared draft bridge", () => {
+describe("composer handoff", () => {
   afterEach(() => {
     composerShare.reset();
   });
 
-  describe("resolveComposerOpen", () => {
+  describe("resolveComposerOpen — what a persona page seeds at open", () => {
     const msg = "Summarize yesterday's commits, then list today's plan.";
 
-    it("adopts the shared draft over an empty persona draft", () => {
-      expect(
-        resolveComposerOpen({ sharedText: "From the landing page", personaText: "", msg: "" }),
-      ).toEqual({ adopt: "From the landing page", flash: false });
+    it("seeds the Default User Message when nothing was carried", () => {
+      expect(resolveComposerOpen({ carry: null, msg })).toEqual({
+        seedText: msg,
+        flash: false,
+      });
+      expect(resolveComposerOpen({ carry: null, msg: "" })).toEqual({
+        seedText: "",
+        flash: false,
+      });
     });
 
-    it("does not adopt when the persona draft already holds the shared content", () => {
-      expect(
-        resolveComposerOpen({ sharedText: "From the landing page", personaText: "From the landing page", msg: "" }),
-      ).toEqual({ adopt: null, flash: false });
+    it("reads a blank carried text as no carry — nothing of the homepage leaks", () => {
+      expect(resolveComposerOpen({ carry: "   ", msg })).toEqual({
+        seedText: msg,
+        flash: false,
+      });
     });
 
-    it("injects the Default User Message when both sides are blank", () => {
+    it("a carried homepage draft wins over the message, which flashes unapplied", () => {
       expect(
-        resolveComposerOpen({ sharedText: "", personaText: "", msg }),
-      ).toEqual({ adopt: msg, flash: false });
-      expect(
-        resolveComposerOpen({ sharedText: "   ", personaText: "\n\t", msg }),
-      ).toEqual({ adopt: msg, flash: false });
+        resolveComposerOpen({ carry: "From the landing page", msg }),
+      ).toEqual({ seedText: "From the landing page", flash: true });
     });
 
-    it("keeps non-blank persona work-in-progress and flashes the unapplied message", () => {
-      expect(
-        resolveComposerOpen({ sharedText: "", personaText: "My half-typed prompt", msg }),
-      ).toEqual({ adopt: null, flash: true });
+    it("does not flash when the carried draft IS the message itself", () => {
+      expect(resolveComposerOpen({ carry: msg, msg })).toEqual({
+        seedText: msg,
+        flash: false,
+      });
     });
 
-    it("flashes when the shared draft is other work-in-progress than the message", () => {
+    it("a carried draft over no message just wins — nothing to reject", () => {
       expect(
-        resolveComposerOpen({ sharedText: "From the landing page", personaText: "", msg }),
-      ).toEqual({ adopt: "From the landing page", flash: true });
-    });
-
-    it("does not flash when the shared content IS the message itself", () => {
-      expect(
-        resolveComposerOpen({ sharedText: msg, personaText: msg, msg }),
-      ).toEqual({ adopt: null, flash: false });
-    });
-
-    it("does nothing when there is no message and both sides are blank", () => {
-      expect(
-        resolveComposerOpen({ sharedText: "", personaText: "", msg: "" }),
-      ).toEqual({ adopt: null, flash: false });
+        resolveComposerOpen({ carry: "From the landing page", msg: "" }),
+      ).toEqual({ seedText: "From the landing page", flash: false });
     });
   });
 
-  describe("in the panel", () => {
-    it("reports the global New Thread composer draft into the bridge", async () => {
-      const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-      await slot.findByTestId("bb-new-thread-composer");
-      expect(composerShare.globalText).toBe("");
-
-      await slot.behavior.setComposerText("From the landing page");
-      expect(composerShare.globalText).toBe("From the landing page");
-
-      slot.lifecycle.unmount();
+  describe("the one-shot homepage handoff store", () => {
+    it("hands the carried draft to the matching persona exactly once", () => {
+      composerShare.setHomepageCarry("persona_2", "From the landing page");
+      expect(composerShare.carryFor("persona_2")).toBe("From the landing page");
+      expect(composerShare.takeCarry("persona_2")).toBe("From the landing page");
+      expect(composerShare.carryFor("persona_2")).toBeNull();
+      // Consumed: no later open of the same persona re-seeds old text.
+      expect(composerShare.takeCarry("persona_2")).toBeNull();
     });
 
-    it("mirrors work-in-progress typed into the persona composer into the global draft", async () => {
-      const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-      await slot.findByTestId("bb-new-thread-composer");
+    it("a different persona opening first invalidates the handoff", () => {
+      composerShare.setHomepageCarry("persona_2", "From the landing page");
+      expect(composerShare.takeCarry("persona_6")).toBeNull();
+      expect(composerShare.carryFor("persona_2")).toBeNull();
+    });
 
-      composerShare.set({ personaText: "Typed in the persona composer" });
-      await waitFor(() =>
-        expect(slot.composer.text).toBe("Typed in the persona composer"),
+    it("a fresh homepage selection replaces an older carry", () => {
+      composerShare.setHomepageCarry("persona_2", "From the landing page");
+      composerShare.setHomepageCarry("persona_2", "");
+      expect(composerShare.takeCarry("persona_2")).toBe("");
+      expect(composerShare.takeCarry("persona_2")).toBeNull();
+    });
+  });
+
+  describe("on the persona page", () => {
+    it("seeds the persona composer with the carried homepage draft over a fresh draft slot", async () => {
+      composerShare.setHomepageCarry("persona_2", "From the landing page");
+      const panel = await loadPanel();
+      const slot = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
+
+      const composer = await slot.findByTestId("bb-new-thread-composer");
+      const input = composer.querySelector<HTMLTextAreaElement>(
+        "textarea[data-testid='bb-new-thread-composer-input']",
       );
+      expect(input?.value).toBe("From the landing page");
+      // Every open claims its own slot — no draft from an earlier visit can
+      // resurface, so the composer reads empty-or-Default at all times.
+      expect(composer.getAttribute("data-draft-key")).toMatch(
+        /^personas:start:persona_2#/,
+      );
+      // The carry was used by this open: one shot.
+      expect(composerShare.carryFor("persona_2")).toBeNull();
 
       slot.lifecycle.unmount();
     });
 
-    it("never propagates blank text in either direction", async () => {
+    it("keeps the homepage draft untouched by a seeded Default User Message — no mirroring", async () => {
       const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-      await slot.findByTestId("bb-new-thread-composer");
+      const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
 
-      await slot.behavior.setComposerText("Work in progress");
-      expect(composerShare.globalText).toBe("Work in progress");
+      // A homepage draft exists before the open. It must not appear in the
+      // persona composer, and the Default User Message must not flow back.
+      await slot.behavior.setComposerText("Working on something else");
+      const composer = await slot.findByTestId("bb-new-thread-composer");
+      const input = composer.querySelector<HTMLTextAreaElement>(
+        "textarea[data-testid='bb-new-thread-composer-input']",
+      );
+      expect(input?.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
 
-      // An empty persona draft mounting must not erase the global draft.
-      composerShare.set({ personaText: "  \n\t  " });
-      expect(slot.composer.text).toBe("Work in progress");
-
-      slot.lifecycle.unmount();
-    });
-
-    it("does not mirror the Default User Message seed into the global draft", async () => {
-      const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_6/new" }, { rpc: RPC });
-      await slot.findByTestId("bb-new-thread-composer");
-      expect(composerShare.msg).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
-
-      // The seed lands in the persona composer, not in the global draft.
-      composerShare.set({ personaText: PERSONA_WITH_MESSAGE.defaultUserMessage });
-      expect(slot.composer.text).toBe("");
-
-      // Any user edit breaks the equality and flows through.
-      composerShare.set({
-        personaText: `${PERSONA_WITH_MESSAGE.defaultUserMessage} And notes.`,
+      // What the user types in the persona composer stays there: the
+      // homepage draft is a different, independent input.
+      fireEvent.change(input!, {
+        target: { value: "Owned by the persona composer" },
       });
-      await waitFor(() =>
-        expect(slot.composer.text).toBe(
-          `${PERSONA_WITH_MESSAGE.defaultUserMessage} And notes.`,
-        ),
+      expect(slot.composer.text).toBe("Working on something else");
+
+      slot.lifecycle.unmount();
+    });
+
+    it("claims a fresh draft slot per persona — clicking around resets the composer", async () => {
+      const panel = await loadPanel();
+      const slotA = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
+      const composerA = await slotA.findByTestId("bb-new-thread-composer");
+      const keyA = composerA.getAttribute("data-draft-key")!;
+      slotA.lifecycle.unmount();
+
+      const slotB = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
+      const composerB = await slotB.findByTestId("bb-new-thread-composer");
+      const keyB = composerB.getAttribute("data-draft-key")!;
+      expect(keyB).not.toBe(keyA);
+      expect(keyB).toMatch(/^personas:start:persona_6#/);
+      slotB.lifecycle.unmount();
+    });
+
+    it("announces a rejected Default User Message as a flash flag on the open", async () => {
+      composerShare.setHomepageCarry(
+        "persona_6",
+        "Carried instead of the message",
       );
+      const panel = await loadPanel();
+      const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
+
+      await slot.findByTestId("bb-new-thread-composer");
+      expect(composerShare.flash).toBe(true);
+      // The seeded text is the carry, not the message.
+      const input = slot.queryAllByText(
+        PERSONA_WITH_MESSAGE.defaultUserMessage,
+      );
+      expect(input).toHaveLength(0);
 
       slot.lifecycle.unmount();
     });

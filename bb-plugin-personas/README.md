@@ -47,11 +47,13 @@ With Personas, you can:
 - create drafts before making a persona available to chat with
 - keep chat history as normal BB threads
 - pick a persona straight from BB's New Thread screen — its launcher section
-  lists your published personas and jumps into that persona's composer
-- share the composer: the persona's chat input is the same draft BB's New
-  Thread screen holds, so text follows you between the two
-- give each persona an optional Default User Message — a fallback seeded into
-  the composer only when both sides are empty
+  lists your published personas and jumps into that persona's composer;
+  if the New Thread screen held a draft when you picked, it travels into
+  the persona's composer
+- keep composers independent: the persona's chat input and the generic New
+  Thread input hold their own drafts, and neither leaks into the other
+- give each persona an optional Default User Message — seeded into a freshly
+  opened composer so every selection starts empty-or-Default
 
 A persona is not a separate chat app. It lives in BB and uses BB's existing thread,
 composer, attachment, archive, and delete experience.
@@ -143,25 +145,33 @@ Add-note affordance) disappears entirely and **+ Add** stays a plain typed-text
 button. Personas already holding note entries keep working: their text falls
 back to "[Floating note is unavailable]" until the plugin returns.
 
-### The shared composer
+### Composer drafts and the homepage handoff
 
-The persona's chat composer is not a private scratchpad — it shows the same
-draft text BB's generic New Thread screen holds. Whatever you type on one
-side is there when you open the other, and sending clears it, like one
-shared input. (One deliberate limit: an empty field never wipes the other
-side, so opening a persona page can't erase work-in-progress text.)
+The persona's composer and the generic New Thread screen's composer are
+**independent inputs**. Nothing you type on one side trickles into the other,
+and seeds on one side never rewrite the other side's draft.
+
+At every selection the persona composer starts clean: **empty, or the
+persona's Default User Message if you set one** — never a leftover draft from
+an earlier visit. The homepage handoff is the single deliberate exception:
+if BB's New Thread screen held a non-empty draft **when you picked a persona
+from its launcher section**, that text pops into the persona's composer
+instead. The handoff happens once (only from the homepage) and is consumed by
+that one open; picking the same persona again from the persona list starts
+clean. On the persona screen itself the homepage draft never trickles
+through.
 
 ### The Default User Message
 
 Each persona also has a **Default user message** (max 500 characters, noted
-right on the field) — a seed the composer's text area starts with **only when
-both sides are empty**. Two rules keep it from ever stepping on you:
+right on the field) — the seed a freshly opened composer shows. Two rules
+keep it from ever stepping on you:
 
 - **Empty or whitespace-only means none provided** — nothing is injected.
-- **Your own work-in-progress text always wins.** If the composer's text area
-  already holds content when the page opens, the message is not applied.
-  Instead the composer's border flashes red for a moment — the same treatment
-  the Enter Guard plugin uses — and nothing else changes.
+- **Your own text always wins.** A carried homepage draft keeps the message
+  from seeding; if the message differs from that carried text, the
+  composer's border flashes red for a moment — the same treatment the Enter
+  Guard plugin uses — and nothing else changes.
 
 New personas start as drafts. This gives you space to set up their prompt pool,
 provider, and model before using them.

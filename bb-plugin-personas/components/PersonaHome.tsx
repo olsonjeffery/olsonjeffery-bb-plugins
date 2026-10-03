@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   experimental_NewThreadComposer as NewThreadComposer,
   useBbNavigate,
-  useComposer,
-  useComposerView,
 } from "@get-bb/plugin-sdk/app";
 import type { NewThreadRequest } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -12,7 +10,11 @@ import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-
 import { Icon } from "@/components/ui/icon";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
 import { ChatRow } from "@/components/ChatRow";
-import { composerShare } from "@/components/composer-share";
+import {
+  composerShare,
+  resolveComposerOpen,
+  useComposerCarryShare,
+} from "@/components/composer-share";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
 import { cn } from "@/lib/utils";
@@ -100,11 +102,6 @@ export function PersonaHome({
   const navigate = useBbNavigate();
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  // Route-bound composer hooks: outside the host composer subtree these bind
-  // to BB's global New Thread composer draft — the input shared with this
-  // persona's composer below.
-  const globalComposer = useComposer();
-  const globalComposerView = useComposerView();
 
   // One round trip: the persona, the picker options the composer needs, and its
   // chat list, so this pane never waterfalls into a second call after load.
@@ -124,47 +121,67 @@ export function PersonaHome({
   const defaultUserMessage = clampDefaultUserMessage(
     data?.[0]?.persona?.defaultUserMessage ?? "",
   );
+  // The data belongs to this page only when it really is this persona's row;
+  // a navigation between personas renders the previous row until the new one
+  // lands, and that frame must not seed anything.
+  const loadedPersonaId = data?.[0]?.persona?.id ?? null;
+  const ownPersona = data?.[0]?.persona ?? null;
 
-  // Report the global composer draft into the bridge, so the in-composer
-  // banner can adopt it when the persona composer opens.
-  useEffect(() => {
-    composerShare.set({ globalText: globalComposerView.draft.text });
-  }, [globalComposerView.draft.text]);
+  // The one-shot homepage handoff, read reactively: choosing a persona from
+  // the homepage launcher stored the homepage draft here, and a persona page
+  // for the same persona gets it at first render. Clicking around within the
+  // persona screen never sets one, so the read is null and the composer opens
+  // empty (or with the Default User Message).
+  const carry = useComposerCarryShare(personaId);
 
-  // Mirror work-in-progress typed into the persona composer back into the
-  // global draft, so it follows the user to BB's New Thread screen. Blank
-  // text never propagates (mounting empty must not erase the global draft),
-  // and the Default User Message seed is left out — it's configuration, not
-  // something the user typed.
-  useEffect(() => {
-    return composerShare.subscribe((origin) => {
-      if (origin !== "persona") return;
-      const { personaText, msg } = composerShare;
-      if (personaText.trim().length === 0) return;
-      if (personaText === msg && globalComposer.text.trim().length === 0) {
-        return;
-      }
-      if (globalComposer.text === personaText) return;
-      globalComposer.setText(personaText);
-    });
-  }, [globalComposer]);
+  // What this open seeds: the carried homepage draft when there is one, else
+  // the Default User Message (which can be "" — an empty seed).
+  const { seedText } = resolveComposerOpen({ carry, msg: defaultUserMessage });
 
-  // Announce the open so the in-composer banner resolves this open exactly
-  // once: adopts the shared text over an empty persona draft, injects the
-  // Default User Message when both sides are blank, and flashes the prompt
-  // box border when the message could not be applied. Gated on the load so
-  // the loading render doesn't announce with an empty message; identity-only
-  // reloads (same persona, same message) don't re-resolve.
-  const hasData = data !== null;
-  useEffect(() => {
-    if (!hasData) return;
-    composerShare.set({
-      open: true,
+  // Every open claims a FRESH draft slot: selecting a persona produces an
+  // empty-or-Default composer at all times — no slot draft from an earlier
+  // visit can reappear. The claim is derived from the (persona, message)
+  // pair during render, so an identity-only reload of the same pair keeps
+  // the composer and its text untouched.
+  const visitRef = useRef<{
+    personaId: string;
+    msg: string;
+    draftKey: string;
+  } | null>(null);
+  if (
+    ownPersona !== null &&
+    ownPersona.id === personaId &&
+    (visitRef.current === null ||
+      visitRef.current.personaId !== personaId ||
+      visitRef.current.msg !== defaultUserMessage)
+  ) {
+    visitRef.current = {
+      personaId,
       msg: defaultUserMessage,
-      openToken: composerShare.openToken + 1,
+      draftKey: `personas:start:${personaId}#${composerShare.claimVisit()}`,
+    };
+  }
+  const visit =
+    visitRef.current !== null && visitRef.current.personaId === personaId
+      ? visitRef.current
+      : null;
+
+  // Announce the open so the in-composer banner parses this open exactly
+  // once: it flashes the prompt box when a carried homepage draft won and
+  // the Default User Message differed. Gated on the load and the persona
+  // row matching, so the loading render and a stale row don't announce.
+  const ownPersonaLoaded =
+    data !== null && ownPersona !== null && ownPersona.id === personaId;
+  useEffect(() => {
+    if (!ownPersonaLoaded) return;
+    const consumed = composerShare.takeCarry(personaId);
+    const { flash } = resolveComposerOpen({
+      carry: consumed,
+      msg: defaultUserMessage,
     });
-    return () => composerShare.set({ open: false });
-  }, [personaId, defaultUserMessage, hasData]);
+    composerShare.announce(flash);
+    return () => composerShare.close();
+  }, [personaId, defaultUserMessage, ownPersonaLoaded]);
 
   if (error !== null) {
     return <p className="p-4 text-sm text-destructive">{error}</p>;
@@ -269,7 +286,7 @@ export function PersonaHome({
               </Button>
             </div>
           ) : (
-            <>
+            <            >
               <NewThreadComposer
                 defaultProjectId={persona.projectId ?? personalProjectId ?? undefined}
                 defaultProviderId={persona.providerId}
@@ -279,7 +296,8 @@ export function PersonaHome({
                   : { defaultReasoningLevel: persona.reasoningLevel })}
                 placeholder={`Message ${displayName(persona)}…`}
                 layout="document"
-                draftKey={`personas:start:${personaId}`}
+                draftKey={visit?.draftKey}
+                {...(seedText === "" ? {} : { initialPrompt: seedText })}
                 onSubmit={startChat}
               />
 
