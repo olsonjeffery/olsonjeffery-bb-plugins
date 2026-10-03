@@ -135,11 +135,28 @@ export function PersonaHome({
   // empty (or with the Default User Message).
   const carry = useComposerCarryShare(personaId);
 
+  // The handoff is one-shot, but the seed must be PERMANENT for this open: bb
+  // applies initialPrompt through an async pipeline, so the seed text has to
+  // stay stable — consuming the store on announce would flip the prop before
+  // bb has seeded anything and the homepage draft would silently vanish. So
+  // the consumed value is CLAIMED into component state (a copy with the same
+  // value) and every later render of this open reuses the claim verbatim.
+  const [carryClaim, setCarryClaim] = useState<{
+    personaId: string;
+    msg: string;
+    text: string | null;
+  } | null>(null);
+  const claimActive =
+    carryClaim !== null &&
+    carryClaim.personaId === personaId &&
+    carryClaim.msg === defaultUserMessage;
+  const consumedCarry = claimActive ? carryClaim.text : carry;
+
   // What this open seeds: the carried homepage draft when there is one, else
   // the Default User Message (which can be "" — an empty seed). Gated on the
   // row matching the route; a stale transit frame seeds nothing at all.
   const { seedText } = resolveComposerOpen({
-    carry: ownRow ? carry : null,
+    carry: ownRow ? consumedCarry : null,
     msg: defaultUserMessage,
   });
 
@@ -175,9 +192,12 @@ export function PersonaHome({
   // once: it flashes the prompt box when a carried homepage draft won and
   // the Default User Message differed. Gated on the load and the persona
   // row matching, so the loading render and a stale row don't announce.
+  // The handoff's consumed value is claimed here — one announcement outlives
+  // the store clear it causes, exactly as the claimActive doc explains.
   useEffect(() => {
     if (!ownRow) return;
     const consumed = composerShare.takeCarry(personaId);
+    setCarryClaim({ personaId, msg: defaultUserMessage, text: consumed });
     const { flash } = resolveComposerOpen({
       carry: consumed,
       msg: defaultUserMessage,
