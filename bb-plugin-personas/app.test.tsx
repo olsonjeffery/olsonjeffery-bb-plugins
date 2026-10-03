@@ -2092,6 +2092,35 @@ describe("composer handoff", () => {
       slotB.lifecycle.unmount();
     });
 
+    it("never seeds the previous persona's Default User Message across a navigation", async () => {
+      const panel = await loadPanel();
+      const Panel = panel.component;
+      const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
+      const composer = await slot.findByTestId("bb-new-thread-composer");
+      const reviewerKey = composer.getAttribute("data-draft-key")!;
+      expect(reviewerKey).toMatch(/^personas:start:persona_6#/);
+
+      // Navigate to persona_2 (no Default User Message) on the same mounted
+      // panel. Until persona_2's row lands, the panel still shows persona_6's
+      // data — that transit frame must seed nothing: no transient rebind to
+      // the plugin's default draft slot, no foreign message in the textarea.
+      slot.lifecycle.rerender(<Panel subPath="persona_2" />);
+      const composerNow = document.querySelector(
+        "[data-testid='bb-new-thread-composer']",
+      )!;
+      expect(composerNow.getAttribute("data-draft-key")).toBe(reviewerKey);
+
+      await waitFor(() =>
+        expect(
+          document
+            .querySelector("[data-testid='bb-new-thread-composer']")!
+            .getAttribute("data-draft-key"),
+        ).toMatch(/^personas:start:persona_2#/),
+      );
+
+      slot.lifecycle.unmount();
+    });
+
     it("announces a rejected Default User Message as a flash flag on the open", async () => {
       composerShare.setHomepageCarry(
         "persona_6",

@@ -117,15 +117,16 @@ export function PersonaHome({
 
   // The Default User Message this composer page injects: trimmed, "" when
   // none provided (whitespace-only counts as none — nothing is injected).
-  // Read defensively because this runs during the loading render too.
-  const defaultUserMessage = clampDefaultUserMessage(
-    data?.[0]?.persona?.defaultUserMessage ?? "",
-  );
-  // The data belongs to this page only when it really is this persona's row;
+  // The data belongs to this page only when it really is this persona's row:
   // a navigation between personas renders the previous row until the new one
-  // lands, and that frame must not seed anything.
-  const loadedPersonaId = data?.[0]?.persona?.id ?? null;
-  const ownPersona = data?.[0]?.persona ?? null;
+  // lands, and that frame must not seed anything — injecting the previous
+  // persona's message into the composer for a beat is exactly the
+  // foreign-text flash between two personas.
+  const persona = data?.[0]?.persona ?? null;
+  const ownRow = persona !== null && persona.id === personaId;
+  const defaultUserMessage = clampDefaultUserMessage(
+    ownRow ? persona.defaultUserMessage ?? "" : "",
+  );
 
   // The one-shot homepage handoff, read reactively: choosing a persona from
   // the homepage launcher stored the homepage draft here, and a persona page
@@ -135,8 +136,12 @@ export function PersonaHome({
   const carry = useComposerCarryShare(personaId);
 
   // What this open seeds: the carried homepage draft when there is one, else
-  // the Default User Message (which can be "" — an empty seed).
-  const { seedText } = resolveComposerOpen({ carry, msg: defaultUserMessage });
+  // the Default User Message (which can be "" — an empty seed). Gated on the
+  // row matching the route; a stale transit frame seeds nothing at all.
+  const { seedText } = resolveComposerOpen({
+    carry: ownRow ? carry : null,
+    msg: defaultUserMessage,
+  });
 
   // Every open claims a FRESH draft slot: selecting a persona produces an
   // empty-or-Default composer at all times — no slot draft from an earlier
@@ -149,8 +154,7 @@ export function PersonaHome({
     draftKey: string;
   } | null>(null);
   if (
-    ownPersona !== null &&
-    ownPersona.id === personaId &&
+    ownRow &&
     (visitRef.current === null ||
       visitRef.current.personaId !== personaId ||
       visitRef.current.msg !== defaultUserMessage)
@@ -161,19 +165,18 @@ export function PersonaHome({
       draftKey: `personas:start:${personaId}#${composerShare.claimVisit()}`,
     };
   }
-  const visit =
-    visitRef.current !== null && visitRef.current.personaId === personaId
-      ? visitRef.current
-      : null;
+  // Hold the last claimed slot through a navigation's transit frames:
+  // dropping to an undefined key would briefly bind the composer to the
+  // plugin's default draft slot, which nothing ever reads again once
+  // contaminated. The claimed key rebinds as soon as the new row lands.
+  const visit = visitRef.current;
 
   // Announce the open so the in-composer banner parses this open exactly
   // once: it flashes the prompt box when a carried homepage draft won and
   // the Default User Message differed. Gated on the load and the persona
   // row matching, so the loading render and a stale row don't announce.
-  const ownPersonaLoaded =
-    data !== null && ownPersona !== null && ownPersona.id === personaId;
   useEffect(() => {
-    if (!ownPersonaLoaded) return;
+    if (!ownRow) return;
     const consumed = composerShare.takeCarry(personaId);
     const { flash } = resolveComposerOpen({
       carry: consumed,
@@ -181,7 +184,7 @@ export function PersonaHome({
     });
     composerShare.announce(flash);
     return () => composerShare.close();
-  }, [personaId, defaultUserMessage, ownPersonaLoaded]);
+  }, [personaId, defaultUserMessage, ownRow]);
 
   if (error !== null) {
     return <p className="p-4 text-sm text-destructive">{error}</p>;
@@ -190,7 +193,6 @@ export function PersonaHome({
     return <p className="p-4 text-sm text-muted-foreground">Loading…</p>;
   }
 
-  const persona = data[0].persona;
   if (persona === null) {
     return (
       <p className="p-4 text-sm text-muted-foreground">
