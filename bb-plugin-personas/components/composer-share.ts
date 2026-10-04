@@ -10,20 +10,33 @@
 //   homepage draft is left alone.
 //
 // - The one-shot homepage handoff: choosing a persona from the homepage
-//   launcher captures the homepage composer draft at click time. When it is
-//   non-blank, that text is stored here and — read reactively by the persona
-//   page — seeds the fresh persona slot instead, with the Default User
-//   Message yielding to it (a difference flashes). The persona screen's own
-//   list never sets one, so its selections only ever produce empty-or-Default.
+//   launcher captures, at click time and in full, the homepage composer's
+//   draft text AND its picked project and environment (repo source / HEAD).
+//   Those values are stored here and — read reactively by the persona page —
+//   seed the fresh persona slot, with the Default User Message and the
+//   persona's saved project yielding to them (a differing message flashes).
+//   The persona screen's own list never sets one, so its selections only
+//   ever produce empty-or-Default and the persona's own project.
 //
 // The in-composer banner (`ComposerShareBridge` in app.tsx) only turns the
 // announced flash into the red prompt-box pulse; no banner ever writes text.
 
 import { useSyncExternalStore } from "react";
+import type { ExperimentalComposerSelection } from "@get-bb/plugin-sdk/app";
 
-export interface ComposerCarry {
-  personaId: string;
+/** What the homepage launcher hands a persona's composer page. */
+export interface ComposerHandoff {
   text: string;
+  /** The homepage composer's picked project. Null = projectless homepage —
+   * it does not override the persona's own project. */
+  projectId: string | null;
+  /** The picked environment (Reuse existing / worktree / checkout), passed
+   * as the submit-ready args the persona composer can seed again. */
+  environment: ExperimentalComposerSelection["environment"];
+}
+
+export interface ComposerCarry extends ComposerHandoff {
+  personaId: string;
 }
 
 interface ComposerShareState {
@@ -91,31 +104,32 @@ export const composerShare = {
     return `${openSessionVisits}-${crypto.randomUUID()}`;
   },
   /**
-   * Homepage handoff, stored at launcher-click time (the homepage composer
-   * draft read as the click happens). Always overwrites the previous carry —
-   * the latest selection is the only intent. A blank text still counts as a
-   * fresh intent: it reads the same as carrying nothing.
+   * Homepage handoff, stored at launcher-click time (the homepage composer's
+   * draft and picked project/environment read as the click happens). Always
+   * overwrites the previous carry — the latest selection is the only intent.
+   * A blank text still counts as a fresh intent: it reads the same as
+   * carrying nothing for the seeding.
    */
-  setHomepageCarry(personaId: string, text: string): void {
-    state.carry = { personaId, text };
+  setHomepageCarry(personaId: string, handoff: ComposerHandoff): void {
+    state.carry = { personaId, ...handoff };
     emit();
   },
-  /** Pure read for React: the carried text for this persona, null otherwise. */
-  carryFor(personaId: string): string | null {
+  /** Pure read for React: the carried handoff for this persona, else null. */
+  carryFor(personaId: string): ComposerCarry | null {
     const carry = state.carry;
-    return carry !== null && carry.personaId === personaId ? carry.text : null;
+    return carry !== null && carry.personaId === personaId ? carry : null;
   },
   /**
-   * The consuming read, once per open: the carried text for this persona, or
-   * null. Any open clears the carry — a different persona opening first
-   * invalidates the handoff, and the matched one uses it exactly once, so
-   * no later visit or homepage change re-seeds old carried text.
+   * The consuming read, once per open: the carried handoff for this persona,
+   * else null. Any open clears the carry — a different persona opening first
+   * invalidates the handoff, and the matched one uses it exactly once, so no
+   * later visit or homepage change re-seeds old carried values.
    */
-  takeCarry(personaId: string): string | null {
-    const text = this.carryFor(personaId);
+  takeCarry(personaId: string): ComposerCarry | null {
+    const carry = this.carryFor(personaId);
     state.carry = null;
     emit();
-    return text;
+    return carry;
   },
   /**
    * Announce a composer-page open, exactly once per open (PersonaHome gates
@@ -149,11 +163,11 @@ export const composerShare = {
 
 /**
  * Reactive read of the one-shot homepage handoff for a persona's page: the
- * carried homepage draft while one waits for this persona, else null. The
- * persona screen's own selections leave the store untouched, so this reads
- * as null there and the composer opens empty-or-Default.
+ * carried handoff while one waits for this persona, else null. The persona
+ * screen's own selections leave the store untouched, so this reads as null
+ * there and the composer opens empty-or-Default with the persona's project.
  */
-export function useComposerCarryShare(personaId: string): string | null {
+export function useComposerCarryShare(personaId: string): ComposerCarry | null {
   return useSyncExternalStore(
     composerShare.subscribe,
     () => composerShare.carryFor(personaId),

@@ -14,6 +14,7 @@ import {
   composerShare,
   resolveComposerOpen,
   useComposerCarryShare,
+  type ComposerCarry,
 } from "@/components/composer-share";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
@@ -129,36 +130,44 @@ export function PersonaHome({
   );
 
   // The one-shot homepage handoff, read reactively: choosing a persona from
-  // the homepage launcher stored the homepage draft here, and a persona page
-  // for the same persona gets it at first render. Clicking around within the
-  // persona screen never sets one, so the read is null and the composer opens
-  // empty (or with the Default User Message).
+  // the homepage launcher stored the homepage composer's draft text plus its
+  // picked project/environment here, and a persona page for the same persona
+  // gets them at first render. Clicking around within the persona screen
+  // never sets one, so the read is null and the composer opens empty with
+  // the persona's own project.
   const carry = useComposerCarryShare(personaId);
 
   // The handoff is one-shot, but the seed must be PERMANENT for this open: bb
-  // applies initialPrompt through an async pipeline, so the seed text has to
-  // stay stable — consuming the store on announce would flip the prop before
-  // bb has seeded anything and the homepage draft would silently vanish. So
-  // the consumed value is CLAIMED into component state (a copy with the same
-  // value) and every later render of this open reuses the claim verbatim.
+  // applies initialPrompt and the seed props through an async pipeline, so
+  // everything has to stay stable — consuming the store on announce would
+  // flip the props before bb has applied anything and the homepage draft
+  // would silently vanish. So the consumed value is CLAIMED into component
+  // state (copies with the same values) and every later render of this open
+  // reuses the claim verbatim.
   const [carryClaim, setCarryClaim] = useState<{
     personaId: string;
     msg: string;
     text: string | null;
+    projectId: string | null;
+    environment: ComposerCarry["environment"];
   } | null>(null);
   const claimActive =
     carryClaim !== null &&
     carryClaim.personaId === personaId &&
     carryClaim.msg === defaultUserMessage;
-  const consumedCarry = claimActive ? carryClaim.text : carry;
+  const consumedCarry = claimActive ? carryClaim : carry;
 
-  // What this open seeds: the carried homepage draft when there is one, else
-  // the Default User Message (which can be "" — an empty seed). Gated on the
-  // row matching the route; a stale transit frame seeds nothing at all.
+  // What this open seeds. The carried homepage draft wins over the Default
+  // User Message (which can be "" — an empty seed); the carried project and
+  // environment win over the persona's saved ones when actually picked.
+  // Gated on the row matching the route: a stale transit frame seeds
+  // nothing at all.
   const { seedText } = resolveComposerOpen({
-    carry: ownRow ? consumedCarry : null,
+    carry: ownRow ? consumedCarry?.text ?? null : null,
     msg: defaultUserMessage,
   });
+  const carriedProjectId = ownRow ? consumedCarry?.projectId ?? null : null;
+  const carriedEnvironment = ownRow ? consumedCarry?.environment : undefined;
 
   // Every open claims a FRESH draft slot: selecting a persona produces an
   // empty-or-Default composer at all times — no slot draft from an earlier
@@ -197,9 +206,15 @@ export function PersonaHome({
   useEffect(() => {
     if (!ownRow) return;
     const consumed = composerShare.takeCarry(personaId);
-    setCarryClaim({ personaId, msg: defaultUserMessage, text: consumed });
+    setCarryClaim({
+      personaId,
+      msg: defaultUserMessage,
+      text: consumed?.text ?? null,
+      projectId: consumed?.projectId ?? null,
+      environment: consumed?.environment,
+    });
     const { flash } = resolveComposerOpen({
-      carry: consumed,
+      carry: consumed?.text ?? null,
       msg: defaultUserMessage,
     });
     composerShare.announce(flash);
@@ -310,7 +325,17 @@ export function PersonaHome({
           ) : (
             <            >
               <NewThreadComposer
-                defaultProjectId={persona.projectId ?? personalProjectId ?? undefined}
+                defaultProjectId={
+                  carriedProjectId ??
+                  persona.projectId ??
+                  personalProjectId ??
+                  undefined
+                }
+                {...(carriedEnvironment === undefined
+                  ? /* no environment picked on the homepage: the composer
+                       resolves its environment default on its own */
+                  {}
+                  : { defaultEnvironment: carriedEnvironment })}
                 defaultProviderId={persona.providerId}
                 defaultModel={persona.model}
                 {...(persona.reasoningLevel === null

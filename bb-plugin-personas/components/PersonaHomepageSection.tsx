@@ -1,4 +1,8 @@
-import { useBbNavigate, useComposerView } from "@get-bb/plugin-sdk/app";
+import {
+  useBbNavigate,
+  useComposer,
+  type ExperimentalComposerSelection,
+} from "@get-bb/plugin-sdk/app";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
 import { composerShare } from "@/components/composer-share";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
@@ -10,15 +14,37 @@ import { displayName, previewInstructions, joinedPromptText } from "@/personas";
  * compact launcher listing the published personas. Choosing one moves to
  * that persona's composer view inside the Personas panel — the same page
  * the personas list lands on — rather than starting an unpersonad thread.
- * The click moment is also the one-shot homepage handoff: the homepage
- * composer draft as it reads right there travels to the persona's page,
- * which seeds it over an empty Default only.
+ * The click is also the one-shot homepage handoff: the homepage composer's
+ * draft text and its picked project/environment as they read right there
+ * travel with the selection; the persona page seeds them over its own
+ * defaults.
  */
 export function PersonaHomepageSection() {
   const rpc = usePersonasRpc();
   const navigate = useBbNavigate();
-  const composerView = useComposerView();
+  const composer = useComposer();
   const { data, error } = useQuery(() => rpc.call("listRail", null), "rail");
+
+  // The click moment is the whole handoff. The composer's picker values are
+  // reachable only through its own settle-resolution (no synchronous read
+  // exists for environment), so the click resolves that FIRST — typical case
+  // is instantaneous, since the composer is right there and settled — then
+  // stores everything at once and navigates. A composer that can't answer
+  // (still settling, no pickers) carries the draft and project only.
+  const choose = async (personaId: string) => {
+    let selection: ExperimentalComposerSelection | null = null;
+    try {
+      selection = await composer.experimental_setSelection({});
+    } catch {
+      selection = null;
+    }
+    composerShare.setHomepageCarry(personaId, {
+      text: composer.text,
+      projectId: selection?.projectId ?? (composer.scope.kind === "new-thread" ? composer.scope.projectId : null),
+      environment: selection?.environment,
+    });
+    navigate.toPluginPanel(PANEL_PATH, { subPath: personaId });
+  };
 
   const personas = (data?.personas ?? []).filter(
     (persona) => persona.status === "published",
@@ -37,11 +63,7 @@ export function PersonaHomepageSection() {
               <button
                 type="button"
                 onClick={() => {
-                  composerShare.setHomepageCarry(
-                    persona.id,
-                    composerView.draft.text,
-                  );
-                  navigate.toPluginPanel(PANEL_PATH, { subPath: persona.id });
+                  void choose(persona.id);
                 }}
                 className="flex w-full min-w-0 items-center gap-2 px-2 py-2 text-left transition-colors hover:bg-accent"
               >

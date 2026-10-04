@@ -100,11 +100,18 @@ between them. What couples them lives in `components/composer-share.ts`:
   render: identity-only reloads of the same pair keep the composer and its
   typed text untouched. The homepage composer draft is simply left alone.
 - The one-shot homepage handoff: PersonaHomepageSection reads the homepage
-  draft (route-composer hooks bind to it on the New Thread screen) at
-  launcher-click time and stores it (`setHomepageCarry`); the matching
-  persona page reads it reactively (`useComposerCarryShare`) and seeds it
-  over an empty Default instead. A non-matching persona opening first
-  invalidates the carry; the matched one consumes it exactly once.
+  composer (section hooks bind to the root composer host inside BB's New
+  Thread screen) at launcher-click time — `experimental_setSelection({})`
+  resolves its CURRENT picked project and environment (the only sanctioned
+  read; no synchronous one exists) — and stores the full handoff
+  (`setHomepageCarry`: text, projectId, environment). The matching persona
+  page reads it reactively (`useComposerCarryShare`) and seeds it: the draft
+  over an empty Default, the project/environment as the composer's
+  `defaultProjectId` / `defaultEnvironment` seeds over the persona's saved
+  ones. A blank text still seeds the Default; a null (projectless) homepage
+  projectId does NOT override the persona's own project. A non-matching
+  persona opening first invalidates the carry; the matched one consumes it
+  exactly once.
 - PersonaHome announces each open once (`announce`, gated on the persona row
   being loaded and matching the route — a navigation renders the previous
   row until the new one lands, and that frame doesn't announce).

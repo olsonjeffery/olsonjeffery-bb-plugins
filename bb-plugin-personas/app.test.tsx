@@ -13,6 +13,7 @@ import {
 import {
   composerShare,
   resolveComposerOpen,
+  type ComposerHandoff,
 } from "./components/composer-share";
 
 const PERSONA_WITH_CHATS = {
@@ -1708,11 +1709,13 @@ describe("persona launcher homepage section", () => {
     expect(slot.queryByTestId("bb-new-thread-composer")).toBeNull();
 
     (await slot.findByText("Builder")).click();
-    expect(slot.inspection.navigateCalls).toContainEqual({
-      method: "toPluginPanel",
-      path: "personas",
-      options: { subPath: "persona_2" },
-    });
+    await waitFor(() =>
+      expect(slot.inspection.navigateCalls).toContainEqual({
+        method: "toPluginPanel",
+        path: "personas",
+        options: { subPath: "persona_2" },
+      }),
+    );
     slot.lifecycle.unmount();
   });
 
@@ -1724,12 +1727,14 @@ describe("persona launcher homepage section", () => {
     await slot.behavior.setComposerText("From the landing page");
 
     (await slot.findByText("Builder")).click();
-    expect(slot.inspection.navigateCalls).toContainEqual({
-      method: "toPluginPanel",
-      path: "personas",
-      options: { subPath: "persona_2" },
-    });
-    expect(composerShare.takeCarry("persona_2")).toBe("From the landing page");
+    await waitFor(() =>
+      expect(slot.inspection.navigateCalls).toContainEqual({
+        method: "toPluginPanel",
+        path: "personas",
+        options: { subPath: "persona_2" },
+      }),
+    );
+    expect(composerShare.takeCarry("persona_2")?.text).toBe("From the landing page");
     slot.lifecycle.unmount();
   });
 
@@ -1739,7 +1744,14 @@ describe("persona launcher homepage section", () => {
 
     await slot.findByText("Pirate");
     (await slot.findByText("Pirate")).click();
-    expect(composerShare.takeCarry("persona_1")).toBe("");
+    await waitFor(() =>
+      expect(slot.inspection.navigateCalls).toContainEqual({
+        method: "toPluginPanel",
+        path: "personas",
+        options: { subPath: "persona_1" },
+      }),
+    );
+    expect(composerShare.takeCarry("persona_1")?.text).toBe("");
     slot.lifecycle.unmount();
   });
 
@@ -2009,32 +2021,47 @@ describe("composer handoff", () => {
   });
 
   describe("the one-shot homepage handoff store", () => {
-    it("hands the carried draft to the matching persona exactly once", () => {
-      composerShare.setHomepageCarry("persona_2", "From the landing page");
-      expect(composerShare.carryFor("persona_2")).toBe("From the landing page");
-      expect(composerShare.takeCarry("persona_2")).toBe("From the landing page");
+    const handoff = (overrides: Partial<ComposerHandoff> = {}): ComposerHandoff => ({
+      text: "From the landing page",
+      projectId: null,
+      environment: undefined,
+      ...overrides,
+    });
+
+    it("hands the carried handoff to the matching persona exactly once", () => {
+      composerShare.setHomepageCarry(
+        "persona_2",
+        handoff({ projectId: "proj_work" }),
+      );
+      expect(composerShare.carryFor("persona_2")?.text).toBe("From the landing page");
+      expect(composerShare.carryFor("persona_2")?.projectId).toBe("proj_work");
+      expect(composerShare.takeCarry("persona_2")?.projectId).toBe("proj_work");
       expect(composerShare.carryFor("persona_2")).toBeNull();
-      // Consumed: no later open of the same persona re-seeds old text.
+      // Consumed: no later open of the same persona re-seeds old values.
       expect(composerShare.takeCarry("persona_2")).toBeNull();
     });
 
     it("a different persona opening first invalidates the handoff", () => {
-      composerShare.setHomepageCarry("persona_2", "From the landing page");
+      composerShare.setHomepageCarry("persona_2", handoff());
       expect(composerShare.takeCarry("persona_6")).toBeNull();
       expect(composerShare.carryFor("persona_2")).toBeNull();
     });
 
     it("a fresh homepage selection replaces an older carry", () => {
-      composerShare.setHomepageCarry("persona_2", "From the landing page");
-      composerShare.setHomepageCarry("persona_2", "");
-      expect(composerShare.takeCarry("persona_2")).toBe("");
+      composerShare.setHomepageCarry("persona_2", handoff());
+      composerShare.setHomepageCarry("persona_2", handoff({ text: "" }));
+      expect(composerShare.takeCarry("persona_2")?.text).toBe("");
       expect(composerShare.takeCarry("persona_2")).toBeNull();
     });
   });
 
   describe("on the persona page", () => {
     it("seeds the persona composer with the carried homepage draft over a fresh draft slot", async () => {
-      composerShare.setHomepageCarry("persona_2", "From the landing page");
+      composerShare.setHomepageCarry("persona_2", {
+        text: "From the landing page",
+        projectId: "proj_work",
+        environment: undefined,
+      });
       const panel = await loadPanel();
       const slot = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
 
@@ -2052,6 +2079,83 @@ describe("composer handoff", () => {
       expect(composerShare.carryFor("persona_2")).toBeNull();
 
       slot.lifecycle.unmount();
+    });
+
+    it("flows the homepage composer's picked project down — the carried project wins over the persona's", async () => {
+      const panel = await loadPanel();
+
+      // persona_6 has no project of its own, so without a carry the composer
+      // falls back to the personal project.
+      const plain = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
+      expect(
+        (await plain.findByTestId("bb-new-thread-composer")).getAttribute(
+          "data-default-project-id",
+        ),
+      ).toBe("proj_personal");
+      plain.lifecycle.unmount();
+
+      // A homepage handoff with a picked project overrides that, even with
+      // no draft text to carry: the picker state flows on its own.
+      composerShare.setHomepageCarry("persona_6", {
+        text: "",
+        projectId: "proj_work",
+        environment: undefined,
+      });
+      const carried = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
+      const composer = await carried.findByTestId("bb-new-thread-composer");
+      expect(composer.getAttribute("data-default-project-id")).toBe("proj_work");
+      // The carried text is blank, so the Default User Message still applies.
+      const input = composer.querySelector<HTMLTextAreaElement>(
+        "textarea[data-testid='bb-new-thread-composer-input']",
+      );
+      expect(input?.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
+      try {
+        carried.lifecycle.unmount();
+      } finally {
+        composerShare.reset();
+      }
+    });
+
+    it("flows the homepage composer's picked environment down, and lets a projectless homepage yield to the persona's project", async () => {
+      const panel = await loadPanel();
+
+      // A picked repo source / HEAD travels as the persona composer's
+      // environment seed, with the homepage project it belongs to.
+      composerShare.setHomepageCarry("persona_2", {
+        text: "",
+        projectId: "proj_work",
+        environment: { type: "reuse", environmentId: "env_checkout" },
+      });
+      const carried = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
+      const composer = await carried.findByTestId("bb-new-thread-composer");
+      expect(composer.getAttribute("data-default-environment")).toBe(
+        JSON.stringify({ type: "reuse", environmentId: "env_checkout" }),
+      );
+      carried.lifecycle.unmount();
+
+      // A projectless homepage (projectId null) does not override the
+      // persona's own project; only picked values flow.
+      composerShare.setHomepageCarry("persona_6", {
+        text: "",
+        projectId: null,
+        environment: undefined,
+      });
+      const projectless = renderSlot(
+        panel,
+        { subPath: "persona_6" },
+        { rpc: RPC },
+      );
+      expect(
+        (await projectless.findByTestId("bb-new-thread-composer")).getAttribute(
+          "data-default-project-id",
+        ),
+      ).toBe("proj_personal");
+      expect(
+        projectless
+          .getByTestId("bb-new-thread-composer")
+          .getAttribute("data-default-environment"),
+      ).toBe("");
+      projectless.lifecycle.unmount();
     });
 
     it("keeps the homepage draft untouched by a seeded Default User Message — no mirroring", async () => {
@@ -2122,10 +2226,11 @@ describe("composer handoff", () => {
     });
 
     it("announces a rejected Default User Message as a flash flag on the open", async () => {
-      composerShare.setHomepageCarry(
-        "persona_6",
-        "Carried instead of the message",
-      );
+      composerShare.setHomepageCarry("persona_6", {
+        text: "Carried instead of the message",
+        projectId: null,
+        environment: undefined,
+      });
       const panel = await loadPanel();
       const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
 

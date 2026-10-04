@@ -48,7 +48,8 @@ With Personas, you can:
 - keep chat history as normal BB threads
 - pick a persona straight from BB's New Thread screen — its launcher section
   lists your published personas and jumps into that persona's composer;
-  if the New Thread screen held a draft when you picked, it travels into
+  whatever was set on the New Thread screen when you picked — the draft
+  text, the selected project, the picked repo source/HEAD — travels into
   the persona's composer
 - keep composers independent: the persona's chat input and the generic New
   Thread input hold their own drafts, and neither leaks into the other
@@ -154,12 +155,14 @@ and seeds on one side never rewrite the other side's draft.
 At every selection the persona composer starts clean: **empty, or the
 persona's Default User Message if you set one** — never a leftover draft from
 an earlier visit. The homepage handoff is the single deliberate exception:
-if BB's New Thread screen held a non-empty draft **when you picked a persona
-from its launcher section**, that text pops into the persona's composer
-instead. The handoff happens once (only from the homepage) and is consumed by
-that one open; picking the same persona again from the persona list starts
-clean. On the persona screen itself the homepage draft never trickles
-through.
+whatever the New Thread screen held **when you picked a persona from its
+launcher section** — a non-empty draft, the selected project, or a picked
+repo source/HEAD — flows into the persona's composer, where those values win
+over the persona's saved project (a picked-but-projectless homepage does not;
+only what you actually picked flows). The handoff happens once (only from
+the homepage) and is consumed by that one open; picking the same persona
+again from the persona list starts clean. On the persona screen itself the
+homepage never trickles through.
 
 ### The Default User Message
 
