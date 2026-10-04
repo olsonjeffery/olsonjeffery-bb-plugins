@@ -1292,7 +1292,7 @@ describe("getPluginHealth", () => {
             enabled: true,
             status: "running",
             version: "1.9.0",
-            source: "path:/home/jeff/src/bb-proj/bb-plugin-personas",
+            source: "path:/home/me/src/bb-plugin-personas",
           },
         ],
       })) as never,
@@ -1305,10 +1305,10 @@ describe("getPluginHealth", () => {
 
     expect(health.self).toEqual({
       version: "1.9.0",
-      source: "path:/home/jeff/src/bb-proj/bb-plugin-personas",
+      source: "path:/home/me/src/bb-plugin-personas",
       managed: false,
       sourceLabel:
-        "Local path install — /home/jeff/src/bb-proj/bb-plugin-personas",
+        "Local path install — /home/me/src/bb-plugin-personas",
     });
   });
 

@@ -197,9 +197,9 @@ const SELF_MANAGED = {
 // The local, in-progress path checkout.
 const SELF_PATH = {
   version: "1.9.0",
-  source: "path:/home/jeff/src/bb-plugin-personas",
+  source: "path:/home/me/src/bb-plugin-personas",
   managed: false,
-  sourceLabel: "Local path install — /home/jeff/src/bb-plugin-personas",
+  sourceLabel: "Local path install — /home/me/src/bb-plugin-personas",
 };
 
 const FLOATING_NOTES_ROW = {
@@ -1809,7 +1809,7 @@ describe("plugin health settings section", () => {
       rpc: { ...RPC, getPluginHealth: () => HEALTH_PATH_INSTALL },
     });
     await local.findByText("Personas · v1.9.0 — in-progress build");
-    await local.findByText("Local path install — /home/jeff/src/bb-plugin-personas");
+    await local.findByText("Local path install — /home/me/src/bb-plugin-personas");
     local.lifecycle.unmount();
   });
 

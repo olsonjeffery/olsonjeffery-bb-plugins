@@ -79,11 +79,11 @@ describe("pluginHealth", () => {
 describe("pluginHealth self install source", () => {
   it("reads the self row's source and version when passed a selfId", () => {
     const report = pluginHealth([
-      makePlugin({ id: "personas", source: "path:/home/jeff/src/bb-proj/bb-plugin-personas" }),
+      makePlugin({ id: "personas", source: "path:/home/me/src/bb-plugin-personas" }),
     ], "personas");
     expect(report.self).toEqual({
       version: "1.2.1",
-      source: "path:/home/jeff/src/bb-proj/bb-plugin-personas",
+      source: "path:/home/me/src/bb-plugin-personas",
       managed: false,
     });
   });
@@ -120,8 +120,8 @@ describe("pluginHealth self install source", () => {
 
 describe("selfInstallLabel", () => {
   it("marks a path install as the local in-progress checkout", () => {
-    expect(selfInstallLabel("path:/home/jeff/src/bb-proj/bb-plugin-personas")).toBe(
-      "Local path install — /home/jeff/src/bb-proj/bb-plugin-personas",
+    expect(selfInstallLabel("path:/home/me/src/bb-plugin-personas")).toBe(
+      "Local path install — /home/me/src/bb-plugin-personas",
     );
   });
 
