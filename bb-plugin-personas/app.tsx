@@ -197,7 +197,7 @@ export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "personas",
     title: "Personas",
-    icon: "personas/speaking",
+    icon: "personas/robot",
     path: PANEL_PATH,
     component: PersonasPanel,
   });

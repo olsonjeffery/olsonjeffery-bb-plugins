@@ -101,7 +101,7 @@ between them. What couples them lives in `components/composer-share.ts`:
   typed text untouched. The homepage composer draft is simply left alone.
 - The one-shot homepage handoff: PersonaHomepageSection reads the homepage
   composer (section hooks bind to the root composer host inside BB's New
-  Thread screen) at launcher-click time — `experimental_setSelection({})`
+  Thread screen) at launcher-click time — `setSelection({})`
   resolves its CURRENT picked project and environment (the only sanctioned
   read; no synchronous one exists) — and stores the full handoff
   (`setHomepageCarry`: text, projectId, environment). The matching persona
