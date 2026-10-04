@@ -22,7 +22,7 @@
 // announced flash into the red prompt-box pulse; no banner ever writes text.
 
 import { useSyncExternalStore } from "react";
-import type { ExperimentalComposerSelection } from "@get-bb/plugin-sdk/app";
+import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 
 /** What the homepage launcher hands a persona's composer page. */
 export interface ComposerHandoff {
@@ -32,7 +32,7 @@ export interface ComposerHandoff {
   projectId: string | null;
   /** The picked environment (Reuse existing / worktree / checkout), passed
    * as the submit-ready args the persona composer can seed again. */
-  environment: ExperimentalComposerSelection["environment"];
+  environment: ComposerSelection["environment"];
 }
 
 export interface ComposerCarry extends ComposerHandoff {

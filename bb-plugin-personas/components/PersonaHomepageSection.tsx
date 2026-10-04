@@ -1,7 +1,7 @@
 import {
   useBbNavigate,
   useComposer,
-  type ExperimentalComposerSelection,
+  type ComposerSelection,
 } from "@get-bb/plugin-sdk/app";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
 import { composerShare } from "@/components/composer-share";
@@ -32,9 +32,9 @@ export function PersonaHomepageSection() {
   // stores everything at once and navigates. A composer that can't answer
   // (still settling, no pickers) carries the draft and project only.
   const choose = async (personaId: string) => {
-    let selection: ExperimentalComposerSelection | null = null;
+    let selection: ComposerSelection | null = null;
     try {
-      selection = await composer.experimental_setSelection({});
+      selection = await composer.setSelection({});
     } catch {
       selection = null;
     }
