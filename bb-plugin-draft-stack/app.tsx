@@ -58,7 +58,7 @@ export default definePluginApp((app) => {
   // run them — the spec's "assuming the User is on a page with a composer".
   app.composer.experimental_registerCommand({
     id: "raise-selector",
-    title: "Draft Stack: raise the stack selector",
+    title: "Draft Stack: Raise DSS",
     run: ({ composer }) => {
       composer.experimental_openPopup(POPUP_ID);
     },
@@ -66,7 +66,7 @@ export default definePluginApp((app) => {
 
   app.composer.experimental_registerCommand({
     id: "push",
-    title: "Draft Stack: push draft onto the stack",
+    title: "Draft Stack: Push to stack",
     run: async ({ composer }) => {
       if (composer.isEmpty) {
         toast.error("Nothing to push — the draft is empty");
@@ -90,7 +90,7 @@ export default definePluginApp((app) => {
 
   app.composer.experimental_registerCommand({
     id: "pop",
-    title: "Draft Stack: pop the top of the stack into the composer",
+    title: "Draft Stack: Pop from stack",
     run: async ({ composer }) => {
       try {
         const result = await callRpcOutsideReact<{ entry: StackEntry | null }>(
@@ -111,17 +111,6 @@ export default definePluginApp((app) => {
       } catch (cause) {
         toast.error(describeError(cause));
       }
-    },
-  });
-
-  // Reachable from any page the palette opens on.
-  app.commands.register({
-    id: "goto-settings",
-    title: "Draft Stack: goto settings",
-    run: () => {
-      // bb has no SDK navigation into Settings; same-origin assign lands the
-      // app on this plugin's settings detail page.
-      window.location.assign("/settings/plugins/draft-stack");
     },
   });
 

@@ -83,7 +83,9 @@ describe("draft stack selector popup", () => {
     expect(slot.getByText('top draft — "quotes" ⚡')).toBeDefined();
     const options = slot.getAllByRole("option");
     expect(options).toHaveLength(3);
-    expect(options.at(-1)!.getAttribute("aria-selected")).toBe("true");
+    await waitFor(() =>
+      expect(options.at(-1)!.getAttribute("aria-selected")).toBe("true"),
+    );
     slot.lifecycle.unmount();
   });
 

@@ -9,7 +9,7 @@ into any composer later.
 | Surface | What it does |
 | --- | --- |
 | Composer inline action (hand-and-pencil glyph) | Raises the Draft Stack Select popup: a hover/keyboard-navigable list of the stack, halo on the highlighted row in your bb icon color, top of the stack pre-highlighted. Picking a row pops it into the composer. |
-| Command palette | `Draft Stack: raise the stack selector`, `…: push draft onto the stack`, `…: pop the top of the stack into the composer` (composer commands — listed when a composer would run them), and `…: goto settings` (always listed). |
+| Command palette | `Draft Stack: Raise DSS`, `…: Push to stack`, `…: Pop from stack` (composer commands — listed when a composer would run them). |
 | Settings page | The stack, top first: drag and keyboard reordering, per-entry delete, downloadable attachment links, clear-all, and an arbitrary raw-JSON rewrite. |
 | `bb draft-stack` CLI | `list`, `push <text>`, `pop`, `remove <id>`, `clear` — with `--json`. |
 

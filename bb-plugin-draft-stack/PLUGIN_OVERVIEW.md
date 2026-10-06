@@ -7,8 +7,7 @@ Stack composer drafts and pop them back into any composer, later.
   keyboard- and hover-navigable list of stacked drafts, highlighted with a
   halo in your bb icon color.
 - **Command palette actions**: raise the selector, push the current draft
-  onto the stack, pop the top entry into the composer, and jump to the
-  stack's settings page.
+  onto the stack, and pop the top entry into the composer.
 - A **settings page** listing the stack (top first) with drag and keyboard
   reordering, per-entry delete, downloadable attachment links, and an
   arbitrary raw-JSON rewrite of the stack.

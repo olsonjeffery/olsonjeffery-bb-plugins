@@ -6,9 +6,7 @@
 // moves the highlight; the highlighted row wears a halo in bb's icon color.
 //
 // Picking a row pops it: the entry is removed from the stack and installed
-// into the composer verbatim (text, mention pills, attachments). The popup
-// also exposes the two palette actions that need a composer (Push) plus a
-// jump to the stack's settings page.
+// into the composer verbatim (text, mention pills, attachments).
 import { useEffect, useRef, useState } from "react";
 import { useComposer } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -115,48 +113,48 @@ export function DraftStackPopup() {
         // The selection halo wears the user's globally chosen bb-icon color.
         "--dss-halo": accent,
       } as React.CSSProperties}
-      className="flex max-h-[min(60vh,26rem)] w-[24rem] max-w-[80vw] flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg outline-none focus-visible:ring-1 focus-visible:ring-border"
+      className="flex max-h-[min(60vh,24rem)] w-[19rem] max-w-[80vw] flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg outline-none focus-visible:ring-1 focus-visible:ring-border"
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-xs font-medium text-muted-foreground">
+      <div className="flex items-center justify-between border-b border-border px-2 py-1">
+        <span className="text-[11px] font-medium text-muted-foreground">
           Draft Stack
           {entries.length > 0 ? ` · ${entries.length}` : ""}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             type="button"
             disabled={composer.isEmpty || isBusy}
             onClick={() => void push()}
             title="Push the current draft onto the stack"
             aria-label="Push current draft onto the stack"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
           >
-            <Icon name="ArrowUp" className="size-3.5" aria-hidden />
-            Push draft
+            <Icon name="ArrowUp" className="size-3" aria-hidden />
+            Push
           </button>
           <button
             type="button"
             onClick={gotoSettings}
             title="Go to Draft Stack settings"
             aria-label="Go to Draft Stack settings"
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            <Icon name="Settings" className="size-3.5" aria-hidden />
+            <Icon name="Settings" className="size-3" aria-hidden />
             Settings
           </button>
         </div>
       </div>
       {error === null ? null : (
-        <p role="alert" className="px-3 py-2 text-xs text-destructive">
+        <p role="alert" className="px-2 py-1.5 text-[11px] text-destructive">
           {error}
         </p>
       )}
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1">
         {stack === null ? (
-          <p className="px-3 py-3 text-center text-xs text-muted-foreground">Loading the stack…</p>
+          <p className="px-2 py-2 text-center text-[11px] text-muted-foreground">Loading the stack…</p>
         ) : entries.length === 0 ? (
-          <div className="m-2 rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-            The stack is empty. Push the current draft with “Push draft”.
+          <div className="m-1.5 rounded-md border border-dashed border-border px-3 py-3 text-center text-[11px] text-muted-foreground">
+            The stack is empty. Push the current draft with “Push”.
           </div>
         ) : (
           entries.map((entry, index) => (
@@ -177,19 +175,19 @@ export function DraftStackPopup() {
                   : undefined
               }
               className={cn(
-                "mx-1.5 cursor-pointer rounded-md border border-transparent px-2.5 py-2 transition-[box-shadow,background-color]",
+                "mx-1 cursor-pointer rounded-md border border-transparent px-2 py-1 transition-[box-shadow,background-color]",
                 index === highlight ? "bg-accent/40" : "hover:bg-accent/30",
               )}
             >
               <p
                 className={cn(
-                  "line-clamp-2 text-sm whitespace-pre-wrap break-words",
+                  "line-clamp-2 text-[13px] leading-snug whitespace-pre-wrap break-words",
                   entry.text === "" && "text-muted-foreground italic",
                 )}
               >
                 {entry.text === "" ? "(no text — attachments only)" : entry.text}
               </p>
-              <p className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <p className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   {index === entries.length - 1 ? (
                     <>
@@ -214,9 +212,6 @@ export function DraftStackPopup() {
             </div>
           ))
         )}
-      </div>
-      <div className="border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
-        Picking a row pops it into the composer. <Icon name="CornerDownLeft" className="inline size-3" aria-hidden /> pick · <Icon name="ChevronUp" className="inline size-3" aria-hidden />/<Icon name="ChevronDown" className="inline size-3" aria-hidden /> move
       </div>
     </div>
   );
