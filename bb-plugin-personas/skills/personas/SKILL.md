@@ -163,8 +163,9 @@ selection (see Composer drafts).
 
 ## Settings
 
-**Settings → Installed plugins → Personas** shows a **Plugin health**
-section with:
+**Settings → Installed plugins → Personas** shows two sections:
+
+**Plugin health** with:
 
 - **Install source** — the top row names where this install came from
   (`self` on the getPluginHealth RPC). A `path:` source renders as a local
@@ -176,6 +177,37 @@ section with:
   (<https://github.com/vburojevic/bb-plugin-floating-notes>) while missing.
 - Rows read fresh from the installed-plugin list on every visit; installs,
   enables, and disables are reflected on the next open.
+
+**Export & import** (`DataSection`, the `personas-data` settings slot) moves
+personas between BB instances:
+
+- **Export** (`exportPersonas` RPC) returns one object per persona — drafts
+  included — as a top-level JSON array, downloaded as `personas.json`. Each
+  object carries `format: "bb-plugin-personas/v1"`, name, emoji, the chosen
+  avatar color (or null = auto tint), status, provider/model/reasoning,
+  Default User Message, and the prompts: text prompts verbatim, note prompts
+  as both the note's CURRENT body (verbatim snapshot, so the file is
+  self-contained) and the durable `noteId` for re-linking. No ids, no
+  timestamps, no chat mappings, and `projectId` exports as null.
+- **Import** (`importPersonas` RPC) is additive and collision-safe: fresh
+  persona/prompt ids, prompt order preserved (`position` = array index), and
+  a taken name imports as "Name (NEW-IMPORT)", numbering up
+  (NEW-IMPORT-2, …) with `uniqueImportName`. Nothing is ever overwritten;
+  the taken-name set also includes earlier personas of the same batch.
+- Per-persona fault isolation: validation happens per entry inside the
+  handler (the contract's input schema is deliberately `unknown` per entry),
+  so one malformed persona skips only itself and the batch reports
+  `{ imported, skipped, errors }`. The section card renders the report —
+  counts and per-index reasons on success, "Couldn't import: …" for a
+  non-array or unparseable file.
+- Status rule: the source persona's `published` survives only when the file
+  also carries a provider and model (`draftBlockers` empty); anything else
+  lands as a reviewable draft.
+- Note re-linking: the batch lists Floating Notes' active notes once; a
+  prompt whose `noteId` exists here re-attaches as a live note prompt (fresh
+  body over the snapshot), one that doesn't degrades to its verbatim
+  snapshot text. Floating Notes absent → every note prompt becomes text; the
+  import never fails because of it.
 
 ## Operating constraints
 

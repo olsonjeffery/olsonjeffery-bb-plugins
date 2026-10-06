@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-personas",
-  "version": "1.13.5",
+  "version": "1.13.6",
   "type": "module",
   "engines": {
     "bb": ">=0.39.0",

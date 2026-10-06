@@ -55,6 +55,10 @@ With Personas, you can:
   Thread input hold their own drafts, and neither leaks into the other
 - give each persona an optional Default User Message — seeded into a freshly
   opened composer so every selection starts empty-or-Default
+- export every persona to a `personas.json` file and import it into another
+  BB — prompts verbatim (note prompts carry their note's body at export
+  time), emoji and color included, and a same-named persona imports as
+  "Name (NEW-IMPORT)" instead of overwriting anything
 
 A persona is not a separate chat app. It lives in BB and uses BB's existing thread,
 composer, attachment, archive, and delete experience.
