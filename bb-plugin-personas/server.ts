@@ -18,12 +18,15 @@ import {
   newPromptId,
   NOTE_UNAVAILABLE_TEXT,
   PERSONA_COLORS,
+  personaToExport,
   pickEmoji,
   resolvePromptTexts,
   renderPersonaInstructions,
   rowToPersona,
   rowToPrompt,
   sortChats,
+  uniqueImportName,
+  type ExportedPersona,
   type Persona,
   type PersonaPrompt,
   type PersonaPromptRow,
@@ -193,6 +196,33 @@ const NewThreadRequestSchema = z.object({
   input: z.array(PromptInputSchema).min(1),
 });
 
+// Active Floating Notes for prompt re-linking at import time: the prompt
+// shape carries the export snapshot plus the durable note id, and the import
+// checks this list to see which of them still exist here.
+const ExportedPromptSchema = z.object({
+  type: z.enum(["text", "note"]),
+  text: z.string(),
+  noteId: z.string().optional(),
+});
+
+// One persona of an export file, validated at the boundary. The field set
+// mirrors PersonaSchema's meaningful fields with ids, timestamps, and chat
+// mappings deliberately absent — the exporter never wrote them and the
+// importer assigns fresh ones.
+const ExportedPersonaSchema = z.object({
+  format: z.string().optional(),
+  name: z.string().max(MAX_NAME),
+  emoji: z.string().min(1).max(16),
+  color: PersonaColor.nullable(),
+  status: z.enum(["draft", "published"]),
+  providerId: z.string().max(200),
+  model: z.string().max(200),
+  reasoningLevel: ReasoningLevel.nullable(),
+  projectId: z.string().max(200).nullable(),
+  defaultUserMessage: z.string().max(MAX_DEFAULT_USER_MESSAGE),
+  prompts: z.array(ExportedPromptSchema),
+});
+
 export const rpcContract = defineRpcContract({
   listPersonas: {
     input: z.null(),
@@ -352,6 +382,51 @@ export const rpcContract = defineRpcContract({
   listFloatingNotes: {
     input: z.null(),
     output: z.object({ notes: z.array(FloatingNoteSchema) }),
+  },
+  // -- Export / import (personas-v1) ----------------------------------------
+
+  // Every persona as one export array, one object per persona, drafts
+  // included. Note prompts resolve against fresh note bodies so the file is
+  // self-contained: each carries its note's CURRENT body (verbatim) plus the
+  // durable noteId for optional re-linking at import.
+  exportPersonas: {
+    input: z.null(),
+    output: z.object({
+      personas: z.array(
+        z.object({
+          format: z.string().optional(),
+          name: z.string(),
+          emoji: z.string(),
+          color: PersonaColor.nullable(),
+          status: z.enum(["draft", "published"]),
+          providerId: z.string(),
+          model: z.string(),
+          reasoningLevel: ReasoningLevel.nullable(),
+          projectId: z.string().nullable(),
+          defaultUserMessage: z.string(),
+          prompts: z.array(ExportedPromptSchema),
+        }),
+      ),
+    }),
+  },
+  // Imports an export array additively: fresh ids, pool order preserved,
+  // name collisions resolved as "Name (NEW-IMPORT)", "(NEW-IMPORT-2)", …
+  // One invalid persona skips only itself — the batch reports what happened
+  // rather than failing whole. Note prompts re-attach to the live note when
+  // that note id exists in THIS bb (Floating Notes present), and otherwise
+  // degrade to the verbatim text prompt the file already carries.
+  importPersonas: {
+    // Deliberately unknown entries: validation happens per persona inside
+    // the handler, so one malformed entry skips only itself instead of
+    // rejecting the whole file at the boundary.
+    input: z.object({ personas: z.array(z.unknown()) }).strict(),
+    output: z.object({
+      imported: z.number().int(),
+      skipped: z.number().int(),
+      errors: z.array(
+        z.object({ index: z.number().int(), error: z.string() }),
+      ),
+    }),
   },
 });
 
@@ -1064,6 +1139,194 @@ export default async function plugin(bb: BbPluginApi) {
               : selfInstallLabel(health.self.source),
         },
       };
+    },
+
+    // -- Export / import (personas-v1) ---------------------------------------
+
+    exportPersonas: async () => {
+      await refreshNoteBodies();
+      return {
+        personas: [...personasById.values()]
+          // Export order mirrors the rail: most recently touched first.
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .map((persona) => personaToExport(persona, noteBodiesById)),
+      };
+    },
+
+    importPersonas: async ({ personas }) => {
+      // Fresh Floating Note notes once for the whole batch, seeding both the
+      // live body cache and the set of note ids that actually exist HERE: a
+      // prompt whose noteId survives re-attaches as a live note prompt (and
+      // the wire resolves against the fresh body); one that doesn't degrades
+      // to the verbatim text the file carries, so nothing is ever dropped.
+      // refreshNoteBodies() alone can't do this — it no-ops while no pool
+      // holds a note prompt yet, which is exactly the pre-import state.
+      const importableNoteIds = new Set<string>();
+      try {
+        const { plugins } = await bb.sdk.plugins.list();
+        if (isFloatingNotesAvailable(plugins)) {
+          const listed = await bb.sdk.plugins.callRpc({
+            pluginId: FLOATING_NOTES_PLUGIN_ID,
+            method: "listNotes",
+            input: { view: "active", limit: 500 },
+            outputSchema: FloatingNotesListOutput,
+          });
+          for (const note of listed.notes) {
+            importableNoteIds.add(note.id);
+            noteBodiesById.set(note.id, note.body);
+          }
+        }
+      } catch {
+        // Notes stay unimportable this round; every note prompt degrades to
+        // its snapshot text rather than the batch failing.
+      }
+
+      const errors: { index: number; error: string }[] = [];
+      let imported = 0;
+      // Names claimed so far: every existing persona's name, extended by
+      // each name this batch has already assigned, so repeated imports of
+      // one file and duplicate names within one file both resolve cleanly.
+      const usedNames = new Set(
+        [...personasById.values()].map((persona) => persona.name),
+      );
+      for (const [index, entry] of personas.entries()) {
+        try {
+          const parsed = ExportedPersonaSchema.safeParse(entry);
+          if (!parsed.success) {
+            const issue = parsed.error.issues[0];
+            throw new Error(
+              issue === undefined
+                ? "Invalid persona"
+                : `${issue.path.join(".") || "persona"}: ${issue.message}`,
+            );
+          }
+          const exported = parsed.data;
+          // A multi-prompt persona can exceed BB's 4096-character
+          // instruction budget, but every single prompt obeys the per-prompt
+          // clamp — the same cap the editor's addPersonaPrompt enforces.
+          const name = uniqueImportName(exported.name.trim() || "Untitled persona", (candidate) =>
+            usedNames.has(candidate),
+          );
+          if (name === null) {
+            throw new Error(`No free name for "${exported.name}"`);
+          }
+          const now = Date.now();
+          const personaId = newPersonaId();
+          const pool = promptsFor(personaId);
+          for (const [position, exportedPrompt] of exported.prompts.entries()) {
+            // Downloads and hand-rolled tooling can't be trusted to trim;
+            // the pool stores the same clamped prose the editor would have.
+            const text = clampPromptText(exportedPrompt.text);
+            if (exportedPrompt.type === "note" && text.length === 0) {
+              // A note prompt without snapshot text and without a reachable
+              // note contributes nothing; store it as a plain note ref so
+              // rowToPrompt's decoder still recognizes it, but skip it here
+              // only when the note itself is also gone.
+              const ref = decodeNotePromptRef(
+                exportedPrompt.noteId === undefined
+                  ? ""
+                  : encodeNotePromptRef(exportedPrompt.noteId),
+              );
+              if (ref === null || !importableNoteIds.has(ref.noteId)) continue;
+            }
+            const isLiveNote =
+              exportedPrompt.type === "note" &&
+              exportedPrompt.noteId !== undefined &&
+              importableNoteIds.has(exportedPrompt.noteId);
+            const prompt: PersonaPrompt = {
+              id: newPromptId(),
+              personaId,
+              type: isLiveNote ? "note" : "text",
+              text: isLiveNote
+                ? encodeNotePromptRef(exportedPrompt.noteId!)
+                : text,
+              position,
+              createdAt: now,
+              updatedAt: now,
+            };
+            db.prepare(
+              `INSERT INTO persona_prompts (id, persona_id, type, text, position,
+                                          created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            ).run(
+              prompt.id,
+              prompt.personaId,
+              prompt.type,
+              prompt.text,
+              prompt.position,
+              prompt.createdAt,
+              prompt.updatedAt,
+            );
+            pool.push(prompt);
+          }
+          // Publish straight when the file carried a usable shape, keeping
+          // the source persona's status (decision 3); anything that would
+          // fail draftBlockers stays a draft instead of a broken published
+          // row. clampDefaultUserMessage normalizes the seeded message.
+          const status =
+            exported.status === "published" &&
+            draftBlockers({
+              id: personaId,
+              name,
+              emoji: exported.emoji,
+              color: exported.color,
+              prompts: pool,
+              providerId: exported.providerId,
+              model: exported.model,
+              reasoningLevel: exported.reasoningLevel,
+              projectId: null,
+              defaultUserMessage: "",
+              status: "draft",
+              createdAt: now,
+              updatedAt: now,
+            }).length === 0
+              ? "published"
+              : "draft";
+          const persona: Persona = {
+            id: personaId,
+            name,
+            emoji: exported.emoji,
+            color: exported.color,
+            prompts: pool,
+            providerId: exported.providerId,
+            model: exported.model,
+            reasoningLevel: exported.reasoningLevel,
+            projectId: null,
+            defaultUserMessage: clampDefaultUserMessage(exported.defaultUserMessage),
+            status,
+            createdAt: now,
+            updatedAt: now,
+          };
+          db.prepare(
+            `INSERT INTO personas (id, name, emoji, color, instructions, provider_id,
+                                  model, reasoning_level, project_id,
+                                  default_user_message, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, '', ?, ?, ?, NULL, ?, ?, ?, ?)`,
+          ).run(
+            persona.id,
+            persona.name,
+            persona.emoji,
+            persona.color,
+            persona.providerId,
+            persona.model,
+            persona.reasoningLevel,
+            persona.defaultUserMessage,
+            persona.status,
+            persona.createdAt,
+            persona.updatedAt,
+          );
+          personasById.set(persona.id, persona);
+          usedNames.add(name);
+          imported += 1;
+        } catch (cause) {
+          errors.push({
+            index,
+            error: cause instanceof Error ? cause.message : String(cause),
+          });
+        }
+      }
+      if (imported > 0) announce();
+      return { imported, skipped: errors.length, errors };
     },
 
     // -- Prompt-pool sources -------------------------------------------------

@@ -18,6 +18,7 @@ import {
   promptBoxForBridge,
 } from "@/components/default-user-message";
 import { PersonaChatView } from "@/components/PersonaChatView";
+import { DataSection } from "@/components/DataSection";
 import { PersonaEditor } from "@/components/PersonaEditor";
 import { PersonaHomepageSection } from "@/components/PersonaHomepageSection";
 import { PersonaHome } from "@/components/PersonaHome";
@@ -238,5 +239,16 @@ export default definePluginApp((app) => {
     title: "Plugin health",
     description: "Other plugins Personas can work with.",
     component: PluginHealthSection,
+  });
+
+  // The Export & import card: one personas.json file, one object per persona,
+  // prompts verbatim (note prompts carry their note's body at export time),
+  // emoji and color included; import is additive and renames on collision as
+  // "Name (NEW-IMPORT)".
+  app.slots.settingsSection({
+    id: "personas-data",
+    title: "Export & import",
+    description: "Move your personas between BB instances.",
+    component: DataSection,
   });
 });

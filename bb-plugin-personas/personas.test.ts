@@ -22,6 +22,7 @@ import {
   normalizeEmoji,
   parseRoute,
   personaColorTint,
+  personaToExport,
   PERSONA_COLORS,
   pickEmoji,
   PROMPT_PREVIEW_LIMIT,
@@ -36,6 +37,7 @@ import {
   rowToPrompt,
   sortChats,
   tintFor,
+  uniqueImportName,
   type Persona,
   type PersonaPrompt,
   type PersonaPromptRow,
@@ -683,5 +685,115 @@ describe("joinedPromptText", () => {
     expect(
       joinedPromptText([prompt("prompt_1", "", 0), prompt("prompt_2", "Be terse.", 1)]),
     ).toBe("Be terse.");
+  });
+});
+
+describe("personaToExport", () => {
+  const notes = new Map([["note_1", "The note's live body."]]);
+
+  function makePersona(overrides: Partial<Persona> = {}): Persona {
+    return {
+      id: "persona_9",
+      name: "Pirate",
+      emoji: "🏴‍☠️",
+      color: "violet",
+      prompts: [],
+      providerId: "codex",
+      model: "gpt-5.5",
+      reasoningLevel: "medium",
+      projectId: "proj_work",
+      defaultUserMessage: "Set sail.",
+      status: "published",
+      createdAt: 1,
+      updatedAt: 2,
+      ...overrides,
+    };
+  }
+
+  it("stamps the format marker and copies every persona field verbatim except ids and project", () => {
+    const exported = personaToExport(makePersona(), notes);
+    expect(exported.format).toBe("bb-plugin-personas/v1");
+    expect(exported.name).toBe("Pirate");
+    expect(exported.emoji).toBe("🏴‍☠️");
+    expect(exported.color).toBe("violet");
+    expect(exported.status).toBe("published");
+    expect(exported.providerId).toBe("codex");
+    expect(exported.model).toBe("gpt-5.5");
+    expect(exported.reasoningLevel).toBe("medium");
+    // Source project ids mean nothing on the importing bb.
+    expect(exported.projectId).toBeNull();
+    expect(exported.defaultUserMessage).toBe("Set sail.");
+  });
+
+  it("exports text prompts verbatim and note prompts as their note's current body plus the note id", () => {
+    const prompts: PersonaPrompt[] = [
+      {
+        id: "prompt_1",
+        personaId: "persona_9",
+        type: "text",
+        text: "Always answer in pirate speak.",
+        position: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+      {
+        id: "prompt_2",
+        personaId: "persona_9",
+        type: "note",
+        text: encodeNotePromptRef("note_1"),
+        position: 1,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ];
+    const exported = personaToExport(makePersona({ prompts }), notes);
+    expect(exported.prompts).toEqual([
+      { type: "text", text: "Always answer in pirate speak." },
+      { type: "note", text: "The note's live body.", noteId: "note_1" },
+    ]);
+  });
+
+  it("exports a note prompt whose note is missing as the unavailable marker, keeping the note id", () => {
+    const prompts: PersonaPrompt[] = [
+      {
+        id: "prompt_1",
+        personaId: "persona_9",
+        type: "note",
+        text: encodeNotePromptRef("note_gone"),
+        position: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ];
+    const exported = personaToExport(makePersona({ prompts }), notes);
+    expect(exported.prompts).toEqual([
+      { type: "note", text: NOTE_UNAVAILABLE_TEXT, noteId: "note_gone" },
+    ]);
+  });
+});
+
+describe("uniqueImportName", () => {
+  it("keeps the base name when nothing is taken", () => {
+    expect(uniqueImportName("Pirate", () => false)).toBe("Pirate");
+  });
+
+  it("appends (NEW-IMPORT) on the first collision", () => {
+    expect(uniqueImportName("Pirate", (n) => n === "Pirate")).toBe(
+      "Pirate (NEW-IMPORT)",
+    );
+  });
+
+  it("numbers upward when the suffixed name is taken too", () => {
+    const taken = new Set(["Pirate", "Pirate (NEW-IMPORT)", "Pirate (NEW-IMPORT-2)"]);
+    expect(uniqueImportName("Pirate", (n) => taken.has(n))).toBe(
+      "Pirate (NEW-IMPORT-3)",
+    );
+  });
+
+  it("only counts exact names, so unrelated names containing the suffix are untouched", () => {
+    const taken = new Set(["Pirate", "Pirate (NEW-IMPORT) x"]);
+    expect(uniqueImportName("Pirate", (n) => taken.has(n))).toBe(
+      "Pirate (NEW-IMPORT)",
+    );
   });
 });

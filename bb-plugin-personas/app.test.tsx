@@ -2246,3 +2246,101 @@ describe("composer handoff", () => {
     });
   });
 });
+
+describe("export & import settings section", () => {
+  async function loadSection() {
+    const app = await loadPluginApp(() => import("./app"));
+    const section = app.settingsSections.find((s) => s.id === "personas-data");
+    expect(section).toBeDefined();
+    return section!;
+  }
+
+  it("registers the export & import settings section", async () => {
+    const section = await loadSection();
+    expect(section!.title).toBe("Export & import");
+  });
+
+  it("exports by calling exportPersonas and downloading the array as personas.json", async () => {
+    const section = await loadSection();
+    const exportPersonas = vi.fn(() => ({
+      personas: [
+        { format: "bb-plugin-personas/v1", name: "Pirate", emoji: "🦜", color: null },
+      ],
+    }));
+    let clicked = 0;
+    const clicks: string[] = [];
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: () => "blob:fake",
+      revokeObjectURL: () => {},
+    });
+    const originalCreateElement = document.createElement.bind(document);
+    const anchor = originalCreateElement("a");
+    Object.defineProperty(anchor, "click", {
+      value: () => {
+        clicked += 1;
+        clicks.push(anchor.download);
+      },
+    });
+    document.createElement = ((tag: string) =>
+      tag === "a" ? anchor : originalCreateElement(tag)) as typeof document.createElement;
+
+    const slot = renderSlot(section!, {}, { rpc: { ...RPC, exportPersonas } });
+    fireEvent.click(await slot.findByText("Export"));
+
+    await waitFor(() => expect(clicked).toBe(1));
+    expect(exportPersonas).toHaveBeenCalledTimes(1);
+    expect(clicks).toEqual(["personas.json"]);
+
+    document.createElement = originalCreateElement;
+    vi.unstubAllGlobals();
+    slot.lifecycle.unmount();
+  });
+
+  it("imports a picked file through importPersonas and reports the batch outcome", async () => {
+    const section = await loadSection();
+    const importPersonas = vi.fn(() => ({
+      imported: 2,
+      skipped: 1,
+      errors: [{ index: 1, error: "persona: Invalid input" }],
+    }));
+    const slot = renderSlot(section!, {}, { rpc: { ...RPC, importPersonas } });
+
+    const file = new File(
+      [JSON.stringify([{ name: "Pirate", emoji: "🦜" }])],
+      "personas.json",
+      { type: "application/json" },
+    );
+    const input = slot.container.querySelector(
+      "input[type=file]",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() =>
+      expect(slot.getByText(/Imported 2 · skipped 1/)).toBeTruthy(),
+    );
+    await slot.findByText("#2: persona: Invalid input");
+    // The input resets, so re-picking the same file fires again.
+    expect(input.value).toBe("");
+    slot.lifecycle.unmount();
+  });
+
+  it("rejects a non-array file with an error and no import call", async () => {
+    const section = await loadSection();
+    const importPersonas = vi.fn(() => ({ imported: 0, skipped: 0, errors: [] }));
+    const slot = renderSlot(section!, {}, { rpc: { ...RPC, importPersonas } });
+
+    const input = slot.container.querySelector(
+      "input[type=file]",
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(["{}"], "personas.json", { type: "application/json" })] },
+    });
+
+    await waitFor(() =>
+      expect(slot.getByText(/Couldn't import: Expected a JSON array/)).toBeTruthy(),
+    );
+    expect(importPersonas).not.toHaveBeenCalled();
+    slot.lifecycle.unmount();
+  });
+});

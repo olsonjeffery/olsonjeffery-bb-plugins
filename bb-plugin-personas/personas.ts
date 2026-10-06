@@ -249,6 +249,113 @@ export function newPromptId(): string {
   return `prompt_${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
 }
 
+// ---------------------------------------------------------------------------
+// Export / import (personas-v1)
+// ---------------------------------------------------------------------------
+
+/**
+ * The version marker stamped on every exported persona. A top-level array of
+ * persona objects stays the file's shape ("one per persona"), so the marker
+ * lives per persona rather than wrapping the array and breaking that shape.
+ */
+export const PERSONAS_EXPORT_FORMAT = "bb-plugin-personas/v1";
+
+/**
+ * The suffix an import appends when its persona's name is already taken:
+ * "Name", then "Name (NEW-IMPORT)", then "Name (NEW-IMPORT-2)", and so on.
+ */
+export const IMPORT_NAME_SUFFIX = "NEW-IMPORT";
+
+/**
+ * One exported prompt. A `text` prompt carries its prose verbatim; a `note`
+ * prompt carries BOTH its note's body at export time (`text`, so the file is
+ * self-contained) and the durable note id (`noteId`, so an importer that has
+ * that same note can re-attach the live link instead of the snapshot).
+ */
+export interface ExportedPrompt {
+  type: PromptType;
+  text: string;
+  noteId?: string;
+}
+
+/** One exported persona: everything a fresh import needs, nothing it doesn't. */
+export interface ExportedPersona {
+  format?: string;
+  name: string;
+  emoji: string;
+  /** The chosen avatar color; null = the stable hash-derived tint. */
+  color: PersonaColor | null;
+  status: PersonaStatus;
+  providerId: string;
+  model: string;
+  reasoningLevel: ReasoningLevel | null;
+  projectId: string | null;
+  defaultUserMessage: string;
+  prompts: ExportedPrompt[];
+}
+
+/**
+ * Maps a live persona onto its export shape, resolving note prompts against
+ * the live note map: each becomes its note's CURRENT body (the verbatim
+ * snapshot) plus the durable noteId for optional re-linking at import. No
+ * ids, timestamps, or chat mappings — those belong to the source BB.
+ */
+export function personaToExport(
+  persona: Persona,
+  noteBodies: ReadonlyMap<string, string>,
+): ExportedPersona {
+  return {
+    format: PERSONAS_EXPORT_FORMAT,
+    name: persona.name,
+    emoji: persona.emoji,
+    color: persona.color,
+    status: persona.status,
+    providerId: persona.providerId,
+    model: persona.model,
+    reasoningLevel: persona.reasoningLevel,
+    projectId: null,
+    defaultUserMessage: persona.defaultUserMessage,
+    prompts: persona.prompts.map((prompt) => {
+      if (prompt.type === "text") {
+        return { type: "text" as const, text: prompt.text };
+      }
+      const ref = decodeNotePromptRef(prompt.text);
+      return {
+        type: "note" as const,
+        text: ref === null ? prompt.text : (noteBodies.get(ref.noteId) ?? NOTE_UNAVAILABLE_TEXT),
+        // decodeNotePromptRef guarantees noteId on any well-formed note row.
+        noteId: ref?.noteId,
+      };
+    }),
+  };
+}
+
+/** Ladder bound; unreachability here is a bug, not a user-visible state. */
+const MAX_IMPORT_SUFFIX_N = 10_000;
+
+/**
+ * Finds the free name for an imported persona called `base`: the name
+ * itself, then "base (NEW-IMPORT)", then "base (NEW-IMPORT-2)", numbering
+ * upward and never overwriting. `isTaken` answers for the importing
+ * instance's existing names PLUS the names earlier personas in this same
+ * import batch have already claimed, so importing the same file twice can
+ * never collide with itself.
+ */
+export function uniqueImportName(
+  base: string,
+  isTaken: (name: string) => boolean,
+): string | null {
+  if (!isTaken(base)) return base;
+  if (!isTaken(`${base} (${IMPORT_NAME_SUFFIX})`)) {
+    return `${base} (${IMPORT_NAME_SUFFIX})`;
+  }
+  for (let n = 2; n <= MAX_IMPORT_SUFFIX_N; n += 1) {
+    const candidate = `${base} (${IMPORT_NAME_SUFFIX}-${n})`;
+    if (!isTaken(candidate)) return candidate;
+  }
+  return null;
+}
+
 /** Trims and length-bounds a prompt's text for storage and transport. */
 export function clampPromptText(text: string): string {
   return text.trim().slice(0, MAX_PROMPT_TEXT);

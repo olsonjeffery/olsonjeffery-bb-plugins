@@ -1405,3 +1405,275 @@ describe("getPluginHealth", () => {
     expect(host.harness.inspection.sdk.callsTo("plugins.list")).toHaveLength(2);
   });
 });
+
+describe("export/import", () => {
+  it("exports one object per persona with prompts verbatim, emoji, and color", async () => {
+    const personaId = await createPublishedPersona();
+    // A hand-set color exercises the round trip past the default null tint.
+    await host.harness.behavior.callRpc("savePersona", {
+      personaId,
+      patch: { color: "violet", emoji: "🦜" },
+    });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "exportPersonas",
+      null,
+    )) as { personas: Array<Record<string, unknown>> };
+
+    expect(personas).toHaveLength(1);
+    expect(personas[0]).toMatchObject({
+      format: "bb-plugin-personas/v1",
+      name: "Pirate",
+      emoji: "🦜",
+      color: "violet",
+      status: "published",
+      providerId: "codex",
+      model: "gpt-5.5",
+      projectId: null,
+      prompts: [{ type: "text", text: PROMPT_TEXT }],
+    });
+    // No source-instance identity leaks into the file.
+    expect(personas[0]).not.toHaveProperty("id");
+    expect(personas[0]).not.toHaveProperty("createdAt");
+  });
+
+  it("exports note prompts as the note's current body plus the durable note id", async () => {
+    const personaId = await createPublishedPersona();
+    stubCrossPluginRpc({
+      "floating-notes:listNotes": () => ({
+        notes: [makeFloatingNote({ id: "note_1", body: "Fresh note body." })],
+      }),
+    });
+    await host.harness.behavior.callRpc("addPersonaPrompt", {
+      personaId,
+      type: "note",
+      noteId: "note_1",
+    });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "exportPersonas",
+      null,
+    )) as { personas: Array<{ prompts: Array<{ type: string; text: string; noteId?: string }> }> };
+
+    expect(personas[0]!.prompts).toEqual([
+      { type: "text", text: PROMPT_TEXT },
+      { type: "note", text: "Fresh note body.", noteId: "note_1" },
+    ]);
+  });
+
+  it("imports a fresh persona published, with fresh ids and preserved prompt order", async () => {
+    const result = (await host.harness.behavior.callRpc("importPersonas", {
+      personas: [
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Pirate",
+          emoji: "🦜",
+          color: "rose",
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: "medium",
+          projectId: "proj_somewhere_else",
+          defaultUserMessage: "Ahoy.",
+          prompts: [
+            { type: "text", text: "First." },
+            { type: "text", text: "Second." },
+          ],
+        },
+      ],
+    })) as { imported: number; skipped: number; errors: unknown[] };
+
+    expect(result).toMatchObject({ imported: 1, skipped: 0, errors: [] });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as { personas: Array<{ id: string; name: string; status: string; prompts: Array<{ text: string; position: number }>; projectId: string | null; defaultUserMessage: string; color: string | null }> };
+    expect(personas).toHaveLength(1);
+    expect(personas[0]).toMatchObject({
+      name: "Pirate",
+      status: "published",
+      color: "rose",
+      projectId: null,
+      defaultUserMessage: "Ahoy.",
+    });
+    expect(personas[0]!.prompts.map((p) => p.text)).toEqual(["First.", "Second."]);
+    expect(personas[0]!.prompts.map((p) => p.position)).toEqual([0, 1]);
+  });
+
+  it("renames on name collision as (NEW-IMPORT) and keeps the batch self-consistent", async () => {
+    await createPublishedPersona();
+    const filePersona = {
+      format: "bb-plugin-personas/v1",
+      name: "Pirate",
+      emoji: "🦜",
+      color: null,
+      status: "published",
+      providerId: "codex",
+      model: "gpt-5.5",
+      reasoningLevel: null,
+      projectId: null,
+      defaultUserMessage: "",
+      prompts: [{ type: "text", text: PROMPT_TEXT }],
+    };
+
+    // Two personas named Pirate in ONE file, on top of the existing one.
+    const result = (await host.harness.behavior.callRpc("importPersonas", {
+      personas: [filePersona, { ...filePersona, emoji: "🐙" }],
+    })) as { imported: number };
+
+    expect(result.imported).toBe(2);
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as { personas: Array<{ name: string; emoji: string }> };
+    const names = personas.map((p) => p.name).sort();
+    expect(names).toEqual(["Pirate", "Pirate (NEW-IMPORT)", "Pirate (NEW-IMPORT-2)"]);
+  });
+
+  it("skips one invalid persona without aborting the batch", async () => {
+    const result = (await host.harness.behavior.callRpc("importPersonas", {
+      personas: [
+        {
+          name: "Broken",
+          emoji: "💥",
+          color: null,
+          status: "live",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [],
+        },
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Fine",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [],
+        },
+      ],
+    })) as { imported: number; skipped: number; errors: Array<{ index: number }> };
+
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.errors[0]!.index).toBe(0);
+  });
+
+  it("lands a persona with no provider or model as a draft", async () => {
+    const result = (await host.harness.behavior.callRpc("importPersonas", {
+      personas: [
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Headless",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "",
+          model: "",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [],
+        },
+      ],
+    })) as { imported: number };
+
+    expect(result.imported).toBe(1);
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as { personas: Array<{ name: string; status: string }> };
+    expect(personas[0]).toMatchObject({ name: "Headless", status: "draft" });
+  });
+
+  it("re-attaches note prompts when the note exists here and degrades to text when it doesn't", async () => {
+    const notes = stubCrossPluginRpc({
+      "floating-notes:listNotes": () => ({
+        notes: [makeFloatingNote({ id: "note_1", body: "Fresh note body." })],
+      }),
+    });
+
+    await host.harness.behavior.callRpc("importPersonas", {
+      personas: [
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Re-linked",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [{ type: "note", text: "Stale snapshot.", noteId: "note_1" }],
+        },
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Degraded",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [{ type: "note", text: "Stale snapshot.", noteId: "note_gone" }],
+        },
+      ],
+    });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as { personas: Array<{ name: string; prompts: Array<{ type: string; text: string }> }> };
+    const byName = new Map(personas.map((p) => [p.name, p]));
+    expect(byName.get("Re-linked")!.prompts).toMatchObject([
+      { type: "note", text: "Fresh note body.", noteId: "note_1" },
+    ]);
+    expect(byName.get("Degraded")!.prompts).toMatchObject([
+      { type: "text", text: "Stale snapshot." },
+    ]);
+    // One note listing served the whole batch.
+    expect(notes).toHaveLength(1);
+  });
+
+  it("round-trips: export → import reproduces names, emoji, color, and prompt order under (NEW-IMPORT)", async () => {
+    const personaId = await createPublishedPersona();
+    await host.harness.behavior.callRpc("savePersona", {
+      personaId,
+      patch: { color: "cyan", emoji: "🦜" },
+    });
+    const { personas: exported } = (await host.harness.behavior.callRpc(
+      "exportPersonas",
+      null,
+    )) as { personas: Array<Record<string, unknown>> };
+
+    const result = (await host.harness.behavior.callRpc("importPersonas", {
+      personas: exported,
+    })) as { imported: number };
+    expect(result.imported).toBe(1);
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as { personas: Array<{ name: string; emoji: string; color: string | null; prompts: Array<{ text: string }> }> };
+    expect(personas).toHaveLength(2);
+    const twin = personas.find((p) => p.name !== "Pirate")!;
+    expect(twin).toMatchObject({
+      name: "Pirate (NEW-IMPORT)",
+      emoji: "🦜",
+      color: "cyan",
+    });
+    expect(twin.prompts.map((p) => p.text)).toEqual([PROMPT_TEXT]);
+  });
+});
