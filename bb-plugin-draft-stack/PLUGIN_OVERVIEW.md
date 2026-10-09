@@ -5,7 +5,9 @@ Stack composer drafts and pop them back into any composer, later.
 - A **stack inline action** on every composer (the hand-and-pencil glyph)
   that raises the Draft Stack Select popup above the prompt window: a
   keyboard- and hover-navigable list of stacked drafts, highlighted with a
-  halo in your bb icon color.
+  halo in your bb icon color. The popup attaches to the composer — up is
+  the preferred side whenever it fits, the shared edge is squared and
+  border-less, and the list scrolls inside its own bounded height.
 - **Command palette actions**: raise the selector, push the current draft
   onto the stack, and pop the top entry into the composer.
 - A **settings page** listing the stack (top first) with drag and keyboard

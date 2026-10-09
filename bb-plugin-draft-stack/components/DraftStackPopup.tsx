@@ -7,7 +7,17 @@
 //
 // Picking a row pops it: the entry is removed from the stack and installed
 // into the composer verbatim (text, mention pills, attachments).
-import { useEffect, useRef, useState } from "react";
+//
+// The DSS attaches to the message box: the popup prefers the space ABOVE the
+// composer — falling to below only when the top side cannot fit it — and the
+// edge shared with the composer is squared and border-less, styled as a
+// single line with the composer's own border. The host owns the popup
+// container (the composer's shared mention-menu wrapper, marked
+// `[data-promptbox-typeahead-menu]` inside `[data-promptbox]`), so this
+// component measures the composer and applies the layout imperatively,
+// reverting everything on unmount. The host's compact drawer has no such
+// container; there the shared placement is left untouched.
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useComposer } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { installEntry, pushCurrentDraft } from "@/components/draft-stack-actions";
@@ -15,6 +25,7 @@ import { useDraftStack, useIconAccent } from "@/components/use-draft-stack";
 import { relativeSavedAt } from "@/draft-stack";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import { computeDssPlacement } from "@/components/dss-placement";
 
 export const POPUP_ID = "selector";
 
@@ -31,8 +42,68 @@ export function DraftStackPopup() {
   // the list, which is the top of the stack.
   const [highlight, setHighlight] = useState<number>(-1);
   const [isBusy, setIsBusy] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const now = Date.now();
+
+  // Attach the DSS to the message box. Re-applied on every render (cheap style
+  // writes) so re-measures follow composer moves; the cleanup reverts the
+  // host container's runtime styles so the shared mention-menu placement is
+  // restored when this popup closes.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const host: HTMLElement | null | undefined =
+      root?.closest<HTMLElement>("[data-promptbox-typeahead-menu]");
+    const form = host?.closest<HTMLElement>("[data-promptbox]") ?? null;
+    if (!root || !host || !form) return;
+
+    function attach() {
+      const rect = form!.getBoundingClientRect();
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const { side, maxHeight } = computeDssPlacement(spaceAbove, spaceBelow, window.innerHeight, rem);
+      const css = root!.style;
+      css.maxHeight = `${maxHeight}px`;
+      // The edge facing the composer: squared, its own border dropped so the
+      // composer's border stands alone between them.
+      css.borderBottomLeftRadius = side === "top" ? "0" : "";
+      css.borderBottomRightRadius = side === "top" ? "0" : "";
+      css.borderTopLeftRadius = side === "bottom" ? "0" : "";
+      css.borderTopRightRadius = side === "bottom" ? "0" : "";
+      css.borderBottomWidth = side === "top" ? "0" : "";
+      css.borderTopWidth = side === "bottom" ? "0" : "";
+      // The host container: flush against the composer, no gap, on the side
+      // this popup picked (inline styles beat the host's mb/mt classes).
+      const hs = host!.style;
+      if (side === "top") {
+        hs.top = "auto";
+        hs.bottom = "100%";
+      } else {
+        hs.top = "100%";
+        hs.bottom = "auto";
+      }
+      hs.margin = "0";
+    }
+
+    attach();
+    window.addEventListener("resize", attach);
+    return () => {
+      window.removeEventListener("resize", attach);
+      const css = root!.style;
+      css.maxHeight = "";
+      css.borderBottomLeftRadius = "";
+      css.borderBottomRightRadius = "";
+      css.borderTopLeftRadius = "";
+      css.borderTopRightRadius = "";
+      css.borderBottomWidth = "";
+      css.borderTopWidth = "";
+      const hs = host!.style;
+      hs.top = "";
+      hs.bottom = "";
+      hs.margin = "";
+    };
+  });
 
   useEffect(() => {
     setHighlight(entries.length - 1);
@@ -104,6 +175,7 @@ export function DraftStackPopup() {
 
   return (
     <div
+      ref={rootRef}
       role="listbox"
       aria-label="Draft Stack"
       tabIndex={0}

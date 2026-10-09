@@ -6,6 +6,7 @@ import {
   sanitizeEntry,
   sanitizeStack,
 } from "./draft-stack.js";
+import { computeDssPlacement } from "./components/dss-placement.js";
 
 const NOW = 1_700_000_000_000;
 
@@ -104,5 +105,32 @@ describe("relativeSavedAt", () => {
     expect(relativeSavedAt(NOW - 3 * 60_000, NOW)).toMatch(/3m|min/);
     expect(relativeSavedAt(NOW - 2 * 3_600_000, NOW)).toMatch(/2h|hr/);
     expect(relativeSavedAt(NOW - 5 * 86_400_000, NOW)).toMatch(/5d|day/);
+  });
+});
+
+describe("computeDssPlacement", () => {
+  const VH = 900;
+  const REM = 16;
+  const WANT = Math.min(0.6 * VH, 24 * REM); // 384
+
+  it("prefers up when both sides fit", () => {
+    expect(computeDssPlacement(WANT, 5000, VH, REM).side).toBe("top");
+  });
+  it("prefers up even when only the top fits", () => {
+    expect(computeDssPlacement(WANT, 10, VH, REM).side).toBe("top");
+  });
+  it("drops down when only the bottom fits", () => {
+    expect(computeDssPlacement(10, WANT, VH, REM).side).toBe("bottom");
+  });
+  it("keeps the roomier side and clamps the height when neither fits", () => {
+    expect(computeDssPlacement(90, 120, VH, REM)).toMatchObject({ side: "bottom", maxHeight: 112 });
+    expect(computeDssPlacement(300, 200, VH, REM)).toMatchObject({ side: "top", maxHeight: 292 });
+  });
+  it("clamps the height to the available room on the chosen side", () => {
+    expect(computeDssPlacement(600, 700, VH, REM)).toMatchObject({ side: "top", maxHeight: WANT });
+    expect(computeDssPlacement(5000, 1000, VH, REM)).toMatchObject({ side: "top", maxHeight: WANT });
+  });
+  it("keeps a minimum useful height", () => {
+    expect(computeDssPlacement(30, 20, VH, REM).maxHeight).toBeGreaterThanOrEqual(96);
   });
 });
