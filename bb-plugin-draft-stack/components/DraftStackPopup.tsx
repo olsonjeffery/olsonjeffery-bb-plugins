@@ -46,16 +46,25 @@ export function DraftStackPopup() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const now = Date.now();
 
-  // Attach the DSS to the message box. Re-applied on every render (cheap style
-  // writes) so re-measures follow composer moves; the cleanup reverts the
-  // host container's runtime styles so the shared mention-menu placement is
-  // restored when this popup closes.
+  // Attach the DSS to the message box. The host wraps plugin popup content
+  // in a full-composer-width card (rounded-md + border + bg-popover) inside
+  // the shared typeahead container; that wrapper becomes the visible card
+  // here — the popup root stays a plain see-through list and the wrapper is
+  // restyled: flush against the composer on the chosen side, the shared
+  // edge squared and border-less so the composer's border stands alone, the
+  // other three edges double-thickness in a darkened border color, and the
+  // width inset by the composer's corner radius so the squared corners never
+  // poke onto the composer's rounding. Re-applied on every render (cheap
+  // style writes) and fully reverted on unmount so the shared container
+  // keeps its original mention-menu behavior.
   useLayoutEffect(() => {
     const root = rootRef.current;
     const host: HTMLElement | null | undefined =
       root?.closest<HTMLElement>("[data-promptbox-typeahead-menu]");
     const form = host?.closest<HTMLElement>("[data-promptbox]") ?? null;
-    if (!root || !host || !form) return;
+    const wrapper = host?.firstElementChild instanceof HTMLElement ? host.firstElementChild : null;
+    if (!root || !host || !form || !wrapper) return;
+    wrapper.classList.add("shadow-lg");
 
     function attach() {
       const rect = form!.getBoundingClientRect();
@@ -63,16 +72,21 @@ export function DraftStackPopup() {
       const spaceAbove = rect.top;
       const spaceBelow = window.innerHeight - rect.bottom;
       const { side, maxHeight } = computeDssPlacement(spaceAbove, spaceBelow, window.innerHeight, rem);
-      const css = root!.style;
-      css.maxHeight = `${maxHeight}px`;
-      // The edge facing the composer: squared, its own border dropped so the
-      // composer's border stands alone between them.
-      css.borderBottomLeftRadius = side === "top" ? "0" : "";
-      css.borderBottomRightRadius = side === "top" ? "0" : "";
+      const inset = parseFloat(getComputedStyle(form!).borderTopLeftRadius) || 12;
+      // The container hangs 1px over each composer border (-left/right-px);
+      // the same extra px keeps the popup centered on the composer itself.
+      const insetPx = inset + 1;
+      const maxH = `${maxHeight}px`;
+
+      const rootCss = root!.style;
+      rootCss.maxHeight = maxH;
+      const css = wrapper!.style;
+      css.marginInline = `${insetPx}px`;
+      css.maxHeight = maxH;
       css.borderTopLeftRadius = side === "bottom" ? "0" : "";
       css.borderTopRightRadius = side === "bottom" ? "0" : "";
-      css.borderBottomWidth = side === "top" ? "0" : "";
-      css.borderTopWidth = side === "bottom" ? "0" : "";
+      css.borderBottomLeftRadius = side === "top" ? "0" : "";
+      css.borderBottomRightRadius = side === "top" ? "0" : "";
       // The host container: flush against the composer, no gap, on the side
       // this popup picked (inline styles beat the host's mb/mt classes).
       const hs = host!.style;
@@ -84,24 +98,40 @@ export function DraftStackPopup() {
         hs.bottom = "auto";
       }
       hs.margin = "0";
+      // Double-thickness on every side that shows a border; for side "top"
+      // the shared edge is the card's bottom edge, for "bottom" its top.
+      // Darken the host's border color a shade.
+      const base = getComputedStyle(wrapper!).borderTopColor;
+      css.borderColor = `color-mix(in srgb, ${base} 75%, black)`;
+      css.borderLeftWidth = "2px";
+      css.borderRightWidth = "2px";
+      css.borderTopWidth = side === "top" ? "2px" : "0";
+      css.borderBottomWidth = side === "top" ? "0" : "2px";
     }
 
     attach();
     window.addEventListener("resize", attach);
     return () => {
       window.removeEventListener("resize", attach);
-      const css = root!.style;
+      const css = wrapper!.style;
+      css.marginInline = "";
       css.maxHeight = "";
-      css.borderBottomLeftRadius = "";
-      css.borderBottomRightRadius = "";
       css.borderTopLeftRadius = "";
       css.borderTopRightRadius = "";
-      css.borderBottomWidth = "";
+      css.borderBottomLeftRadius = "";
+      css.borderBottomRightRadius = "";
+      css.borderColor = "";
+      css.borderLeftWidth = "";
+      css.borderRightWidth = "";
       css.borderTopWidth = "";
+      css.borderBottomWidth = "";
+      const rootCss = root!.style;
+      rootCss.maxHeight = "";
       const hs = host!.style;
       hs.top = "";
       hs.bottom = "";
       hs.margin = "";
+      wrapper.classList.remove("shadow-lg");
     };
   });
 
@@ -185,7 +215,7 @@ export function DraftStackPopup() {
         // The selection halo wears the user's globally chosen bb-icon color.
         "--dss-halo": accent,
       } as React.CSSProperties}
-      className="flex max-h-[min(60vh,24rem)] w-[19rem] max-w-[80vw] flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg outline-none focus-visible:ring-1 focus-visible:ring-border"
+      className="flex max-h-[min(60vh,24rem)] w-full min-w-0 flex-col overflow-hidden"
     >
       <div className="flex items-center justify-between border-b border-border px-2 py-1">
         <span className="text-[11px] font-medium text-muted-foreground">

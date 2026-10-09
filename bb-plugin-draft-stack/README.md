@@ -8,7 +8,7 @@ into any composer later.
 
 | Surface | What it does |
 | --- | --- |
-| Composer inline action (hand-and-pencil glyph) | Raises the Draft Stack Select popup: a hover/keyboard-navigable list of the stack, halo on the highlighted row in your bb icon color, top of the stack pre-highlighted. Picking a row pops it into the composer. The popup attaches to the message box — it prefers the space above (falls to below only when the top can't fit its height), sits flush with the composer border (no doubled line, the facing edge squared), and scrolls within its own clamped max-height so it never covers the composer. |
+| Composer inline action (hand-and-pencil glyph) | Raises the Draft Stack Select popup: a hover/keyboard-navigable list of the stack, halo on the highlighted row in your bb icon color, top of the stack pre-highlighted. Picking a row pops it into the composer. The popup attaches to the message box — it prefers the space above (falls to below only when the top can't fit its height), sits flush with the composer border (single border line, the shared edge squared), spans the composer width inset by the corner radius so squared corners never ride the rounding, and the other three edges are a double-thickness, darkened border; the list scrolls inside its own clamped max-height so it never covers the composer. |
 | Command palette | `Draft Stack: Raise DSS`, `…: Push to stack`, `…: Pop from stack` (composer commands — listed when a composer would run them). |
 | Settings page | The stack, top first: drag and keyboard reordering, per-entry delete, downloadable attachment links, clear-all, and an arbitrary raw-JSON rewrite. |
 | `bb draft-stack` CLI | `list`, `push <text>`, `pop`, `remove <id>`, `clear` — with `--json`. |
