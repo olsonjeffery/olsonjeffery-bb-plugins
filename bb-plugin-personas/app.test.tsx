@@ -159,7 +159,9 @@ const RAIL_PERSONAS = [
   {
     ...PERSONA_WITH_CHATS,
     chats: [
-      { threadId: "thr_new", title: "Ahoy there", status: "active", updatedAt: 200 },
+      {             threadId: "thr_new",
+            projectId: "proj_work",
+            title: "Ahoy there", status: "active", updatedAt: 200 },
     ],
     lastActivityAt: 200,
   },
@@ -1284,10 +1286,12 @@ describe("personas nav panel", () => {
 
   // -- Chat row menu (pin/rename/archive/delete) and the Archived section --
   //
-  // Pin/rename/archive/delete all go through the host's
-  // experimental_useSidebarThreadActions() hook, which the test harness
-  // stubs and records to slot.inspection.sidebarActionCalls — no vi.mock
-  // needed, this is the same seam renderSlot always provides.
+  // Pin/archive/delete run through the host's experimental_useThreadActions()
+  // entries and a rename commits through useSdk().threads.update, so both
+  // seams need a stub: renderSlot's `threadActions` resolver supplies the
+  // hook's core entries (the test fake does not emulate bb's own actions)
+  // and an `sdk` fake backs threads.update. Both record their calls — no
+  // vi.mock needed, this is the same seam renderSlot always provides.
 
   const CHAT_ROW_RPC = {
     ...RPC,
@@ -1308,6 +1312,7 @@ describe("personas nav panel", () => {
         archivedChats: [
           {
             threadId: "thr_old",
+            projectId: "proj_work",
             title: "Buried treasure",
             status: "archived",
             updatedAt: 50,
@@ -1341,6 +1346,66 @@ describe("personas nav panel", () => {
       };
     },
   };
+
+  // A chat row's pin/archive/delete actions are bound entries supplied by
+  // the test fake's resolver (bb's own core actions aren't emulated), and a
+  // rename commits through useSdk().threads.update. renderChatRowMenuSlot
+  // stubs both: every core entry records the core id it ran for, and the
+  // threads.update fake records the rename after validation trimming.
+  type ChatRowActionCall = { method: string; threadId: string };
+
+  async function renderChatRowMenuSlot(
+    actionCalls: ChatRowActionCall[],
+    renameCalls: { threadId: string; title: string }[],
+  ) {
+    const panel = await loadPanel();
+    return renderSlot(
+      panel,
+      { subPath: "persona_1/new" },
+      {
+        rpc: CHAT_ROW_RPC,
+        sdk: {
+          threads: {
+            // The host's update returns the full thread record; ChatRow only
+            // needs the commit side effect and reloads via its own RPC.
+            update: (async (input: { threadId: string; title: string }) => {
+              renameCalls.push({ threadId: input.threadId, title: input.title });
+              return {} as never;
+            }) as never,
+          },
+        },
+        threadActions: (thread, { requestRename }) => {
+          const record = (method: string, label: string, icon: string) => ({
+            key: `bb--core/${method}`,
+            pluginId: "bb--core",
+            group: "bb",
+            action: {
+              label,
+              icon,
+              run: async () => {
+                actionCalls.push({ method, threadId: thread.id });
+              },
+            },
+          });
+          return [
+            record("pin", "Pin", "Pin"),
+            {
+              key: "bb--core/rename",
+              pluginId: "bb--core",
+              group: "bb",
+              action: {
+                label: "Rename",
+                icon: "Edit",
+                run: async () => requestRename(thread.id),
+              },
+            },
+            record("archive", "Archive", "Archive"),
+            record("delete", "Delete", "Trash2"),
+          ];
+        },
+      },
+    );
+  }
 
   // -- Running-chat spinner ------------------------------------------------
   //
@@ -1461,8 +1526,8 @@ describe("personas nav panel", () => {
   });
 
   it("fires Pin from a chat row's ⋯ menu despite the trigger losing focus to the item", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: CHAT_ROW_RPC });
+    const actionCalls: ChatRowActionCall[] = [];
+    const slot = await renderChatRowMenuSlot(actionCalls, []);
 
     await slot.findByText("Chats (1)");
     // The persona header no longer renders a "More actions" trigger, so the
@@ -1480,18 +1545,15 @@ describe("personas nav panel", () => {
     pinItem.click();
 
     await waitFor(() => {
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
-        method: "setPinned",
-        threadId: "thr_new",
-        pinned: true,
-      });
+      expect(actionCalls).toContainEqual({ method: "pin", threadId: "thr_new" });
     });
     slot.lifecycle.unmount();
   });
 
   it("renames a chat inline: Enter commits the trimmed title, Escape cancels, and an unchanged/empty value fires nothing", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: CHAT_ROW_RPC });
+    const actionCalls: ChatRowActionCall[] = [];
+    const renameCalls: { threadId: string; title: string }[] = [];
+    const slot = await renderChatRowMenuSlot(actionCalls, renameCalls);
 
     await slot.findByText("Chats (1)");
     const menuButtons = await slot.findAllByLabelText("More actions");
@@ -1507,9 +1569,7 @@ describe("personas nav panel", () => {
     // Escape cancels — no RPC.
     fireEvent.change(input, { target: { value: "New name" } });
     fireEvent.keyDown(input, { key: "Escape" });
-    expect(
-      slot.inspection.sidebarActionCalls.some((call) => call.method === "rename"),
-    ).toBe(false);
+    expect(renameCalls).toEqual([]);
     await slot.findByText("Chats (1)");
 
     // Reopen, clear the title, Enter — empty is a no-op cancel, not a rename.
@@ -1522,9 +1582,7 @@ describe("personas nav panel", () => {
     const input2 = await slot.findByLabelText("Chat title");
     fireEvent.change(input2, { target: { value: "   " } });
     fireEvent.keyDown(input2, { key: "Enter" });
-    expect(
-      slot.inspection.sidebarActionCalls.some((call) => call.method === "rename"),
-    ).toBe(false);
+    expect(renameCalls).toEqual([]);
 
     // Reopen, type an actual new title, Enter commits it, trimmed.
     const reopened2 = (await slot.findAllByLabelText("More actions")).at(-1)!;
@@ -1538,11 +1596,9 @@ describe("personas nav panel", () => {
     fireEvent.keyDown(input3, { key: "Enter" });
 
     await waitFor(() => {
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
-        method: "rename",
-        threadId: "thr_new",
-        title: "Treasure map",
-      });
+      expect(renameCalls).toEqual([
+        { threadId: "thr_new", title: "Treasure map" },
+      ]);
     });
     slot.lifecycle.unmount();
   });
@@ -1577,8 +1633,8 @@ describe("personas nav panel", () => {
   });
 
   it("calls archive with the chat's threadId from the ⋯ menu", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: CHAT_ROW_RPC });
+    const actionCalls: ChatRowActionCall[] = [];
+    const slot = await renderChatRowMenuSlot(actionCalls, []);
 
     await slot.findByText("Chats (1)");
     const menuButton = (await slot.findAllByLabelText("More actions")).at(-1)!;
@@ -1590,17 +1646,14 @@ describe("personas nav panel", () => {
     archiveItem.click();
 
     await waitFor(() => {
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
-        method: "archive",
-        threadId: "thr_new",
-      });
+      expect(actionCalls).toContainEqual({ method: "archive", threadId: "thr_new" });
     });
     slot.lifecycle.unmount();
   });
 
   it("calls requestDelete (BB's own confirmation) rather than opening a local dialog", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: CHAT_ROW_RPC });
+    const actionCalls: ChatRowActionCall[] = [];
+    const slot = await renderChatRowMenuSlot(actionCalls, []);
 
     await slot.findByText("Chats (1)");
     const menuButton = (await slot.findAllByLabelText("More actions")).at(-1)!;
@@ -1612,10 +1665,7 @@ describe("personas nav panel", () => {
     deleteItem.click();
 
     await waitFor(() => {
-      expect(slot.inspection.sidebarActionCalls).toContainEqual({
-        method: "requestDelete",
-        threadId: "thr_new",
-      });
+      expect(actionCalls).toContainEqual({ method: "delete", threadId: "thr_new" });
     });
     // No local confirmation dialog ever appears for a chat-row delete.
     expect(slot.queryByText("Delete Ahoy there?")).toBeNull();

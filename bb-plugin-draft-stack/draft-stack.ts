@@ -18,6 +18,12 @@ export type DraftStackAttachment = {
   path: string;
   sizeBytes: number;
   mimeType?: string;
+  // Pass-through of the host's ComposerAttachment ownership: which project
+  // owns the uploaded path, or which machine owns the absolute path (never
+  // both). Restoring a draft has to hand both back so the composer doesn't
+  // silently re-point a cross-project or on-machine attachment.
+  sourceProjectId?: string;
+  hostId?: string;
 };
 
 export type DraftStackMention = {
@@ -141,6 +147,12 @@ function sanitizeAttachments(raw: unknown): DraftStackAttachment[] {
       path: attachment.path,
       sizeBytes: typeof attachment.sizeBytes === "number" ? attachment.sizeBytes : 0,
       ...(typeof attachment.mimeType === "string" ? { mimeType: attachment.mimeType } : {}),
+      ...(typeof attachment.sourceProjectId === "string" && attachment.sourceProjectId !== ""
+        ? { sourceProjectId: attachment.sourceProjectId }
+        : {}),
+      ...(typeof attachment.hostId === "string" && attachment.hostId !== ""
+        ? { hostId: attachment.hostId }
+        : {}),
     });
   }
   return attachments;

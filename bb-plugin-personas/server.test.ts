@@ -72,6 +72,7 @@ function makeHost() {
           const all = [
             {
               id: "thr_1",
+              projectId: "proj_personal",
               title: "Pirate",
               titleFallback: null,
               status: "idle",
@@ -1048,6 +1049,7 @@ describe("listChats", () => {
     expect(chats).toEqual([
       {
         threadId: "thr_1",
+        projectId: "proj_personal",
         title: "Pirate",
         status: "idle",
         updatedAt: 10,
@@ -1079,6 +1081,7 @@ describe("listChats", () => {
         const all = [
           {
             id: "thr_1",
+            projectId: "proj_work",
             title: "Active one",
             titleFallback: null,
             status: "idle",
@@ -1088,6 +1091,7 @@ describe("listChats", () => {
           },
           {
             id: "thr_2",
+            projectId: "proj_work",
             title: "Archived one",
             titleFallback: null,
             status: "idle",
@@ -1097,6 +1101,7 @@ describe("listChats", () => {
           },
           {
             id: "thr_999",
+            projectId: "proj_other",
             title: "Not ours",
             titleFallback: null,
             status: "idle",
@@ -1141,6 +1146,7 @@ describe("listChats", () => {
         return [
           {
             id: "thr_1",
+            projectId: "proj_work",
             title: "Newest, unpinned",
             titleFallback: null,
             status: "idle",
@@ -1150,6 +1156,7 @@ describe("listChats", () => {
           },
           {
             id: "thr_2",
+            projectId: "proj_work",
             title: "Pinned first",
             titleFallback: null,
             status: "idle",
@@ -1159,6 +1166,7 @@ describe("listChats", () => {
           },
           {
             id: "thr_3",
+            projectId: "proj_work",
             title: "Pinned more recently",
             titleFallback: null,
             status: "idle",

@@ -105,6 +105,7 @@ const PersonaPatchSchema = z
 
 const ChatSchema = z.object({
   threadId: z.string(),
+  projectId: z.string(),
   title: z.string().nullable(),
   status: z.string(),
   updatedAt: z.number().int(),
@@ -188,7 +189,12 @@ const NewThreadRequestSchema = z.object({
   projectId: z.string().min(1),
   providerId: z.string().min(1),
   model: z.string().min(1),
-  reasoningLevel: ReasoningLevel,
+  // Deliberately `string` here: the SDK loosened NewThreadRequest's
+  // reasoningLevel to a plain string (the domain no longer fixes a literal
+  // set at the wire), so a narrowed zod enum would reject valid requests at
+  // the RPC boundary. Server-side validation happens where it matters —
+  // persona seed storage still uses its own ReasoningLevel enum.
+  reasoningLevel: z.string(),
   permissionMode: z.string(),
   serviceTier: z.string().optional(),
   executionInputSources: z.record(z.string(), z.unknown()),
@@ -325,9 +331,9 @@ export const rpcContract = defineRpcContract({
     output: z.object({ threadId: z.string() }),
   },
   // Pin/rename/archive/delete all come from the host's own
-  // experimental_useSidebarThreadActions() hook on the frontend. Unarchive is
-  // the one action that hook doesn't expose, so it's the only mutation this
-  // plugin needs to provide itself.
+  // experimental_useThreadActions() entries on the frontend; unarchive is
+  // the one action those rows don't route through (archived rows render
+  // their own menu), so it's the only mutation this plugin provides itself.
   unarchiveChat: {
     input: z.object({ threadId: z.string() }).strict(),
     output: z.object({ ok: z.boolean() }),
@@ -943,6 +949,7 @@ export default async function plugin(bb: BbPluginApi) {
       ]);
       const toChat = (thread: (typeof activeThreads)[number]) => ({
         threadId: thread.id,
+        projectId: thread.projectId,
         title: thread.title ?? thread.titleFallback,
         status: thread.status,
         updatedAt: thread.updatedAt,
@@ -1106,20 +1113,25 @@ export default async function plugin(bb: BbPluginApi) {
       };
     },
 
+    // The handler type guards each reasoning-effort field against the host's
+    // literal set, while the SDK returns them as plain `string` now; the
+    // values come from the host's own picker, so cast once at the boundary
+    // instead of mirroring the host's internal union here.
     listModels: async ({ providerId }) => {
       const options = await bb.sdk.providers.models({ providerId });
-      return {
-        models: options.models.map((model) => ({
-          id: model.id,
-          displayName: model.displayName,
-          description: model.description,
-          isDefault: model.isDefault,
-          defaultReasoningEffort: model.defaultReasoningEffort,
-          reasoningEfforts: model.supportedReasoningEfforts.map(
-            (effort) => effort.reasoningEffort,
-          ),
-        })),
-      };
+      const models = options.models.map((model) => ({
+        id: model.id,
+        displayName: model.displayName,
+        description: model.description,
+        isDefault: model.isDefault,
+        defaultReasoningEffort:
+          model.defaultReasoningEffort as z.output<typeof ReasoningLevel>,
+        reasoningEfforts: model.supportedReasoningEfforts.map(
+          (effort): z.output<typeof ReasoningLevel> =>
+            effort.reasoningEffort as z.output<typeof ReasoningLevel>,
+        ),
+      }));
+      return { models };
     },
 
     // One fresh plugins.list read per call — installs, enables, disables, and

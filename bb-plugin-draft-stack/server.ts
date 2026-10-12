@@ -19,13 +19,35 @@ import {
 
 // -- Wire schemas -----------------------------------------------------------
 
-const AttachmentSchema = z.object({
-  type: z.enum(["localFile", "localImage"]),
-  name: z.string().min(1).max(500),
-  path: z.string().min(1).max(2000),
-  sizeBytes: z.number().int().min(0),
-  mimeType: z.string().max(200).optional(),
-});
+// A composer attachment: an uploaded file, optionally owned by another
+// project, or an absolute path on one machine — never both (mirrors the
+// host's ComposerAttachment in bb-plugin-sdk-app.d.ts). sizeBytes is
+// optional since 0.6.x: the host omits it when unknown, so the wire does
+// too and draft-stack.ts defaults it to 0 for its snapshots.
+const AttachmentSchema = z.union([
+  z
+    .object({
+      type: z.enum(["localFile", "localImage"]),
+      name: z.string().min(1).max(500),
+      path: z.string().min(1).max(2000),
+      sizeBytes: z.number().int().min(0).optional(),
+      mimeType: z.string().max(200).optional(),
+      // Project that currently owns this uploaded path.
+      sourceProjectId: z.string().min(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.enum(["localFile", "localImage"]),
+      name: z.string().min(1).max(500),
+      path: z.string().min(1).max(2000),
+      sizeBytes: z.number().int().min(0).optional(),
+      mimeType: z.string().max(200).optional(),
+      // Machine whose absolute path this is.
+      hostId: z.string().min(1),
+    })
+    .strict(),
+]);
 
 // Mirrors the host's ComposerMention shape (bb-plugin-sdk-app.d.ts). Variant
 // fields are spelled out per kind; strict() strips anything else so a
@@ -81,6 +103,16 @@ const MentionSchema = z.discriminatedUnion("kind", [
       source: z.enum(["command", "skill"]),
       origin: z.enum(["builtin", "project", "user"]),
       argumentHint: z.string().nullable(),
+    })
+    .strict(),
+  // The pill for a file already attached to the same draft.
+  z
+    .object({
+      kind: z.literal("attachment"),
+      from: z.number().int().min(0),
+      to: z.number().int().min(1),
+      label: z.string().max(500),
+      path: z.string().min(1),
     })
     .strict(),
   z

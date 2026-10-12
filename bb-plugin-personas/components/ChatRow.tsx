@@ -1,9 +1,13 @@
 import { useRef, useState } from "react";
 import {
-  experimental_useSidebarThreadActions,
   experimental_useSidebarThreads,
+  experimental_useThreadActions,
+  useSdk,
 } from "@get-bb/plugin-sdk/app";
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import type {
+  PluginSidebarThread,
+  PluginThreadActionTarget,
+} from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
@@ -36,11 +40,45 @@ export function isThreadRunning(
 /** The subset of server.ts's ChatSchema a row needs to render and act on. */
 export interface RowChat {
   threadId: string;
+  projectId: string;
   title: string | null;
   status: string;
   updatedAt: number;
   pinnedAt: number | null;
   archivedAt: number | null;
+}
+
+/**
+ * The wire shape for `experimental_useThreadActions`: pin, rename, archive,
+ * and delete all read only id/archivedAt/pinnedAt plus identity fields the
+ * chat list snapshot doesn't carry (parent, section, read state, environment
+ * are consulted by other actions this row never renders).
+ */
+function toActionTarget(chat: RowChat): PluginThreadActionTarget {
+  return {
+    id: chat.threadId,
+    projectId: chat.projectId,
+    parentThreadId: null,
+    archivedAt: chat.archivedAt,
+    pinnedAt: chat.pinnedAt,
+    sectionId: null,
+    isUnread: false,
+    status: chat.status as PluginThreadActionTarget["status"],
+    environment: null,
+  };
+}
+
+/** Finds one of bb's core action entries among the hook's bound actions. */
+function coreAction(
+  threadActions: readonly {
+    key: string;
+    action: { run: () => Promise<void> };
+  }[],
+  id: string,
+): { run: () => Promise<void> } | undefined {
+  return threadActions.find(
+    (entry) => entry.key === `bb--core/${id}`,
+  )?.action;
 }
 
 export function ChatRow({
@@ -60,8 +98,15 @@ export function ChatRow({
   reload: () => void;
 }) {
   const rpc = usePersonasRpc();
-  const actions = experimental_useSidebarThreadActions();
+  const sdk = useSdk();
   const { threads } = experimental_useSidebarThreads();
+  // The row's actions are the host's live action entries: pin/archive/delete
+  // carry bb's pane cleanup and route repair, and delete opens bb's own
+  // confirmation which counts child threads first. The hook must stay above
+  // startRename-taking branches; startRename is stable in this closure.
+  const threadActions = experimental_useThreadActions(toActionTarget(chat), {
+    requestRename: () => startRename(),
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(chat.title ?? "");
@@ -104,7 +149,11 @@ export function ChatRow({
     }
     setIsEditing(false);
     try {
-      await actions.rename(chat.threadId, trimmed);
+      // bb has no plugin-facing rename-action run for committing a draft —
+      // the core rename entry only opens the requestRename editor, and the
+      // plugin owns the commit. useSdk's threads.update runs with the
+      // signed-in user's authority on the app origin.
+      await sdk.threads.update({ threadId: chat.threadId, title: trimmed });
       reload();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause));
@@ -113,8 +162,11 @@ export function ChatRow({
 
   function togglePin() {
     setMenuOpen(false);
-    actions
-      .setPinned(chat.threadId, chat.pinnedAt === null)
+    // The core pin entry toggles: one run covers pinning and unpinning.
+    const pin = coreAction(threadActions, "pin");
+    if (pin === undefined) return;
+    pin
+      .run()
       .then(reload)
       .catch((cause: unknown) => {
         toast.error(cause instanceof Error ? cause.message : String(cause));
@@ -123,9 +175,12 @@ export function ChatRow({
 
   function doArchive() {
     setMenuOpen(false);
+    // The core archive entry: for an active thread it's bb's archive with
+    // pane cleanup and Undo; for an archived one it unarchives. This row's
+    // menu only shows this entry on active chats, but the entry's own
+    // behavior stays authoritative.
     try {
-      actions.archive(chat.threadId);
-      reload();
+      void coreAction(threadActions, "archive")?.run().then(reload);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause));
     }
@@ -136,7 +191,7 @@ export function ChatRow({
     // BB's own delete confirmation owns this — it counts child threads
     // first. The SDK deliberately has no silent delete, so this plugin
     // never builds its own confirmation dialog.
-    actions.requestDelete(chat.threadId);
+    void coreAction(threadActions, "delete")?.run();
   }
 
   async function doUnarchive() {
