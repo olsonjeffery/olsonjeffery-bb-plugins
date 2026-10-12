@@ -12,6 +12,7 @@ import type {
 } from "./src/contract";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { MakiBrandIcon } from "./src/brand-icon";
 
 type MachineResult = PortOpencodeOutput["machines"][number];
 type MachineStatus = MakiStatusOutput["machines"][number];
@@ -189,6 +190,14 @@ function PortSection() {
 }
 
 export default definePluginApp((app) => {
+  // Provider selector and agent pickers draw the full-color maki mark. The
+  // declaration's icon/logo assets are currentColor masks, so the mark has to
+  // come through this slot (see src/brand-icon.tsx for why it is inline data).
+  app.slots.experimental_providerIcon({
+    providerKind: "agent",
+    providerId: "maki",
+    icon: MakiBrandIcon,
+  });
   app.slots.settingsSection({
     id: "opencode-port",
     title: "Port providers to maki",

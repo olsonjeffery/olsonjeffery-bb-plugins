@@ -10,7 +10,11 @@
     "name": "maki Agent Provider",
     "description": "Run bb threads with the maki coding agent over ACP. Includes update notifications, per-machine version display, and a one-click port of OpenCode providers into maki config.",
     "branding": {
-      "icon": "./icons/maki.svg"
+      "icon": "./icons/maki.svg",
+      "logo": {
+        "light": "./icons/maki-logo.webp",
+        "dark": "./icons/maki-logo.webp"
+      }
     },
     "server": "./server.ts",
     "host": "./src/host.ts",
