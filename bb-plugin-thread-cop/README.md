@@ -1,139 +1,80 @@
 # Thread Cop
 
-Watches every thread and keeps stalled work moving. v1 covers hung tool
-calls; v2 (issue #4) adds the failure-taxonomy coverage: failed-turn
-retries, silent turns, stalled approvals, context pressure, and runaway
-loops.
+Watches every running thread and keeps stalled work moving — hung tool calls
+get nudged, failed turns get retried, silent turns and stalled approvals get
+flagged before they burn your session.
 
-- **Idle Tool Nudge** (B1): a tool call that has shown no start or progress
-  activity for longer than the timeout triggers a steer message into the
-  running turn (falling back to interrupt + fresh turn when steering is
-  unavailable), delivered once per hang, re-sent only after another full
-  timeout window, capped at 3 nudges per call.
-- **Failed-turn policy** (F1+F6): when a turn fails (`turn.failed`),
-  transient provider failures (stream drops, connection failures,
-  overload, internal errors, unwindowed rate limits; `unknown` with an
-  http status ≥ 500 or no status at all) are re-queued via
-  `threads.retry` on a 1m/5m/15m backoff ladder, capped at
-  `maxFailedTurnRetries` per request; a reload cannot double-retry (the
-  `v2.retriedFor` metadata key is the guard) and a windowed rate limit
-  (`resetsAtMs`) or an already-queued retry row means stand-down — core is
-  already handling it. Everything else (bad-request, unauthorized, policy,
-  billing, budget-exceeded, context-window-exceeded, max-turns, …) is a
-  deterministic failure that fails identically: it is **never** retried,
-  just logged loudly (`v2.lastFailure`) for human attention.
+## What you get
 
-## Settings
+- **Idle-tool nudges** — a tool call with no start or progress activity for
+  longer than *Tool Call Timeout* (default 10 minutes) gets a steer message
+  into the running turn (interrupt + fresh turn as the fallback), once per
+  hang, re-sent only after another full window, capped at 3 per call.
+- **Failed-turn retries** — transient provider failures (stream drops,
+  overload, internal errors, unwindowed rate limits) re-queue automatically
+  on a 1m/5m/15m backoff ladder, capped at *Max Failed-Turn Retries*
+  (default 2); deterministic failures (bad request, unauthorized, billing,
+  context window exceeded, …) are **never** retried, just logged loudly.
+- **Silent-turn watchdog** — an active turn with no events at all for
+  *Silent Turn Timeout* (default 15 minutes) gets a nudge, then a stop +
+  fresh-turn escalation if it stays silent, capped at 2 interventions per
+  silence episode.
+- **Approval-stall alerts** — a pending approval or question older than
+  *Approval Stall Alert* (default 10 minutes) is logged loudly, hourly while
+  it stays pending; deliberately not auto-answered, because the agent is
+  blocked on a human.
+- **Context-pressure nudges** — when context-window use crosses
+  *Context Pressure Threshold* (default 85%), the thread gets one nudge to
+  summarize or compact; re-arms 15 points lower so a saw-tooth never spams.
+- **Runaway-loop detector** (experimental) — *Runaway Loop: Repeats*
+  identical tool/command signatures (default 8) inside the window and steers
+  once, naming the repeated call; re-arms only after a distinct signature.
+- **Zero-touch settings** — every timeout, cap, and nudge prompt is a
+  plain-language setting on the plugin page (each prompt capped at 1000
+  characters, safe-degraded to defaults when invalid) and applies live, no
+  reload needed.
 
-Rendered on the plugin's settings page by the host:
+## Requirements
 
-- **Tool Call Timeout (minutes)** (`toolCallTimeoutMinutes`, default `10`) — a
-  tool call with no start or progress for longer than this is considered hung.
-- **Hung Tool nudge prompt** (`hungToolNudgePrompt`, multi-line, default
-  `Your tool call has hung and is not responding. What are your next steps?`) —
-  the text sent as `Idle Tool Nudge: <prompt>`.
-- **Retry Failed Turns** (`failedTurnRetriesEnabled`, default `true`) — the F1
-  auto-retry switch; off leaves failed turns in `error` with a loud log.
-- **Max Failed-Turn Retries** (`maxFailedTurnRetries`, default `2`) — the
-  plugin's own retry cap per failed turn request.
-- **Silent Turn Timeout (minutes)** (`silentTurnMinutes`, default `15`) — an
-  active turn with no events at all gets a Silent Turn Nudge.
-- **Silent turn nudge prompt** (`silentTurnPrompt`, multi-line).
-- **Approval Stall Alert (minutes)** (`approvalStallMinutes`, default `10`) —
-  a pending approval/question older than this is logged loudly; deliberately
-  not a steer (the agent is blocked on a human — a queued send would fire the
-  moment the human answers and corrupt the context). One alert per pending
-  interaction, re-armed hourly while it stays pending.
-- **Context Pressure Threshold (%)** (`contextPressureThresholdPct`, default
-  `85`) — context-window usage crossing this gets one nudge to
-  summarize/compact; re-arms 15 points below the threshold (no spam on a
-  saw-tooth).
-- **Context pressure nudge prompt** (`contextPressurePrompt`, multi-line).
-- **Runaway Loop: Repeats** (`loopRepeatCount`, default `8`, experimental) —
-  identical tool/command signatures inside the window that trigger one steer
-  naming the repeated call.
-- **Runaway Loop: Window (ms)** (`loopWindowMs`, default `480000`).
-- **Runaway loop nudge prompt** (`loopPrompt`, multi-line, `{signature}`
-  placeholder).
-
-Every nudge prompt is capped at 1000 characters (host-validated; the settings
-page shows a message under the field and `bb plugin config` rejects longer
-values). The host decides the text area's height and any live counter — the
-plugin cannot restyle it.
-
-Invalid values safe-degrade to the defaults. Settings edits apply live via
-`onChange`, no reload needed.
+- bb `>=0.44`. Runs entirely server-side: no external services and nothing
+  to configure per thread.
 
 ## How it works
 
-- **Monitoring attaches to every thread.** `thread.created` (any) plus a
-  load-time scan of the threads currently occupying capacity
-  (`threads.listRunning`) pick up every thread; "this thread is watched" is
-  recorded in the thread's `pluginMetadata` under this plugin's id
-  (`watchdog: "watching"`). `thread.active`/`thread.unarchived` re-attach,
-  `thread.idle`/`thread.failed` drain pending entries, and
-  `thread.archived`/`thread.deleted` tear the monitor down.
-- **Tool-call start/end is read from the pollable per-thread event log**
-  (`bb.sdk.threads.events.list`), not a push event. A per-thread follower
-  polls every 5 s for `item/started` (toolCall/commandExecution items with
-  status `pending` → pending list, keyed by item id, first entry wins on
-  duplicate starts), `item/toolCall/progress` and
-  `item/commandExecution/outputDelta` (heartbeats for that call),
-  `item/completed` (any end status, including `interrupted`, removes the
-  entry), and `turn/completed` (clears the thread's pending list). It also
-  feeds the v2 checkers from `system/interaction/lifecycle` rows (F3's
-  pending-interaction tracking) and
-  `thread/contextWindowUsage/updated` rows (F4's usage percentage).
-  **Every row** refreshes the monitor's `lastEventAt` — F2's silence clock.
-  The follower seeds from the recent history at attach so a hang that
-  predates it is caught too.
-- **The hang clock is keyed to the tool-call item itself**: a call is due when
-  `now − max(startedAt, lastProgressAt) > timeout`, so a hung sub-agent
-  `Task` whose children still emit progress is not misjudged by its parent's
-  silence, and a live command emitting output is not misjudged as hung.
-- **One background service** (`bb.background.service("tool-hang-sweep")`)
-  sweeps all monitors every 60 s — no per-thread timers, so reloads and
-  disposes are safe. Before sending, the sweep re-checks the item in the
-  event log and skips if it ended mid-sweep. The sweep walks each monitor
-  through the v2 checks in one pass, each independently skippable:
-  **F2 silence → F3 approval stall → F4 context pressure** (F1/F6 act on
-  `turn.failed` events the moment they fire; F5 delivers live from the loop
-  detector).
-- **F2 silent-turn watchdog**: an active turn with `now − lastEventAt` past
-  `silentTurnMinutes` gets one Silent Turn Nudge (steer, falling back to
-  stop + fresh turn); still silent another full window later → stop + fresh
-  turn escalation; capped at 2 interventions per silence episode, cleared by
-  `turn/completed` / `thread.idle`. Skipped while a pending interaction
-  exists (the agent can't respond while blocked) and while a watched tool
-  call is pending (that call owns the thread — B1's beat).
-- **The silence clock restarts with the thread, not the turn**: `turn/started`
-  is a watched event type and every watched row refreshes `lastEventAt`, and a
-  monitor reactivated after `thread.idle`/`thread.failed` (drained, still
-  resident) resets `lastEventAt` on the inactive → active transition — an
-  idle gap never carries over into a resumed turn's window.
-- **F5 runaway-loop detector** (experimental): a per-thread ring buffer of
-  normalized call signatures (command text for commandExecution; tool name +
-  compact input summary for toolCall). When `loopRepeatCount` identical
-  signatures land within `loopWindowMs`, one steer names the repeated call;
-  re-arms only after a distinct signature interleaves.
-- **Delivery** (all nudges): `bb.sdk.threads.send({ mode: "steer" })`. When
-  steering is unavailable (e.g. `active-turn-not-steerable`) the plugin calls
-  `threads.stop()` (interrupt) and sends a fresh user turn with the same
-  text. Nudge timestamps are recorded and logged via `bb.log`.
-- **Bookkeeping** lives in the thread's plugin metadata under the `v2` key
-  (`lastFailure`, `retriedFor`, `approvalAlertAt`, `contextAlertAt`,
-  `loopAlertAt`); pending state lives in memory only — it is rebuilt from
-  the event log after a restart, so nothing is persisted (no database
-  tables).
-- **Backpressure guard**: the monitored set is capped (200 threads); a
-  follower that fails repeatedly is dropped and logged.
+- **Monitoring attaches to every thread.** `thread.created` plus a load-time
+  scan of the threads currently occupying capacity pick up every thread;
+  "this thread is watched" is recorded in the thread's `pluginMetadata`.
+  `thread.active`/`thread.unarchived` re-attach, `thread.idle`/`failed`
+  drain pending state, and `thread.archived`/`deleted` tear the monitor down.
+- **Tool-call start/end comes from the pollable per-thread event log**, not a
+  push event: a follower polls every 5 s for `item/started`,
+  `item/toolCall/progress`, `item/commandExecution/outputDelta`,
+  `item/completed`, and `turn/completed`, and also feeds the silent-turn and
+  context-pressure checkers from interaction-lifecycle and window-usage rows.
+  Every row refreshes the monitor's activity clock, and the clock is keyed
+  to the tool-call item itself — so a hung parent whose children still emit
+  progress is not misjudged, and a live command's output keeps it alive.
+- **One background service** sweeps all monitors every 60 s — no per-thread
+  timers, so reloads and disposes are safe; before sending, the sweep
+  re-checks the item in the event log and skips it when it already ended.
+- **Delivery** is a steer message into the running turn
+  (`bb.sdk.threads.send({ mode: "steer" })`); when steering is unavailable
+  the plugin interrupts (`threads.stop()`) and sends the same text as a fresh
+  user turn.
+- **Bookkeeping** lives in thread plugin metadata and in memory only — it is
+  rebuilt from the event log after a restart, with no database tables. The
+  monitored set is capped at 200 threads, and a follower that fails
+  repeatedly is dropped and logged.
 
 ## Development
 
 ```sh
-npm install
-npx vitest run    # unit + fake-plugin-host tests
-npx tsc --noEmit  # typecheck
+bb plugin install .
+bb plugin dev
+bb plugin logs thread-cop -f
+
+npm test
+npm run typecheck
 ```
 
 - `tool-watch.ts` — pure pending-list bookkeeping (no I/O), fully unit-tested.

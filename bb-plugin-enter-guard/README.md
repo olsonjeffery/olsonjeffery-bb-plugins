@@ -1,43 +1,46 @@
-# bb-plugin-enter-guard
+# Enter Guard
 
-A safety guard for the BB prompt box. Pressing ENTER while typing does not
-send immediately: the prompt box border flashes glowing red, and you must press
-ENTER again within the confirm window (default 1000ms) to actually send the
-message. Miss the window and the next ENTER is treated as the first press
-again (another flash).
+Keeps a stray Enter from sending a half-written message. The prompt box is
+**double-Enter guarded**: the first Enter flashes the composer's border glowing
+red and only a quick second press within the confirm window actually sends.
 
-## What it intercepts
+## What you get
 
-- Plain ENTER in any prompt box (`[data-promptbox]`): thread, new-thread,
-  side-chat, and queued-message composers.
-- Enter with Shift/Alt/Ctrl/Cmd modifiers is left alone (newline / other
-  behaviors).
-- ENTER while a mention/command suggestion menu is open selects the
-  suggestion instead of gating.
-- ENTER in zen mode (which inserts a newline) and ENTER with a disabled submit
-  button (nothing to send) are not gated.
+- **Double-Enter to send** in every BB prompt box — thread composers, the
+  New Thread composer, side chats, and queued messages
+- **A visible confirm window** (default 1000 ms, configurable): miss it and
+  the next Enter reads as the first press again, so nothing ever sends
+  silently
+- **No surprise sends** while a mention or command suggestion menu is open —
+  Enter selects the highlighted suggestion instead
+- **Newline (and every other modifier behavior) unchanged**: Enter with
+  Shift/Alt/Ctrl/Cmd and zen mode are passed through as always
+- **Live settings** — flip **Enabled** on or off at
+  Settings → Enter Guard, or change the window:
 
-## Configure
-
-```
-bb plugin config enter-guard           # view current values
-bb plugin config enter-guard set enabled false   # disable the guard
-bb plugin config enter-guard set windowMs 1500   # wider confirm window
+```sh
+bb plugin config enter-guard set windowMs 1500
 ```
 
-Settings apply without a reload; the frontend reads them live.
+Settings apply without a reload; the running frontend reads them live.
 
-## Build / install
+## Requirements
 
+- bb `>=0.44`. No external services, no configuration beyond the two
+  settings above.
+
+## Install
+
+```sh
+bb plugin install enter-guard
 ```
-npm install
-bb plugin build
+
+## Development
+
+```sh
 bb plugin install .
-bb plugin reload enter-guard
-```
+bb plugin dev
+bb plugin logs enter-guard -f
 
-Run `bb plugin build` before publishing git/npm installs. It writes
-`dist/server.js` + `server.meta.json` (and, with `bb.app`, `app.js` /
-`app.css` / `app.meta.json`). Each `*.meta.json` stamps SDK major/version,
-`artifactFormatVersion`, `pluginId`, `pluginVersion`, and
-`builtWith` so managed installs can verify the artifacts.
+npm run typecheck
+```

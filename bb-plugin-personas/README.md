@@ -1,6 +1,6 @@
 # Personas for BB
 
-Create a small team of AI personas inside BB.
+Build a small team of AI personas inside BB.
 
 Each persona has its own name, pool of prompts, model provider, model, and
 reasoning level. Create a persona once, give it a clear job, and use it whenever
@@ -17,51 +17,23 @@ works best for code.
 
 <sub>A fleet of personas in the BB sidebar — each with its own instructions, provider, model, and reasoning level.</sub>
 
-## Why this exists
+## What you get
 
-I like custom GPTs and Grok personas because they let you create a reusable persona
-for a specific job. But they are tied to one model provider.
+- Personas for writing, research, coding, planning, reviews, or any repeatable work — each an ordinary BB thread, with BB's composer, attachments, archive, and delete experience intact
+- A prompt pool per persona: as many prompts as the job needs (3500 characters each), editable at any time; changes apply to future chats
+- A provider, model, and reasoning level chosen per persona, used as the defaults for its chats — you can still change them before sending the first message
+- A Floating Note straight into a prompt pool when the Floating Notes plugin is installed and enabled — the entry shows the note's current content, and editing the note later updates every chat that receives it
+- A project connection when a persona needs repository context, and projectless personas for everyday conversations
+- A launcher section on BB's New Thread screen: pick a published persona and jump straight into its composer, with whatever was set at pick time — the draft text, the selected project, the picked repo source/HEAD — travelling in with you
+- A Default User Message per persona (max 500 characters) that seeds a freshly opened composer, so every selection starts empty-or-Default instead of resurfacing a stale draft
+- A draft-before-publish workflow: set up the prompt pool, provider, and model, then click **Publish** to make the persona available
+- A persona rail with each persona's own emoji, name, and avatar color (Auto, or one of six curated colors), plus running-state spinners
+- Export to a `personas.json` file and import into another BB: prompts verbatim (note prompts carry their note's body at export time), emoji and color included, and same-named personas import as "Name (NEW-IMPORT)" instead of overwriting anything
 
-BB gives you more control. You can create your own personas, keep their instructions
-in one place, and choose the provider and model for each one.
+## Requirements
 
-This plugin brings those two ideas together:
-
-- reusable personas with a clear purpose
-- your own instructions for every persona
-- a different model provider or model for different kinds of work
-- a familiar chat experience inside BB
-
-The goal is simple: build a personal fleet of personas that work the way you work.
-
-## What you can do
-
-With Personas, you can:
-
-- create personas for writing, research, coding, planning, reviews, or any repeatable work
-- build each persona from a pool of prompts — as many as it needs
-- attach a Floating Note straight into a prompt pool
-- choose a provider, model, and reasoning level per persona
-- connect a persona to a project when it needs repository context
-- keep personas without a project for everyday conversations
-- create drafts before making a persona available to chat with
-- keep chat history as normal BB threads
-- pick a persona straight from BB's New Thread screen — its launcher section
-  lists your published personas and jumps into that persona's composer;
-  whatever was set on the New Thread screen when you picked — the draft
-  text, the selected project, the picked repo source/HEAD — travels into
-  the persona's composer
-- keep composers independent: the persona's chat input and the generic New
-  Thread input hold their own drafts, and neither leaks into the other
-- give each persona an optional Default User Message — seeded into a freshly
-  opened composer so every selection starts empty-or-Default
-- export every persona to a `personas.json` file and import it into another
-  BB — prompts verbatim (note prompts carry their note's body at export
-  time), emoji and color included, and a same-named persona imports as
-  "Name (NEW-IMPORT)" instead of overwriting anything
-
-A persona is not a separate chat app. It lives in BB and uses BB's existing thread,
-composer, attachment, archive, and delete experience.
+- bb `>=0.39.0`
+- The [Floating Notes](https://github.com/vburojevic/bb-plugin-floating-notes) plugin, installed and enabled, for note prompts (everything else works without it)
 
 ## Install
 
@@ -76,8 +48,6 @@ Install directly from this repository:
 ```sh
 bb plugin install git:https://github.com/olsonjeffery/bb-plugin-personas.git
 ```
-
-Requires BB `>=0.39.0`.
 
 ## Create your first persona
 

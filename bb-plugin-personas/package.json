@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Personas",
-    "description": "Create custom personas with their own prompt pool and model, then chat with them.",
+    "description": "Build a reusable fleet of AI personas: each with its own prompt pool, provider, model, and reasoning level, chatting in ordinary BB threads. Attach a Floating Note and the chat always sees its current text. Pick a persona from BB's New Thread screen and its draft, project, and repo selection travel with you. Export every persona to a JSON file and import it into another BB instance; the Floating Notes plugin is needed only for note prompts.",
     "branding": {
       "icon": "./assets/icon.svg",
       "experimental_icons": {
@@ -26,7 +26,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.39",
+    "@get-bb/plugin-sdk": "0.6.37",
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-select": "^2.3.3",
     "@testing-library/dom": "^10.4.1",

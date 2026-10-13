@@ -8,15 +8,18 @@
   },
   "bb": {
     "name": "Thread Cop",
-    "description": "Watches every thread and keeps stalled work moving: idle-tool nudges, failed-turn retries, silent-turn watchdog, approval-stall alerts, context-pressure nudges, and a runaway-loop detector.",
+    "description": "Watches every thread and keeps stalled work moving: hung tool calls get nudged, failed turns are retried on a backoff ladder, and silent turns, stalled approvals, and runaway loops get flagged before they burn the session.",
     "branding": {
       "icon": "Timer"
     },
     "server": "./server.ts",
     "skills": []
   },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.39",
+    "@get-bb/plugin-sdk": "0.6.37",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/react": "^19.3.0",
@@ -26,11 +29,13 @@
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
+  "scripts": {
+    "test": "vitest run",
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit"
+  },
   "allowScripts": {
     "better-sqlite3@12.11.1": true,
     "esbuild@0.28.2": true
-  },
-  "dependencies": {
-    "zod": "^4.6.5"
   }
 }

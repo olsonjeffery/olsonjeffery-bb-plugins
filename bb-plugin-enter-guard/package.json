@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Enter Guard",
-    "description": "Double-Enter to send: the first Enter flashes the prompt box border red and only a quick second press sends.",
+    "description": "Keeps a stray Enter from sending a half-written message: double-Enter to send, with a visible confirm window and no surprise sends while a suggestion menu is open.",
     "branding": {
       "icon": "Zap"
     },
@@ -31,7 +31,7 @@
     "hono": "^4.11.9",
     "typescript": "^5.7.0",
     "@radix-ui/react-dialog": "^1.1.19",
-    "@get-bb/plugin-sdk": "0.6.39",
+    "@get-bb/plugin-sdk": "0.6.37",
     "@pierre/diffs": "^1.2.9",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-context-menu": "^2.3.3",
@@ -47,6 +47,10 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2"
+  },
+  "scripts": {
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit"
   },
   "allowScripts": {
     "better-sqlite3@12.11.1": true
