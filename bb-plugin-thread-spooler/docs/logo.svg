@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <!-- Glyph: assets/icon.svg, the icon BB shows for Spooler Sidebar. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="url(#bg)"/>
+  <g transform="translate(16 16) scale(2.2)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="13" width="12" height="7" rx="2"/><path d="M8 10h12a2 2 0 0 1 2 2v5"/><path d="M11 7h12a2 2 0 0 1 2 2v5"/></g>
+</svg>

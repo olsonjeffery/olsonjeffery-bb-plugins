@@ -1,0 +1,3150 @@
+/* Spooler Sidebar. All rules are prefixed `spooler-` and read BB's live theme
+   tokens (with fallbacks), so custom palettes keep working. None touch BB's
+   own elements. */
+
+/* Narrow list (a default-width sidebar, or the drawer on a 360px
+   phone): status chips fold to their glyph and count so the row stays on
+   one line. "All" has no glyph and keeps its word; the chips keep their
+   aria-label and title. Keyed off the list's own width, so a wide mobile
+   drawer still shows the words. */
+@container spooler-thread-list (max-width: 284px) {
+  .spooler-chip-iconic .spooler-chip-label {
+    display: none;
+  }
+  .spooler-chip-iconic {
+    padding: 0 7px;
+  }
+  .spooler-chip-iconic .spooler-chip-indicator,
+  .spooler-chip-iconic .spooler-dot,
+  .spooler-chip-iconic .spooler-unread {
+    margin-inline: 1px;
+  }
+}
+
+.spooler-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: 13px;
+  color: var(--foreground);
+  container-type: inline-size;
+  container-name: spooler-thread-list;
+}
+
+/* Narrow sidebar: status words go first (glyphs + tooltips remain). */
+@container spooler-thread-list (max-width: 249px) {
+  .spooler-status-word {
+    display: none;
+  }
+}
+
+/* Very narrow: project chips go, badges slim to status + unread. */
+@container spooler-thread-list (max-width: 194px) {
+  .spooler-row-project {
+    display: none;
+  }
+  .spooler-row-badges > :not(.spooler-row-status-badge):not(.spooler-unread) {
+    display: none;
+  }
+}
+
+/* ---- Sticky header: New button, filter, lifecycle + grouping controls. ---- */
+
+.spooler-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 8px 10px;
+  background: var(--sidebar, var(--background));
+  border-bottom: 1px solid var(--border);
+}
+
+.spooler-search {
+  position: relative;
+}
+
+.spooler-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.spooler-search-input {
+  width: 100%;
+  height: 30px;
+  padding-left: 28px !important;
+  padding-right: 28px !important;
+  font-size: 13px;
+}
+
+.spooler-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.spooler-search-clear:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-search-clear [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-search-shortcut {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.spooler-section-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spooler-section-create > button {
+  align-self: flex-start;
+}
+
+.spooler-section-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.spooler-section-create-input {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.spooler-section-create-error {
+  width: 100%;
+  margin: 0;
+  color: var(--destructive);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.spooler-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.spooler-status-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0 0 0;
+}
+
+.spooler-status-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.spooler-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.spooler-chip:hover {
+  color: var(--foreground);
+  background: var(--muted);
+  border-color: color-mix(in srgb, var(--border) 80%, var(--foreground) 20%);
+}
+
+.spooler-chip-active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+
+.spooler-chip-active:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.spooler-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-chip-active .spooler-chip-count {
+  background: color-mix(in srgb, var(--primary-foreground) 22%, transparent);
+  color: var(--primary-foreground);
+}
+
+.spooler-chip-indicator [data-icon-root] {
+  width: 11px;
+  height: 11px;
+}
+
+.spooler-chip-active .spooler-chip-indicator,
+.spooler-chip-active .spooler-tone-running {
+  color: inherit;
+}
+
+.spooler-chip .spooler-unread {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #2563eb;
+  display: inline-block;
+}
+
+.spooler-chip-active .spooler-unread {
+  background: var(--primary-foreground);
+}
+
+/* Compact (touch) viewports: no hover exists, so the ⋯ menu lives
+   inline instead of overlaying — every action stays one tap away. */
+.spooler-list-compact .spooler-row-actions {
+  position: static;
+  flex: none;
+  align-self: center;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.spooler-list-compact .spooler-action:not(.spooler-action-more) {
+  display: none;
+}
+
+.spooler-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--muted);
+}
+
+.spooler-segmented-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.spooler-segmented-button:hover {
+  color: var(--foreground);
+}
+
+.spooler-segmented-button:active {
+  transform: scale(0.94);
+  transition: transform 80ms ease;
+}
+
+.spooler-list-switching {
+  opacity: 0.65;
+  transition: opacity 120ms ease;
+}
+
+.spooler-segmented-button-active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.spooler-segmented-icon {
+  padding: 2px 6px;
+}
+
+.spooler-segmented-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Scrolling body + groups. ---- */
+
+/* ---------- Hover peek card ---------- */
+
+.spooler-hover-card {
+  --spooler-hover-w: 300px;
+  position: fixed;
+  z-index: 1000;
+  /* Overwritten by the placement effect before first paint. */
+  left: 0;
+  top: 0;
+  width: var(--spooler-hover-w);
+  max-width: min(var(--spooler-hover-w), calc(100vw - 16px));
+  max-height: calc((100vh - 16px) * 0.92);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover, var(--card));
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent),
+    0 12px 32px rgb(0 0 0 / 0.22),
+    0 2px 8px rgb(0 0 0 / 0.12);
+  animation: spooler-hover-in 160ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Pointer bridging the gap between row and card. */
+.spooler-hover-card::before,
+.spooler-hover-card::after {
+  content: "";
+  position: absolute;
+  top: var(--spooler-arrow-y, 18px);
+  margin-top: -4px;
+  width: 9px;
+  height: 9px;
+  background: var(--popover, var(--card));
+  transform: rotate(45deg);
+}
+
+.spooler-hover-card::before {
+  left: -5px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.spooler-hover-card::after {
+  right: -5px;
+  display: none;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+/* Placed to the left of the row: show the right-hand arrow instead. */
+.spooler-hover-card[data-side="left"]::before {
+  display: none;
+}
+
+.spooler-hover-card[data-side="left"]::after {
+  display: block;
+}
+
+@keyframes spooler-hover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+/* Header */
+
+.spooler-hover-head {
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.spooler-hover-head-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.spooler-hover-provider {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding-top: 2px;
+  color: var(--muted-foreground);
+}
+
+.spooler-hover-provider [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-hover-provider-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  line-height: 0;
+}
+
+.spooler-hover-provider-icon * {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px;
+  max-height: 14px;
+  object-fit: contain;
+}
+
+.spooler-hover-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.spooler-hover-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-left: 21px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.spooler-hover-status {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Goal */
+
+.spooler-hover-goal {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 9px 0 0;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.spooler-hover-goal-label {
+  margin-right: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--muted-foreground) 80%, var(--foreground));
+}
+
+/* Chips */
+
+.spooler-hover-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.spooler-hover-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-hover-chip [data-icon-root] {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.spooler-hover-chip-strong {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--foreground);
+  font-weight: 650;
+}
+
+/* Git rows */
+
+.spooler-hover-git {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.spooler-hover-git-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.spooler-hover-git-row:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-hover-git-row [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.spooler-hover-git-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.spooler-hover-git-hint {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0;
+}
+
+.spooler-hover-git-row:hover .spooler-hover-git-hint {
+  opacity: 0.75;
+}
+
+.spooler-hover-git-ext {
+  opacity: 0;
+}
+
+.spooler-hover-git-row:hover .spooler-hover-git-ext {
+  opacity: 0.7;
+}
+
+.spooler-hover-pr {
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+/* Context meter */
+
+.spooler-hover-context {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.spooler-hover-context-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.spooler-hover-context-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+.spooler-hover-context-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.spooler-hover-context-values strong {
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.spooler-hover-context-sep {
+  color: var(--muted-foreground);
+}
+
+/* Percentage badge. Text is mixed toward --foreground so it stays readable
+   on light and dark palettes alike; the fill is a soft tint, never a solid
+   block behind small type. */
+.spooler-hover-context-pct {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--muted-foreground) 10%, transparent);
+  color: color-mix(in srgb, var(--muted-foreground) 55%, var(--foreground));
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.spooler-pct-warning {
+  border-color: color-mix(in srgb, var(--warning, #b98533) 55%, transparent);
+  background: color-mix(in srgb, var(--warning, #b98533) 16%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--warning, #b98533) 45%,
+    var(--foreground)
+  );
+}
+
+.spooler-pct-critical {
+  border-color: color-mix(in srgb, var(--destructive, #d43d3d) 60%, transparent);
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 18%, transparent);
+  color: color-mix(
+    in srgb,
+    var(--destructive, #d43d3d) 40%,
+    var(--foreground)
+  );
+}
+
+.spooler-hover-bar {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
+  overflow: hidden;
+}
+
+.spooler-hover-bar-seg {
+  height: 100%;
+  min-width: 2px;
+  transition: width 220ms ease;
+}
+
+/* Bar-segment fills: background only. For text badges use .spooler-pct-*. */
+.spooler-token-normal {
+  background: var(--primary);
+}
+
+.spooler-token-warning {
+  background: color-mix(in srgb, var(--warning, #b98533) 85%, var(--foreground));
+}
+
+.spooler-token-critical {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 85%, var(--foreground));
+}
+
+/* Auto-compact threshold marker */
+.spooler-hover-bar-mark {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--foreground);
+  opacity: 0.55;
+}
+
+.spooler-hover-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin-top: 6px;
+}
+
+.spooler-hover-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.spooler-hover-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+  /* Ring keeps faint segments legible against any card background. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+
+.spooler-hover-legend-tokens {
+  font-weight: 600;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Folded family */
+
+.spooler-hover-kids {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.spooler-hover-kids [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin-top: 1px;
+}
+
+/* Actions */
+
+.spooler-hover-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.spooler-hover-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.spooler-hover-action:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-hover-action [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.spooler-hover-action-primary {
+  flex: 1.35;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--foreground);
+}
+
+.spooler-hover-action-primary:hover {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.spooler-hover-action-on {
+  color: var(--primary);
+}
+
+.spooler-list-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* A swiped row slides past the edge; never scroll sideways to follow it. */
+  overflow-x: hidden;
+  padding: 0 4px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.spooler-list-body::before {
+  content: "";
+  display: block;
+  height: 4px;
+}
+
+.spooler-result-count {
+  margin: 6px 8px 2px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.spooler-group {
+  margin-top: 1px;
+}
+
+/* Subtle breathing room only after an expanded section */
+.spooler-group-expanded + .spooler-group {
+  margin-top: 8px;
+}
+
+.spooler-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 5px 8px;
+  background: color-mix(
+    in srgb,
+    var(--sidebar, var(--background)) 82%,
+    transparent
+  );
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.spooler-group-header:hover {
+  background: color-mix(
+    in srgb,
+    var(--muted) 60%,
+    transparent
+  );
+  color: var(--foreground);
+}
+
+.spooler-group-expanded > .spooler-group-header {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.spooler-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.spooler-group-header:hover .spooler-group-toggle {
+  color: var(--foreground);
+}
+
+.spooler-group-header-sortable .spooler-group-toggle {
+  cursor: grab;
+}
+
+.spooler-group-header-sortable .spooler-group-toggle:active {
+  cursor: grabbing;
+}
+
+.spooler-group-chevron {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-chevron [data-icon-root],
+.spooler-group-header [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms ease;
+}
+
+.spooler-group-header:hover .spooler-group-icon {
+  color: var(--foreground);
+}
+
+.spooler-group-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spooler-group-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.spooler-group-count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.spooler-group-unread {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.spooler-group-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.spooler-group-status [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-group-new-thread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease;
+  flex-shrink: 0;
+}
+
+.spooler-group-header:hover .spooler-group-new-thread {
+  opacity: 0.9;
+}
+
+.spooler-group-new-thread:hover {
+  opacity: 1;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.spooler-group-new-thread:active {
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  transform: scale(0.92);
+}
+
+.spooler-group-new-thread:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--ring, var(--primary));
+  outline-offset: 1px;
+}
+
+.spooler-group-new-thread [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-new-thread-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  opacity: 0.7;
+  color: var(--muted-foreground);
+}
+
+.spooler-group-new-thread-preview [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  opacity: 0.35;
+  transition: opacity 150ms ease, color 150ms ease;
+  flex-shrink: 0;
+}
+
+.spooler-group-header:hover .spooler-group-grip {
+  opacity: 0.9;
+  color: var(--foreground);
+}
+
+.spooler-group-grip [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-group-dragging {
+  opacity: 0.35;
+}
+
+.spooler-group-drag-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--sidebar, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 4px 10px -2px rgba(0, 0, 0, 0.15);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground);
+  cursor: grabbing;
+  pointer-events: none;
+  user-select: none;
+  z-index: 9999;
+}
+
+.spooler-group-drag-preview .spooler-group-grip {
+  opacity: 1;
+  color: var(--primary);
+}
+
+.spooler-group-drag-preview .spooler-group-drag-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.spooler-group-drag-preview .spooler-group-drag-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-drag-preview .spooler-group-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spooler-group-drag-preview .spooler-group-count {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.spooler-group > .spooler-fold > .spooler-fold-inner {
+  padding-top: 2px;
+  padding-bottom: 4px;
+}
+
+/* ---- Thread clusters & top-level thread separation ---- */
+
+.spooler-thread-cluster {
+  position: relative;
+}
+
+.spooler-thread-cluster + .spooler-thread-cluster {
+  margin-top: 3px;
+  padding-top: 4px;
+}
+
+.spooler-thread-cluster + .spooler-thread-cluster::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 35%, transparent);
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+/* Smoothly hide divider when either the thread above or below is hovered or active */
+.spooler-thread-cluster:has(.spooler-row:hover)::before,
+.spooler-thread-cluster:has(.spooler-row-active)::before,
+.spooler-thread-cluster:has(.spooler-row:hover) + .spooler-thread-cluster::before,
+.spooler-thread-cluster:has(.spooler-row-active) + .spooler-thread-cluster::before {
+  opacity: 0;
+}
+
+/* ---- Thread rows. ---- */
+
+.spooler-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  margin: 1px 0;
+  border-radius: 8px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+  box-shadow: inset 3px 0 0 transparent;
+  transition:
+    background-color 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.spooler-row:hover {
+  background: var(--muted);
+}
+
+.spooler-row-active {
+  background: var(--accent, var(--muted));
+}
+
+.spooler-row-keyboard-focused {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.spooler-row-selected {
+  background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--primary) !important;
+}
+
+.spooler-row-selected:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+
+/* Swipe actions. The row itself slides; the underlay sits in the gap it
+   leaves (outside the row box, sized to the offset), so the colored pill
+   grows from the edge instead of showing through the row. Script drives the
+   position every frame (finger, then a spring), so neither has a transform
+   or width transition: they are painted together and cannot drift apart.
+   --spooler-swipe-p is 0..1 progress toward the arming distance. */
+.spooler-list[data-spooler-swipe="on"] .spooler-row {
+  touch-action: pan-y pinch-zoom;
+}
+
+.spooler-row[data-swipe-phase] {
+  /* content-visibility paints inside the row box, which would clip the
+     underlay. */
+  content-visibility: visible;
+  z-index: 1;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.spooler-row[data-swipe-phase="drag"],
+.spooler-row[data-swipe-phase="settle"],
+.spooler-row[data-swipe-phase="out"] {
+  will-change: transform;
+}
+
+.spooler-row[data-swipe-phase="fold"],
+.spooler-row[data-swipe-phase="gone"] {
+  /* !important: the compact and two-line density rules are as specific and
+     come later, and a row held at 28px never folds shut. */
+  min-height: 0 !important;
+  margin-block: 0;
+  opacity: 0;
+  /* The script sets --spooler-swipe-fold and waits that long before acting. */
+  transition:
+    height var(--spooler-swipe-fold, 220ms) cubic-bezier(0.4, 0, 0.2, 1),
+    margin var(--spooler-swipe-fold, 220ms) cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 180ms ease;
+}
+
+.spooler-swipe-underlay {
+  --spooler-swipe-color: var(--muted-foreground);
+  --spooler-swipe-fg: #fff;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  width: var(--spooler-swipe-w, 0px);
+  overflow: hidden;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--spooler-swipe-color) 18%, var(--muted));
+  color: var(--spooler-swipe-color);
+  pointer-events: none;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.spooler-swipe-underlay[data-side="right"] {
+  right: 100%;
+  justify-content: flex-end;
+}
+
+.spooler-swipe-underlay[data-side="left"] {
+  left: 100%;
+  justify-content: flex-start;
+}
+
+.spooler-row[data-swipe-armed] .spooler-swipe-underlay {
+  background: var(--spooler-swipe-color);
+  color: var(--spooler-swipe-fg);
+}
+
+/* The icon rides beside the row's edge and grows with the pull (`scale`,
+   untransitioned, so it tracks the finger), then pops once as the swipe arms
+   (`transform`, a separate property, so the two never fight). */
+.spooler-swipe-content {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: calc(0.35 + 0.65 * var(--spooler-swipe-p, 0));
+  scale: calc(0.7 + 0.2 * var(--spooler-swipe-p, 0));
+  transform-origin: center;
+}
+
+.spooler-swipe-underlay[data-side="right"] .spooler-swipe-content {
+  transform-origin: right center;
+}
+
+.spooler-swipe-underlay[data-side="left"] .spooler-swipe-content {
+  transform-origin: left center;
+}
+
+@keyframes spooler-swipe-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+.spooler-swipe-content [data-icon-root] {
+  width: 18px;
+  height: 18px;
+}
+
+.spooler-row[data-swipe-armed] .spooler-swipe-content {
+  opacity: 1;
+  transform: scale(1.1);
+  animation: spooler-swipe-pop 320ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+/* A trackpad swipe stopped short rests open: the pill becomes a button. */
+.spooler-row[data-swipe-phase="open"] .spooler-swipe-underlay {
+  background: var(--spooler-swipe-color);
+  color: var(--spooler-swipe-fg);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.spooler-row[data-swipe-phase="open"] .spooler-swipe-content {
+  opacity: 1;
+  scale: 1;
+}
+
+.spooler-row[data-swipe-phase="open"] .spooler-swipe-underlay:hover {
+  filter: brightness(1.08);
+}
+
+.spooler-row[data-swipe-phase="open"] .spooler-swipe-underlay:active {
+  filter: brightness(0.92);
+}
+
+/* Un-arming eases back instead of snapping. */
+.spooler-row[data-swipe-phase="drag"]:not([data-swipe-armed]) .spooler-swipe-content {
+  transition: transform 160ms ease-out;
+}
+
+.spooler-swipe-read {
+  --spooler-swipe-color: #3b82f6;
+}
+
+.spooler-swipe-pin {
+  --spooler-swipe-color: var(--warning, #b98533);
+}
+
+.spooler-swipe-archive {
+  --spooler-swipe-color: var(--success, #3f9a6b);
+}
+
+.spooler-swipe-split {
+  --spooler-swipe-color: #0d9488;
+}
+
+.spooler-swipe-rename,
+.spooler-swipe-menu {
+  --spooler-swipe-color: #6b7280;
+}
+
+.spooler-swipe-delete {
+  --spooler-swipe-color: var(--destructive, #d43d3d);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-row[data-swipe-phase],
+  .spooler-row[data-swipe-phase] .spooler-swipe-underlay,
+  .spooler-swipe-content,
+  .spooler-row[data-swipe-phase="drag"]:not([data-swipe-armed]) .spooler-swipe-content {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Compact compresses vertically only. Inline padding and the child indent
+   stay identical to comfortable, so tree guides keep lining up with text.
+   `margin-block` rather than `margin`: the shorthand would zero margin-left
+   and wipe .spooler-row-child / .spooler-row-deep's indent. */
+.spooler-density-compact .spooler-row,
+.spooler-row-compact {
+  contain-intrinsic-size: auto 28px;
+  margin-block: 0;
+  min-height: 28px;
+}
+
+.spooler-density-compact .spooler-row-main,
+.spooler-row-compact .spooler-row-main {
+  min-height: 24px;
+  padding: 2px 8px;
+}
+
+/* Single-line rows. The subtitle lives in a grid wrapper, so it collapses
+   the same way the adaptive fold does and still animates; the branch line is
+   a plain flex row outside that wrapper, so it needs display:none. */
+.spooler-density-compact .spooler-row-extra,
+.spooler-row-compact .spooler-row-extra {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.spooler-density-compact .spooler-branch-line,
+.spooler-row-compact .spooler-branch-line {
+  display: none;
+}
+
+.spooler-density-compact .spooler-tree-gutter,
+.spooler-row-compact .spooler-tree-gutter {
+  padding-top: 4px;
+}
+
+.spooler-select-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    transform 100ms ease,
+    color 120ms ease;
+}
+
+.spooler-select-checkbox [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-select-checkbox-checked {
+  color: var(--primary);
+}
+
+.spooler-select-checkbox:hover {
+  color: var(--foreground);
+  transform: scale(1.1);
+}
+
+.spooler-row-child {
+  margin-left: 16px;
+}
+
+.spooler-row-deep {
+  margin-left: 28px;
+}
+
+.spooler-row-child::before,
+.spooler-row-deep::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+.spooler-row-child.spooler-row-last::before,
+.spooler-row-deep.spooler-row-last::before {
+  bottom: auto;
+  height: 15px;
+}
+
+.spooler-row-child::after,
+.spooler-row-deep::after {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 14px;
+  width: 8px;
+  height: 1px;
+  background: var(--border);
+}
+
+.spooler-tree-gutter {
+  width: 18px;
+  flex: none;
+  align-self: flex-start;
+  padding-top: 6px;
+}
+
+.spooler-tree-toggle {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.spooler-tree-toggle:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-tree-toggle [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-kids-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  align-self: center;
+  animation: spooler-badge-in 200ms ease-out;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.spooler-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 220ms ease,
+    visibility 0s;
+}
+
+.spooler-fold-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 220ms ease,
+    visibility 0s linear 280ms;
+}
+
+.spooler-fold-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.spooler-kids-pill-unread {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.spooler-kids-pill .spooler-dot {
+  margin-top: 0;
+}
+
+.spooler-kids-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  animation: spooler-badge-in 200ms ease-out;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.spooler-kids-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.spooler-face-stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+.spooler-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: -5px;
+  border: 1px solid var(--sidebar, var(--background));
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.spooler-face:first-child {
+  margin-left: 0;
+}
+
+.spooler-face [data-icon-root] {
+  width: 9px;
+  height: 9px;
+}
+
+.spooler-row-child .spooler-row-subtitle,
+.spooler-row-deep .spooler-row-subtitle {
+  margin-left: 16px;
+}
+
+.spooler-row-split {
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.spooler-row-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.spooler-row-main:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.spooler-row-lead {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  min-width: 14px;
+  padding-top: 2px;
+}
+
+.spooler-row-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spooler-status-word {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.spooler-row-status-badge .spooler-dot {
+  margin-top: 0;
+}
+
+.spooler-provider-icon {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  line-height: 0;
+}
+
+.spooler-provider-icon * {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px;
+  max-height: 14px;
+  object-fit: contain;
+}
+
+.spooler-spinner {
+  display: inline-flex;
+}
+
+.spooler-spinner [data-icon-root] {
+  width: 14px;
+  height: 14px;
+  animation: spooler-spin 1s linear infinite;
+}
+
+@keyframes spooler-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-spinner [data-icon-root] {
+    animation: none;
+  }
+}
+
+.spooler-status-icon {
+  display: inline-flex;
+}
+
+.spooler-status-icon [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-row-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Backstop for squeezed rows: once the chip and time have shrunk and the
+   title is at its floor, anything left over (a year timestamp plus a
+   rollup pill beside a badge) clips at the text edge instead of painting
+   under the badge. */
+.spooler-row-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: clip;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+/* The title keeps a floor instead of shrinking to zero: it used to be the
+   only shrinkable item, so on badge rows at phone widths it vanished
+   entirely and left chip and time alone on the line. */
+.spooler-row-title-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-thread-title {
+  display: contents;
+}
+
+.spooler-thread-title > :last-child {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Two-line titles. Size from the title's content so short titles can keep
+   their metadata beside them. Clamp the whole SDK title, including mentions. */
+.spooler-title-wrap .spooler-row-title {
+  position: relative;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 1px;
+  padding-inline-start: var(--spooler-title-indent, 0px);
+}
+
+.spooler-title-wrap .spooler-row-title-text {
+  flex: 1 1 auto;
+  max-width: 100%;
+  align-items: flex-start;
+}
+
+.spooler-title-wrap .spooler-thread-title {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.spooler-title-wrap .spooler-thread-title > * {
+  flex: initial;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Keep wrapped metadata beneath the text, rather than beneath its markers.
+   Removing the markers from flex sizing also keeps their indent on line two. */
+.spooler-title-wrap .spooler-row-title:has(.spooler-child-glyph),
+.spooler-title-wrap .spooler-row-title:has(.spooler-pin-marker) {
+  --spooler-title-indent: 16px;
+}
+
+.spooler-title-wrap .spooler-row-title:has(.spooler-child-glyph):has(.spooler-pin-marker) {
+  --spooler-title-indent: 32px;
+}
+
+.spooler-title-wrap .spooler-child-glyph,
+.spooler-title-wrap .spooler-pin-marker {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 3px;
+}
+
+.spooler-title-wrap .spooler-row-title:has(.spooler-child-glyph) .spooler-pin-marker {
+  inset-inline-start: 16px;
+}
+
+.spooler-title-wrap .spooler-kids-pill {
+  margin-top: 1px;
+}
+
+/* Chip and time wrap as one unit in two-line mode. */
+.spooler-row-meta {
+  display: contents;
+}
+
+.spooler-title-wrap .spooler-row-meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  max-width: 100%;
+}
+
+/* Height estimates for rows not yet rendered. Rows now range from one title
+   line (about 47px, 28px compact) to two lines with metadata below (about
+   84px, 60px compact), so estimate between the two rather than at either
+   end. The auto form remembers each row's real size once it has rendered. */
+.spooler-title-wrap .spooler-row {
+  contain-intrinsic-size: auto 64px;
+}
+
+.spooler-title-wrap.spooler-density-compact .spooler-row,
+.spooler-title-wrap .spooler-row-compact {
+  contain-intrinsic-size: auto 40px;
+}
+
+/* Desktop hover actions sit on the row's last line of plain text: the
+   subtitle, or the chip and time where the subtitle is folded away. That
+   keeps them off a wrapped title and off the branch line, whose PR badge has
+   to stay clickable. Only a row one line tall still has them over the end of
+   its title, as in one-line mode. They stay out of flex sizing, so revealing
+   them never resizes a title or moves a row. Offsets are from the row's
+   bottom edge to that line; the lift clears the 18px branch line and its gap. */
+.spooler-title-wrap:not(.spooler-list-compact) .spooler-row {
+  --spooler-actions-bottom: 4px;
+  --spooler-actions-lift: 0px;
+}
+
+.spooler-title-wrap:not(.spooler-list-compact) .spooler-row-collapsed {
+  --spooler-actions-bottom: 7px;
+}
+
+.spooler-title-wrap:not(.spooler-list-compact) .spooler-row:has(.spooler-branch-line) {
+  --spooler-actions-lift: 20px;
+}
+
+/* Compact density hides the branch line, so nothing needs clearing. A row one
+   line tall is held at 28px with its text at the top, leaving that line 7px
+   above the bottom edge; taller rows end 3px below their last line. */
+.spooler-title-wrap.spooler-density-compact:not(.spooler-list-compact) .spooler-row,
+.spooler-title-wrap:not(.spooler-list-compact) .spooler-row.spooler-row-compact {
+  --spooler-actions-bottom: clamp(3px, calc(35px - 100%), 7px);
+  --spooler-actions-lift: 0px;
+}
+
+.spooler-title-wrap:not(.spooler-list-compact) .spooler-row-actions {
+  top: auto;
+  bottom: calc(var(--spooler-actions-bottom) + var(--spooler-actions-lift));
+  padding: 0;
+}
+
+.spooler-title-wrap:not(.spooler-list-compact) .spooler-action {
+  width: 20px;
+  height: 18px;
+}
+
+/* Should the offsets above ever drift, the PR badge still wins the click. */
+.spooler-title-wrap .spooler-branch-line {
+  position: relative;
+  z-index: 1;
+}
+
+/* The inline ⋯ on touch layouts holds still instead of sliding. */
+.spooler-title-wrap.spooler-list-compact .spooler-row-actions {
+  transform: none;
+}
+
+/* The chip yields before the title: it shrinks behind its ellipsis instead
+   of holding full width while the title collapses. */
+.spooler-row-project {
+  --spooler-project-hue: 220;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-self: center;
+  max-width: 110px;
+  padding: 0 5px;
+  border: 1px solid
+    color-mix(
+      in oklch,
+      hsl(var(--spooler-project-hue) 65% 62%) 45%,
+      var(--border)
+    );
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: color-mix(
+    in oklch,
+    hsl(var(--spooler-project-hue) 65% 62%) 60%,
+    var(--foreground)
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The time yields last: it shrinks behind an ellipsis (never wraps) rather
+   than overflowing the text box. The full text stays on the title
+   attribute. */
+.spooler-row-time {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-row-active .spooler-row-title {
+  font-weight: 600;
+}
+
+.spooler-child-glyph {
+  flex: none;
+  align-self: center;
+  color: var(--muted-foreground);
+}
+
+.spooler-pin-marker {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  color: var(--primary);
+}
+
+.spooler-pin-marker [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-child-glyph[data-icon-root],
+.spooler-row-title [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-row-subtitle {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-draft-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--warning, #b98533);
+  flex: none;
+}
+
+.spooler-branch-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.spooler-branch-line [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.spooler-branch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  min-width: 0;
+  max-width: calc(100% - 70px);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.spooler-branch-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-branch-copied {
+  background: color-mix(in srgb, #2da44e 16%, transparent);
+  color: #3fb950 !important;
+}
+
+.spooler-branch-copied-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #2da44e;
+  color: #fff;
+  margin-left: 2px;
+  animation: spoolerBadgePop 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes spoolerBadgePop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.spooler-branch-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-pr-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--card);
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    filter 120ms ease,
+    transform 100ms ease;
+}
+
+.spooler-pr-link:hover {
+  filter: brightness(1.08);
+  transform: scale(1.02);
+  text-decoration: none;
+}
+
+.spooler-pr-link [data-icon-root] {
+  width: 11px;
+  height: 11px;
+}
+
+.spooler-pr-open {
+  background: rgba(46, 160, 67, 0.12);
+  color: #3fb950;
+  border-color: rgba(46, 160, 67, 0.35);
+}
+
+.spooler-pr-merged {
+  background: rgba(130, 80, 223, 0.14);
+  color: #a371f7;
+  border-color: rgba(130, 80, 223, 0.35);
+}
+
+.spooler-pr-draft {
+  background: rgba(110, 118, 129, 0.12);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+
+.spooler-pr-closed {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.35);
+}
+
+.spooler-row-extra {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 280ms ease,
+    opacity 220ms ease;
+}
+
+.spooler-row-extra-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.spooler-row-extra-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.spooler-model-chip {
+  display: inline-block;
+  max-width: 130px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-thinking-chip {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.spooler-model-chip [data-icon-root] {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 3px;
+  vertical-align: -1px;
+}
+
+.spooler-section-chip {
+  --spooler-section-hue: 220;
+  display: inline-block;
+  max-width: 110px;
+  padding: 0 5px;
+  border: 1px solid
+    color-mix(
+      in oklch,
+      hsl(var(--spooler-section-hue) 65% 62%) 45%,
+      var(--border)
+    );
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: color-mix(
+    in oklch,
+    hsl(var(--spooler-section-hue) 65% 62%) 60%,
+    var(--foreground)
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-celebrate {
+  animation: spooler-celebrate 600ms cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes spooler-celebrate {
+  0% {
+    transform: scale(0.3);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.spooler-model-loading {
+  display: inline-block;
+  width: 56px;
+  height: 9px;
+  border-radius: 4px;
+  background: var(--muted);
+  animation: spooler-pulse 1.6s ease-in-out infinite;
+  vertical-align: 1px;
+}
+
+.spooler-row-badges {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding-top: 3px;
+}
+
+.spooler-row-badges > * {
+  animation: spooler-badge-in 200ms ease-out;
+}
+
+@keyframes spooler-badge-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+.spooler-badge-icon {
+  display: inline-flex;
+}
+
+.spooler-badge-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-tone-running {
+  color: var(--primary);
+  animation: spooler-pulse 1.6s ease-in-out infinite;
+}
+
+/* Success tones mix toward the foreground so they stay readable in light
+   mode (deep green) and dark mode (bright mint) alike. */
+
+.spooler-tone-success {
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+}
+
+.spooler-tone-error {
+  color: var(--destructive, #d43d3d);
+}
+
+.spooler-tone-muted {
+  color: var(--muted-foreground);
+}
+
+.spooler-tone-warning {
+  color: var(--warning, #b98533);
+}
+
+.spooler-tone-info {
+  color: var(--primary);
+}
+
+/* Status dots read the host status tokens; unknown indicators draw nothing. */
+
+.spooler-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 2px;
+  border-radius: 9999px;
+  flex: none;
+}
+
+.spooler-row-unread .spooler-row-title {
+  font-weight: 600;
+}
+
+/* Unseen rows are unmissable: tinted wash + solid accent bar. */
+
+.spooler-row-unread {
+  background: color-mix(in srgb, var(--success, #3f9a6b) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--success, #3f9a6b);
+}
+
+.spooler-row-unread:hover {
+  background: color-mix(in srgb, var(--success, #3f9a6b) 18%, var(--muted));
+}
+
+.spooler-row-active.spooler-row-unread {
+  background: var(--accent, var(--muted));
+  box-shadow: inset 3px 0 0 var(--success, #3f9a6b);
+}
+
+.spooler-row-failed {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--destructive, #d43d3d);
+}
+
+.spooler-row-failed:hover {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 18%, var(--muted));
+}
+
+.spooler-row-active.spooler-row-failed {
+  background: var(--accent, var(--muted));
+  box-shadow: inset 3px 0 0 var(--destructive, #d43d3d);
+}
+
+.spooler-row-needs-user {
+  background: color-mix(in srgb, var(--warning, #b98533) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--warning, #b98533);
+}
+
+.spooler-row-needs-user:hover {
+  background: color-mix(in srgb, var(--warning, #b98533) 20%, var(--muted));
+}
+
+.spooler-row-active.spooler-row-needs-user {
+  background: var(--accent, var(--muted));
+  box-shadow: inset 3px 0 0 var(--warning, #b98533);
+}
+
+.spooler-row-split.spooler-row-unread {
+  box-shadow:
+    inset 2px 0 0 var(--primary),
+    inset 5px 0 0 var(--success, #3f9a6b);
+}
+
+.spooler-row-split.spooler-row-failed {
+  box-shadow:
+    inset 2px 0 0 var(--primary),
+    inset 5px 0 0 var(--destructive, #d43d3d);
+}
+
+.spooler-row-split.spooler-row-needs-user {
+  box-shadow:
+    inset 2px 0 0 var(--primary),
+    inset 5px 0 0 var(--warning, #b98533);
+}
+
+/* Gentle glow pulse, reserved for rows that need action. FYI-done rows
+   (and everything else) stay static so motion always means "act". */
+
+.spooler-row-pulse-amber {
+  animation: spooler-glow-amber 2.4s ease-in-out infinite;
+}
+
+.spooler-row-pulse-red {
+  animation: spooler-glow-red 2.4s ease-in-out infinite;
+}
+
+@keyframes spooler-glow-amber {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0));
+  }
+  50% {
+    filter: drop-shadow(
+      0 0 7px color-mix(in srgb, var(--warning, #b98533) 65%, transparent)
+    );
+  }
+}
+
+@keyframes spooler-glow-red {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0));
+  }
+  50% {
+    filter: drop-shadow(
+      0 0 7px color-mix(in srgb, var(--destructive, #d43d3d) 65%, transparent)
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-row-pulse-amber,
+  .spooler-row-pulse-red {
+    animation: none;
+  }
+  .spooler-row,
+  .spooler-row-actions,
+  .spooler-row-extra,
+  .spooler-fold,
+  .spooler-list-switching,
+  .spooler-segmented-button:active {
+    transition: none;
+    transform: none;
+  }
+  .spooler-kids-pill,
+  .spooler-kids-line,
+  .spooler-celebrate,
+  .spooler-hover-card {
+    animation: none;
+  }
+  .spooler-row-badges > * {
+    animation: none;
+  }
+}
+
+.spooler-dot-running {
+  background: color-mix(in srgb, var(--success, #3f9a6b) 72%, var(--foreground));
+}
+
+.spooler-dot-attention {
+  background: var(--warning, #b98533);
+}
+
+.spooler-dot-error {
+  background: var(--destructive, #d43d3d);
+}
+
+.spooler-dot-pulse {
+  animation: spooler-pulse 1.6s ease-in-out infinite;
+}
+
+.spooler-icon-pulse {
+  animation: spooler-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes spooler-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-dot-pulse,
+  .spooler-icon-pulse,
+  .spooler-tone-running {
+    animation: none;
+  }
+}
+
+.spooler-unread {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--primary);
+  flex: none;
+}
+
+.spooler-kbd {
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* Hover actions overlay the badges; keyboard users get the context menu. */
+
+.spooler-row-actions {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--muted);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+}
+
+.spooler-row-active .spooler-row-actions {
+  background: var(--accent, var(--muted));
+}
+
+.spooler-row:hover .spooler-row-actions {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.spooler-action {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.spooler-action:hover {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.spooler-action [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-action-active {
+  color: var(--primary);
+}
+
+.spooler-row-collapsed .spooler-row-actions {
+  top: 3px;
+  padding: 1px;
+}
+
+.spooler-row-collapsed .spooler-action {
+  width: 20px;
+  height: 20px;
+}
+
+.spooler-row-collapsed .spooler-action [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-rename {
+  width: 100%;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--ring, var(--primary));
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  outline: none;
+}
+
+/* ---- Context menu. ---- */
+
+.spooler-menu {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover, var(--card));
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.16),
+    0 2px 6px rgb(0 0 0 / 0.08);
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  outline: none;
+}
+
+.spooler-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spooler-menu-item:hover,
+.spooler-menu-item:focus-visible {
+  background: var(--accent, var(--muted));
+  outline: none;
+}
+
+.spooler-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.spooler-menu-item-danger {
+  color: var(--destructive, #d43d3d);
+}
+
+.spooler-menu-icon {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+}
+
+.spooler-menu-item-danger .spooler-menu-icon {
+  color: inherit;
+}
+
+.spooler-menu-icon[data-icon-root] {
+  width: 16px;
+  height: 16px;
+}
+
+.spooler-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spooler-menu-check {
+  flex: none;
+  color: var(--primary);
+}
+
+.spooler-menu-check[data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-menu-header {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.spooler-menu-separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
+
+/* ---- Empty / loading states + archived pager. ---- */
+
+.spooler-state {
+  padding: 8px 4px;
+}
+
+.spooler-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.spooler-empty [data-icon-root] {
+  width: 22px;
+  height: 22px;
+  opacity: 0.7;
+}
+
+.spooler-empty p {
+  margin: 0;
+}
+
+.spooler-empty-hint {
+  font-size: 12px;
+}
+
+.spooler-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.spooler-skeleton-title,
+.spooler-skeleton-subtitle {
+  border-radius: 4px;
+  background: var(--muted);
+  animation: spooler-pulse 1.6s ease-in-out infinite;
+}
+
+.spooler-skeleton-title {
+  width: 72%;
+  height: 12px;
+}
+
+.spooler-skeleton-subtitle {
+  width: 48%;
+  height: 10px;
+}
+
+.spooler-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+/* ---- Floating Bulk Action Dock. ---- */
+
+.spooler-bulk-bar {
+  position: sticky;
+  bottom: 12px;
+  margin: 0 auto;
+  width: calc(100% - 20px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, var(--primary) 25%);
+  box-shadow:
+    0 8px 24px rgb(0 0 0 / 0.18),
+    0 2px 6px rgb(0 0 0 / 0.1);
+  z-index: 40;
+  animation: spoolerSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes spoolerSlideUp {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.spooler-bulk-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spooler-bulk-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.spooler-bulk-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.spooler-bulk-clear:hover {
+  background: var(--muted-foreground);
+  color: var(--background);
+}
+
+.spooler-bulk-clear [data-icon-root] {
+  width: 10px;
+  height: 10px;
+}
+
+.spooler-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spooler-bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    transform 80ms ease;
+}
+
+.spooler-bulk-btn:hover {
+  background: color-mix(in srgb, var(--primary) 20%, var(--muted));
+  color: var(--foreground);
+}
+
+.spooler-bulk-btn:active {
+  transform: scale(0.95);
+}
+
+.spooler-bulk-btn [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---- Smart views bar. ---- */
+
+.spooler-smart-views-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 2px 2px;
+}
+
+.spooler-smart-views-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.spooler-smart-views-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.spooler-smart-view-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.spooler-smart-view-pill:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.spooler-smart-view-active {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.spooler-smart-view-pill [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-smart-view-count {
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pill + its delete affordance sit side by side as siblings. */
+.spooler-smart-view-group {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+
+.spooler-smart-view-del {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.spooler-smart-view-group:hover .spooler-smart-view-del,
+.spooler-smart-view-del:focus-visible {
+  opacity: 0.7;
+}
+
+.spooler-smart-view-del:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground, #fff);
+  opacity: 1;
+}
+
+.spooler-smart-view-del [data-icon-root] {
+  width: 10px;
+  height: 10px;
+}
+
+.spooler-smart-view-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px dashed var(--border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.spooler-smart-view-add:hover {
+  border-color: var(--primary);
+  color: var(--foreground);
+}
+
+.spooler-smart-view-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.spooler-smart-view-input {
+  width: 110px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--primary);
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 11px;
+  outline: none;
+}
+
+.spooler-smart-view-save-btn,
+.spooler-smart-view-cancel-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.spooler-smart-view-save-btn {
+  background: var(--primary);
+  color: var(--primary-foreground, #fff);
+}
+
+.spooler-smart-view-save-btn [data-icon-root],
+.spooler-smart-view-cancel-btn [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---- Drag-to-section organization. ---- */
+
+.spooler-row-draggable {
+  display: contents;
+}
+
+.spooler-row-draggable.spooler-row-dragging {
+  display: block;
+}
+
+.spooler-row-grip {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: grab;
+  opacity: 0;
+  touch-action: none;
+}
+
+.spooler-row:hover .spooler-row-grip,
+.spooler-row-grip:focus-visible {
+  opacity: 1;
+}
+
+.spooler-row-grip:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-row-grip:active {
+  cursor: grabbing;
+}
+
+.spooler-row-grip [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-tree-gutter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spooler-group-drop-active {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+.spooler-group-drop-same {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted-foreground) 8%, transparent);
+}
+
+.spooler-thread-drag-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+}
+
+.spooler-thread-drag-preview > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.spooler-thread-drag-preview [data-icon-root] {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+
+.spooler-group-empty {
+  margin: 2px 8px 6px;
+  padding: 10px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ---- Settings-driven behaviour gates. ----
+   data-* lives on the list root so a settings change re-styles without
+   remounting rows. `off` disables the assertive visuals entirely. */
+
+[data-spooler-motion="off"] .spooler-row-pulse-amber,
+[data-spooler-motion="off"] .spooler-row-pulse-red,
+[data-spooler-motion="off"] .spooler-icon-pulse,
+[data-spooler-motion="off"] .spooler-dot-pulse,
+[data-spooler-motion="off"] .spooler-celebrate,
+[data-spooler-motion="off"] .spooler-group-status .spooler-dot-pulse {
+  animation: none;
+}
+
+/* Loud unread off: drop the wash + bar on finished-but-unseen rows, keeping
+   the check icon and unread pip. The needs-you and failed washes are NOT
+   gated here: they mean "act now", not "look at me". */
+[data-spooler-loud-unread="off"] .spooler-row-unread {
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-spooler-loud-unread="off"] .spooler-row-unread:hover {
+  background: var(--muted);
+}
+
+[data-spooler-loud-unread="off"] .spooler-row-active.spooler-row-unread {
+  box-shadow: none;
+}
