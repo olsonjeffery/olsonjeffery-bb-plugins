@@ -71,6 +71,21 @@ export function readSectionColorMap(): SectionColorMap {
   }
 }
 
+/** Event bus: any write dispatches this on `window`, so a mounted sidebar
+ *  repaints when a color is picked elsewhere — the settings section.
+ *  A `storage` event covers writes from another document. */
+export const SECTION_COLORS_EVENT = "spooler-section-colors-changed";
+
+export function onSectionColorsChanged(callback: () => void): () => void {
+  const onStorage = () => callback();
+  window.addEventListener(SECTION_COLORS_EVENT, callback);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(SECTION_COLORS_EVENT, callback);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
 export function writeSectionColorMap(map: SectionColorMap): void {
   try {
     const compact: SectionColorMap = {};
@@ -80,6 +95,9 @@ export function writeSectionColorMap(map: SectionColorMap): void {
       }
     }
     localStorage.setItem(SECTION_COLORS_KEY, JSON.stringify(compact));
+    // Same window: tell the mounted sidebar directly (its state seeded from
+    // this map at mount would otherwise keep stale colors until reload).
+    window.dispatchEvent(new CustomEvent(SECTION_COLORS_EVENT));
   } catch {
     // The choice just won't persist.
   }

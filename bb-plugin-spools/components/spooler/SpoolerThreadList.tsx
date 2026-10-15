@@ -70,6 +70,7 @@ import {
   SECTION_COLOR_NONE,
   SECTION_COLOR_OPTIONS,
   colorSwatchFor,
+  onSectionColorsChanged,
   readSectionColorMap,
   sectionColorOption,
   sectionColorVars,
@@ -502,6 +503,12 @@ export function SpoolerThreadList({
   } | null>(null);
   const [sectionColorMap, setSectionColorMap] = useState<SectionColorMap>(
     () => readSectionColorMap(),
+  );
+  // Colors may be picked elsewhere (the plugin's settings section): re-read
+  // on the change event instead of forcing a sidebar reload.
+  useEffect(
+    () => onSectionColorsChanged(() => setSectionColorMap(readSectionColorMap())),
+    [],
   );
   const applySectionColor = useCallback(
     (sectionId: string, colorId: string) => {

@@ -26,6 +26,7 @@ import {
   SECTION_COLOR_NONE,
   SECTION_COLOR_OPTIONS,
   colorSwatchFor,
+  onSectionColorsChanged,
   readSectionColorMap,
   sectionColorOption,
   writeSectionColorMap,
@@ -73,6 +74,13 @@ export function SpoolsSettingsSection() {
   useEffect(() => {
     reloadSections();
   }, [reloadSections]);
+
+  // A color picked from the sidebar menu repaints the settings swatches live;
+  // our own picks reach the mounted sidebar the same way (shared map).
+  useEffect(
+    () => onSectionColorsChanged(() => setColorMap(readSectionColorMap())),
+    [],
+  );
 
   const sectionById = useMemo(
     () => new Map((sections ?? sidebar.sections).map((section) => [section.id, section])),

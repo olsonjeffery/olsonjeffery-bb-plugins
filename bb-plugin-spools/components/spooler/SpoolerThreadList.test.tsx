@@ -2050,4 +2050,36 @@ describe("section-centered defaults and buckets", () => {
       JSON.parse(localStorage.getItem("spooler-sidebar:section-colors:v1") ?? "{}"),
     ).toEqual({});
   });
+
+  it("repaints sections when another surface (the settings page) changes colors", async () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    renderThreads([makeThread({ id: "t4", title: "Doc", sectionId: "sec1" })], {
+      sections: [section],
+    });
+    expect(document.querySelector(".spooler-group-colored")).toBeNull();
+
+    // Same-document write: the settings section writes storage and the list
+    // hears the change event, without a sidebar remount.
+    localStorage.setItem(
+      "spooler-sidebar:section-colors:v1",
+      JSON.stringify({ sec1: "red" }),
+    );
+    window.dispatchEvent(new CustomEvent("spooler-section-colors-changed"));
+    const bucket = await waitFor(() => {
+      const found = document.querySelector(".spooler-group-colored");
+      expect(found).toBeTruthy();
+      return found;
+    });
+    expect(bucket!.getAttribute("style") ?? "").toContain("--spooler-sec-bg");
+
+    // Cross-document write (storage event): same repaint path.
+    localStorage.setItem("spooler-sidebar:section-colors:v1", JSON.stringify({}));
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "spooler-sidebar:section-colors:v1" }),
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".spooler-group-colored")).toBeNull(),
+    );
+  });
 });

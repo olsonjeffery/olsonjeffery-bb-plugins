@@ -3,6 +3,7 @@ import {
   SECTION_COLOR_NONE,
   SECTION_COLOR_OPTIONS,
   colorSwatchFor,
+  onSectionColorsChanged,
   readSectionColorMap,
   sectionColorOption,
   sectionColorVars,
@@ -21,6 +22,16 @@ describe("section colors storage", () => {
     expect(sectionColorOption(readSectionColorMap(), "b")).toBeNull();
     expect(sectionColorOption(readSectionColorMap(), "c")).toBeNull();
     expect(sectionColorOption(readSectionColorMap(), "a")?.label).toBe("Red");
+  });
+
+  it("announces writes so a mounted sidebar can repaint on them", () => {
+    const seen: string[] = [];
+    const unsubscribe = onSectionColorsChanged(() => seen.push("changed"));
+    writeSectionColorMap({ a: "red" });
+    unsubscribe();
+    // Only while subscribed: the event is not replayed to later listeners.
+    writeSectionColorMap({});
+    expect(seen).toEqual(["changed"]);
   });
 
   it("survives unreadable storage", () => {
