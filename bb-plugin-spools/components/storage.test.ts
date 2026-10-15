@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateLegacyPreferences } from "./storage";
 
-const CURRENT = "spooler-sidebar:";
+const CURRENT = "spools:";
 const LEGACY = "codex-sidebar:";
+const INTERMEDIATE = "spooler-sidebar:";
 
 describe("migrateLegacyPreferences", () => {
   beforeEach(() => {
@@ -21,6 +22,17 @@ describe("migrateLegacyPreferences", () => {
     expect(localStorage.getItem(`${CURRENT}density:v1`)).toBe("compact");
     expect(localStorage.getItem(`${CURRENT}smart-views:v1`)).toBe("[]");
     expect(localStorage.getItem(`${LEGACY}grouping:v1`)).toBeNull();
+  });
+
+  it("carries spooler-sidebar-era preferences forward too", () => {
+    localStorage.setItem(`${INTERMEDIATE}grouping:v1`, "section");
+    localStorage.setItem(`${INTERMEDIATE}density:v1`, "cozy");
+
+    migrateLegacyPreferences();
+
+    expect(localStorage.getItem(`${CURRENT}grouping:v1`)).toBe("section");
+    expect(localStorage.getItem(`${CURRENT}density:v1`)).toBe("cozy");
+    expect(localStorage.getItem(`${INTERMEDIATE}grouping:v1`)).toBeNull();
   });
 
   it("never overwrites a value the user already set post-rename", () => {

@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="docs/logo.svg" width="96" height="96" alt="Spooler Sidebar logo">
+<img src="docs/logo.svg" width="96" height="96" alt="Spools logo">
 
-# Spooler Sidebar
+# Spools
 
 ### See which of your threads needs you, at a glance.
 
-Spooler replaces BB's sidebar thread list with a layout built for people
+Spools replaces BB's sidebar thread list with a layout built for people
 juggling dozens of agent threads at once.<br>
 Grouping, folding and attention states do the sorting for you, so nothing that
 needs a decision hides at the bottom of the list.
@@ -144,23 +144,23 @@ to mark it read or archive it; each direction's action is a setting.
 ## Install
 
 ```sh
-bb plugin install 'git:https://github.com/MacHatter1/bb-plugin-spooler-sidebar.git@^0.5.3' --yes
+bb plugin install 'git:https://github.com/olsonjeffery/olsonjeffery-bb-plugins.git@main' --yes
 ```
 
 The Git semver range tracks compatible `v0.5.x` releases. If you installed
 an earlier minor series, rerun this command to move to the new range.
 
-Then pick it in **Settings → Appearance**: choose **Spooler** for the sidebar.
+Then pick it in **Settings → Appearance**: choose **Spools** for the sidebar.
 Navigation stays on BB's own rail: BB 0.46 retired the navigation slot that
-Spooler's navigation and rail were built on, so 0.5.3 removes them. On BB 0.44
-or 0.45, keep 0.5.2, which still has them.
+Spools' navigation and rail were built on, so 0.5.3 removes them. On BB 0.44
+or 0.45, keep an earlier release, which still has them.
 
 <details>
 <summary><b>Install from a local clone</b></summary>
 
 ```sh
-git clone https://github.com/MacHatter1/bb-plugin-spooler-sidebar
-cd bb-plugin-spooler-sidebar
+git clone https://github.com/olsonjeffery/olsonjeffery-bb-plugins
+cd olsonjeffery-bb-plugins/bb-plugin-spools
 npm install && bb plugin build
 bb plugin install path:$PWD --yes
 ```
@@ -182,11 +182,11 @@ bb plugin install path:$PWD --yes
 
 ## Compatibility notes
 
-Spooler replaces only the thread list. BB 0.46 retired the sidebar navigation
-slot that Spooler's navigation and rail were built on, so navigation is BB's
-own rail and Spooler styles none of BB's elements. Nothing here touches BB's
+Spools replaces only the thread list. BB 0.46 retired the sidebar navigation
+slot that Spools' navigation and rail were built on, so navigation is BB's
+own rail and Spools styles none of BB's elements. Nothing here touches BB's
 data: thread operations go through BB's own actions and the public SDK, and
-client state lives under `spooler-sidebar:*` localStorage keys.
+client state lives under `spools:*` localStorage keys.
 
 ## How it works
 
@@ -223,7 +223,7 @@ flowchart LR
 
 ## Settings
 
-`bb plugin config spooler-sidebar`, or **Settings → Installed plugins → Spooler Sidebar**.
+`bb plugin config spools`, or **Settings → Installed plugins → Spools**.
 
 <details>
 <summary><b>All settings</b></summary>
@@ -255,11 +255,11 @@ of its title, as in one-line mode. They never change the row's layout.
 <summary><b>Turning it off</b></summary>
 
 ```sh
-bb plugin disable spooler-sidebar
-bb plugin enable spooler-sidebar
+bb plugin disable spools
+bb plugin enable spools
 ```
 
-`bb plugin remove spooler-sidebar` removes the plugin and its settings. Disabling
+`bb plugin remove spools` removes the plugin and its settings. Disabling
 it returns the sidebar to BB's own list immediately.
 
 </details>

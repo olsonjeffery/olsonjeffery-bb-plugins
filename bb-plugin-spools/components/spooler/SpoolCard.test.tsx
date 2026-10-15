@@ -1,0 +1,205 @@
+// @vitest-environment jsdom
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DndContext } from "@dnd-kit/core";
+import { createElement as h, type ReactNode } from "react";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { SpoolCard } from "./SpoolCard";
+import { makeThread } from "./fixtures";
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+/** Fixture threads with tidy distinct titles for peek/button assertions. */
+function member(
+  id: string,
+  indicator: "none" | "waiting-for-input" | "unread-error" = "none",
+): PluginSidebarThread {
+  return makeThread({ id, title: `Member ${id}`, indicator });
+}
+
+type PropsForTest = Parameters<typeof SpoolCard>[0];
+
+function makeProps(partial: Partial<PropsForTest> = {}): PropsForTest {
+  return {
+    data: {
+      id: "spool1",
+      label: "Spool: Alpha",
+      customTitle: null,
+      leadThreadId: "t1",
+      members: [member("t1"), member("t2"), member("t3", "waiting-for-input")],
+    },
+    collapsed: false,
+    onToggle: vi.fn(),
+    onOpen: vi.fn(),
+    onOpenTop: vi.fn(),
+    onArchive: vi.fn(),
+    onUnspool: vi.fn(),
+    onContextMenu: vi.fn(),
+    isRenaming: false,
+    onRenameCommit: vi.fn(),
+    onRenameCancel: vi.fn(),
+    startRename: vi.fn(),
+    renderMember: (thread: PluginSidebarThread): ReactNode =>
+      h("div", { "data-testid": `member-${thread.id}` }, thread.displayTitle),
+    draggingThreadId: null,
+    ...partial,
+  };
+}
+
+function renderEl(props: PropsForTest) {
+  return render(h(DndContext, null, h(SpoolCard, props)));
+}
+
+describe("SpoolCard", () => {
+  it("renders the label, member count chip, labelled group, and all members in order", () => {
+    const memberSpy = vi.fn(
+      (thread: PluginSidebarThread, index: number, isLast: boolean) =>
+        h(
+          "div",
+          { "data-testid": `member-${thread.id}` },
+          `${thread.displayTitle} ${index} ${isLast ? "last" : ""}`,
+        ),
+    );
+    renderEl(makeProps({ renderMember: memberSpy }));
+
+    expect(
+      screen.getByRole("group", { name: "Spool Spool: Alpha, 3 threads" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Spool: Alpha")).toBeTruthy();
+    expect(screen.getByText("3")).toBeTruthy();
+    expect(screen.getByTestId("member-t1")).toBeTruthy();
+    expect(screen.getByTestId("member-t2")).toBeTruthy();
+    expect(screen.getByTestId("member-t3")).toBeTruthy();
+    // Member parity: index/isLast are wired through, last member flagged.
+    const lastArgs = memberSpy.mock.calls.at(-1)!;
+    expect(lastArgs[0].id).toBe("t3");
+    expect(lastArgs[1]).toBe(2);
+    expect(lastArgs[2]).toBe(true);
+  });
+
+  it("single-click on the title toggles via onToggle", () => {
+    const onToggle = vi.fn();
+    renderEl(makeProps({ onToggle }));
+    fireEvent.click(screen.getByRole("button", { name: "Spool: Alpha" }));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("double-clicking the title starts rename; Enter commits, Escape cancels", () => {
+    const startRename = vi.fn();
+    const onRenameCommit = vi.fn();
+    const onRenameCancel = vi.fn();
+    const props = makeProps({ startRename, onRenameCommit, onRenameCancel });
+    const slot = renderEl(props);
+
+    // Not renaming yet: no input.
+    expect(screen.queryByLabelText("Rename spool")).toBeNull();
+    fireEvent.dblClick(screen.getByRole("button", { name: "Spool: Alpha" }));
+    expect(startRename).toHaveBeenCalledTimes(1);
+
+    // Parent accepts rename: input appears seeded with the resolved label.
+    slot.rerender(h(DndContext, null, h(SpoolCard, { ...props, isRenaming: true })));
+    const input = screen.getByLabelText("Rename spool") as HTMLInputElement;
+    expect(input.value).toBe("Spool: Alpha");
+    fireEvent.change(input, { target: { value: "My Heap" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onRenameCommit).toHaveBeenCalledWith("My Heap");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onRenameCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("hints a rename affordance on the derived label while customTitle is null", () => {
+    renderEl(makeProps());
+    const titleBtn = screen.getByRole("button", { name: "Spool: Alpha" });
+    expect(titleBtn.getAttribute("title")).toContain("double-click to rename");
+  });
+
+  it("the Layers icon opens the top thread via onOpenTop with a hover hint", () => {
+    const onOpenTop = vi.fn();
+    renderEl(makeProps({ onOpenTop }));
+    const icon = screen.getByRole("button", { name: "Open top thread" });
+    expect(icon.getAttribute("title")).toBe("Open top thread");
+    fireEvent.click(icon);
+    expect(onOpenTop).toHaveBeenCalledWith("t1");
+  });
+
+  it("wires the hover actions: archive and unspool buttons", () => {
+    const onArchive = vi.fn();
+    const onUnspool = vi.fn();
+    renderEl(makeProps({ onArchive, onUnspool }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive spool threads" }));
+    expect(onArchive).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Unspool (release threads back to the list)",
+      }),
+    );
+    expect(onUnspool).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders inside a DndContext with draggable grip attributes and non-active droppable root", () => {
+    renderEl(makeProps({ draggingThreadId: "t9" }));
+    const card = document.querySelector('[data-spool-id="spool1"]')!;
+    expect(card).toBeTruthy();
+    expect(card.className).not.toContain("spooler-spool-drop-active");
+    // Grip is a focusable button carrying dnd-kit's draggable attributes.
+    const grip = screen.getByRole("button", {
+      name: "Drag spool onto a section header to file its threads",
+    }) as HTMLButtonElement;
+    expect(grip.hasAttribute("aria-roledescription")).toBe(true);
+    expect(grip.hasAttribute("aria-describedby")).toBe(true);
+  });
+
+  describe("peek panel", () => {
+    it("appears on card hover, lists member rows, then lingers ~500ms after leave", () => {
+      vi.useFakeTimers();
+      renderEl(makeProps());
+      const card = document.querySelector('[data-spool-id="spool1"]')!;
+
+      // Not on screen before hover.
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      fireEvent.mouseEnter(card);
+      const peek = screen.getByRole("tooltip");
+      expect(peek.textContent).toContain("Spool: Alpha");
+      expect(peek.textContent).toContain("Member t1");
+      expect(peek.textContent).toContain("Member t2");
+      expect(peek.textContent).toContain("Member t3");
+
+      // Lingering: 400ms after leave it is still mounted.
+      fireEvent.mouseLeave(card);
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(screen.getByRole("tooltip")).toBeTruthy();
+      // Gone once the 500ms linger passes.
+      act(() => {
+        vi.advanceTimersByTime(120);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("members stay clickable while lingering; re-entry cancels the linger", () => {
+      vi.useFakeTimers();
+      const onOpen = vi.fn();
+      renderEl(makeProps({ onOpen }));
+      const card = document.querySelector('[data-spool-id="spool1"]')!;
+
+      fireEvent.mouseEnter(card);
+      fireEvent.mouseLeave(card);
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      // Still lingering and clickable.
+      fireEvent.click(screen.getByRole("button", { name: /Member t2/ }));
+      expect(onOpen).toHaveBeenCalledWith("t2");
+      // Re-enter clears the pending close entirely.
+      fireEvent.mouseEnter(card);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByRole("tooltip")).toBeTruthy();
+    });
+  });
+});

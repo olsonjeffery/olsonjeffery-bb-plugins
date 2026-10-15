@@ -97,3 +97,78 @@ describe("family derivation cache", () => {
     expect(hook.result.current.subtreeActivity(threads[0])).toBe(threads[26].latestAttentionAt);
   });
 });
+
+describe("spool groups (section view only)", () => {
+  const section = { id: "sec_1", name: "Work" } as never;
+  type Args = Parameters<typeof useThreadGroups>[0];
+  const argsWith = (threads: Args["threads"], extra: Partial<Args> = {}): Args => ({
+    ...argsFor(threads),
+    ...extra,
+  });
+  const argsForSection = (threads: Args["threads"], extra: Partial<Args> = {}): Args =>
+    argsWith(threads, { grouping: "section", sections: [section], ...extra });
+
+  it("lifts spool members out of section buckets into a card above their section", () => {
+    const lead = makeThread({ id: "l", title: "Top", sectionId: "sec_1" });
+    const peer = makeThread({ id: "m", sectionId: "sec_1" });
+    const lone = makeThread({ id: "x", sectionId: "sec_1" });
+    const hook = renderHook(() => useThreadGroups(
+      argsForSection([lead, peer, lone], {
+        spools: [{ id: "spool_a", members: ["l", "m"], leadThreadId: "l", customTitle: null, title: "Spool: Top" }],
+        spoolIdByThreadId: new Map([["l", "spool_a"], ["m", "spool_a"]]),
+      }),
+    ));
+    const groups = hook.result.current.groups;
+    expect(groups.map((g) => g.id)).toEqual(["spool:spool_a", "section:sec_1", "section:__unfiled__"]);
+    expect(groups[0].spool).toMatchObject({
+      id: "spool_a", label: "Spool: Top", leadThreadId: "l",
+      members: [expect.objectContaining({ id: "l" }), expect.objectContaining({ id: "m" })],
+    });
+    // Members left the section bucket.
+    expect(groups[1].roots.map((r) => r.id)).toEqual(["x"]);
+  });
+
+  it("counts members only and drops their filtered-out kin from the card", () => {
+    const keep = makeThread({ id: "l", sectionId: "sec_1" });
+    const child = makeThread({ id: "c", parentThreadId: "l", sectionId: "sec_1" });
+    const failer = makeThread({ id: "f", parentThreadId: "l", sectionId: "sec_1", indicator: "unread-error", isUnread: true });
+    const hook = renderHook(() => useThreadGroups(
+      argsForSection([keep, child, failer], {
+        spools: [{ id: "spool_a", members: ["l", "c", "f"], leadThreadId: "l", customTitle: null, title: "S" }],
+        spoolIdByThreadId: new Map([["l", "spool_a"], ["c", "spool_a"], ["f", "spool_a"]]),
+      }),
+    ));
+    const spoolGroup = hook.result.current.groups[0];
+    expect(spoolGroup.spool?.members.map((m) => m.id)).toEqual(["l", "c", "f"]);
+    // Members only — parent l and child c are both counted once, not as a family.
+    expect(spoolGroup.total).toBe(3);
+    expect(spoolGroup.failed).toBe(1);
+  });
+
+  it("leaves members that are not spooled by the caller as ordinary rows", () => {
+    const lead = makeThread({ id: "l", sectionId: "sec_1" });
+    const member = makeThread({ id: "m", parentThreadId: "l", sectionId: "sec_1" });
+    const hook = renderHook(() => useThreadGroups(
+      argsForSection([lead, member], {
+        spools: [{ id: "spool_a", members: ["x"], leadThreadId: "x", customTitle: null, title: "S" }],
+        spoolIdByThreadId: new Map(),
+      }),
+    ));
+    expect(hook.result.current.groups.map((g) => g.id)).toEqual(
+      ["section:sec_1", "section:__unfiled__"],
+    );
+    expect(hook.result.current.shownChildren.get("l")?.map((t) => t.id)).toEqual(["m"]);
+  });
+
+  it("does not emit spool groups outside the section grouping", () => {
+    const lead = makeThread({ id: "l" });
+    const hook = renderHook(() => useThreadGroups(
+      argsWith([lead], {
+        spools: [{ id: "spool_a", members: ["l"], leadThreadId: "l", customTitle: null, title: "Spool: l" }],
+        spoolIdByThreadId: new Map([["l", "spool_a"]]),
+      }),
+    ));
+    expect(hook.result.current.groups.every((g) => g.spool === null)).toBe(true);
+    expect(hook.result.current.groups.some((g) => g.id.startsWith("spool:"))).toBe(false);
+  });
+});

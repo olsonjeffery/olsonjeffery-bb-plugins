@@ -31,6 +31,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import {
+  experimental_usePluginId,
   experimental_useProviders,
   experimental_useSidebarThreads,
   useBbNavigate,
@@ -57,6 +58,7 @@ import {
   SortableGroupSection,
 } from "./SpoolerGroupHeader";
 import { SpoolerMenu, type SpoolerMenuItem } from "./SpoolerMenu";
+import { UnspoolConfirmDialog } from "./UnspoolConfirmDialog";
 import { useArrivals } from "./useArrivals";
 import {
   useThreadGroups,
@@ -64,6 +66,8 @@ import {
 } from "./useThreadGroups";
 import { SpoolerSmartViews } from "./SpoolerSmartViews";
 import { SpoolerNewSection } from "./SpoolerNewSection";
+import { SpoolCard } from "./SpoolCard";
+import { useSpools } from "./useSpools";
 import {
   ThreadActionBridge,
   type SpoolerThreadActions,
@@ -245,21 +249,42 @@ function DroppableSectionSection({
 }
 
 /** Wraps a row so its grip can start a drag onto a section header. */
+/** Wraps a row so its grip can start a drag onto a section header. */
 function DraggableThreadRow({
   threadId,
+  dropData,
+  dropCue,
   renderRow,
 }: {
   threadId: string;
+  /** Row droppable payload (section grouping only): null in other groupings. */
+  dropData: { kind: "threaddrop"; threadId: string; sectionId: string | null } | null;
+  /** In-drag positional feedback computed by the section onDragOver. */
+  dropCue: "above" | "below" | "onto" | null;
   renderRow: (handle: RowDragHandle) => ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `thread:${threadId}`,
     data: { threadId },
   });
+  const { setNodeRef: setDropRef } = useDroppable({
+    id: `threaddrop:${threadId}`,
+    data: dropData ?? undefined,
+    disabled: !dropData,
+  });
   return (
     <div
-      ref={setNodeRef}
-      className={cn("spooler-row-draggable", isDragging && "spooler-row-dragging")}
+      ref={(el) => {
+        setNodeRef(el);
+        setDropRef(el);
+      }}
+      className={cn(
+        "spooler-row-draggable",
+        isDragging && "spooler-row-dragging",
+        dropCue === "above" && "spooler-row-insert-above",
+        dropCue === "below" && "spooler-row-insert-below",
+        dropCue === "onto" && "spooler-row-drop-onto",
+      )}
     >
       {renderRow({ attributes, listeners, isDragging })}
     </div>
@@ -326,6 +351,8 @@ function renderSubtree(
   draggable: boolean,
   /** Inside a closing group or family fold: still mounted, no longer shown. */
   hidden: boolean,
+  /** Row droppable data + positional feedback (section grouping only). */
+  dropCue: { threadId: string; zone: "above" | "below" | "onto" } | null,
 ): ReactNode {
   const kids = depth > 25 ? [] : (children.get(thread.id) ?? []);
   const folded = collapsedIds.has(thread.id);
@@ -333,6 +360,8 @@ function renderSubtree(
     draggable && depth === 0 ? (
       <DraggableThreadRow
         threadId={thread.id}
+        dropData={{ kind: "threaddrop", threadId: thread.id, sectionId: thread.sectionId }}
+        dropCue={dropCue !== null && dropCue.threadId === thread.id ? dropCue.zone : null}
         renderRow={(handle) =>
           renderRow(thread, depth, groupProjectId, isLastChild, handle, hidden)
         }
@@ -357,6 +386,7 @@ function renderSubtree(
                 index === kids.length - 1,
                 false,
                 hidden || folded,
+                null,
               ),
             )
           }
@@ -507,6 +537,39 @@ export function SpoolerThreadList({
   } = experimental_useSidebarThreads(lifecyclesParam);
   const sdk = useSdk();
   const navigate = useBbNavigate();
+  const runtimePluginId = experimental_usePluginId();
+
+  // Spool state: bulk per-thread plugin metadata (pluginId "spools"), folded
+  // into resolved spools by the hook, refetching when mutations land.
+  const spoolStore = useSpools({
+    threads,
+    pluginId: runtimePluginId || "spools",
+    sdk: sdk as unknown as Parameters<typeof useSpools>[0]["sdk"],
+  });
+  const spoolIdByThreadId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const spool of spoolStore.spools) {
+      for (const memberId of spool.members) map.set(memberId, spool.id);
+    }
+    return map;
+  }, [spoolStore.spools]);
+  const spoolById = useMemo(
+    () => new Map(spoolStore.spools.map((spool) => [spool.id, spool])),
+    [spoolStore.spools],
+  );
+  const [editingSpoolId, setEditingSpoolId] = useState<string | null>(null);
+  const [draggingSpoolId, setDraggingSpoolId] = useState<string | null>(null);
+  const [spoolMenu, setSpoolMenu] = useState<{ x: number; y: number; spoolId: string } | null>(null);
+  const [unspoolConfirmId, setUnspoolConfirmId] = useState<string | null>(null);
+  /** Positional drop feedback for row droppables during a section drag. */
+  const [rowDrop, setRowDrop] = useState<{
+    threadId: string;
+    zone: "above" | "below" | "onto";
+  } | null>(null);
+  /** Toolbar Layers button → member navigation dropdown. */
+  const [spoolNavOpen, setSpoolNavOpen] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const { providers } = experimental_useProviders();
   const providerById = useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
@@ -557,6 +620,8 @@ export function SpoolerThreadList({
     projects,
     sections,
     now,
+    spools: spoolStore.spools,
+    spoolIdByThreadId,
   });
 
   // List-wide dispatch surface (the rows bind their own per-thread hook).
@@ -571,17 +636,34 @@ export function SpoolerThreadList({
   // being a memo dependency.
   const rowByIdRef = useRef(rowById);
   rowByIdRef.current = rowById;
+  // Same ref trick for the spool maps: `actions` must stay stable across spool
+  // refreshes or every row re-renders wholesale.
+  const spoolIdByThreadIdRef = useRef(spoolIdByThreadId);
+  spoolIdByThreadIdRef.current = spoolIdByThreadId;
+  const spoolStoreRef = useRef(spoolStore);
+  spoolStoreRef.current = spoolStore;
   const actions = useMemo<SpoolerThreadActions>(() => ({
     open: (threadId, options) => navigate.toThread(threadId, options),
     openNewThread: (options) => navigate.toCompose({ focusPrompt: true, ...options }),
     archive: (threadId) => {
-      const bound = threadActionRegistry.current.get(threadId);
-      if (bound) return bound.archive();
-      // No row binding (e.g. bulk): fall back to the plain mutations, with
-      // unarchive for the threads the All view shows as archived.
-      return rowByIdRef.current.get(threadId)?.isArchived
-        ? sdk.threads.unarchive({ threadId }).then(noop)
-        : sdk.threads.archive({ threadId }).then(noop);
+      const runArchive = () => {
+        const bound = threadActionRegistry.current.get(threadId);
+        if (bound) return bound.archive();
+        // No row binding (e.g. bulk): fall back to the plain mutations, with
+        // unarchive for the threads the All view shows as archived.
+        return rowByIdRef.current.get(threadId)?.isArchived
+          ? sdk.threads.unarchive({ threadId }).then(noop)
+          : sdk.threads.archive({ threadId }).then(noop);
+      };
+      // Archiving a member drops its membership first, so the spool card
+      // reflects it; a failed release must not block the archive itself.
+      // (Unarchiving deliberately does NOT rejoin the spool.)
+      const spoolId = spoolIdByThreadIdRef.current.get(threadId);
+      if (!spoolId) return runArchive();
+      return spoolStoreRef.current
+        .releaseThread(threadId)
+        .catch(() => undefined)
+        .then(runArchive);
     },
     setPinned: (threadId, pinned) =>
       pinned
@@ -669,6 +751,60 @@ export function SpoolerThreadList({
       );
     },
     [rowById, sectionById, sdk],
+  );
+
+  /** Re-file every member thread of a spool into a section (spool drag). */
+  const moveSpoolToSection = useCallback(
+    (spoolId: string, sectionId: string | null) => {
+      const memberIds = spoolById.get(spoolId)?.members ?? [];
+      if (memberIds.length === 0) return;
+      moveThreadToSection(memberIds[0], sectionId, memberIds);
+    },
+    [moveThreadToSection],
+  );
+
+  const commitSpoolRename = useCallback(
+    (spoolId: string, title: string) => {
+      setEditingSpoolId(null);
+      if (!title.trim()) return;
+      void spoolStore
+        .renameSpool(spoolId, title)
+        .catch((cause: unknown) => toast.error(problem(cause)));
+    },
+    [spoolStore],
+  );
+
+  /** Archive Spool Threads: archive every member (bulk, tolerant). */
+  const archiveSpool = useCallback(
+    (spoolId: string) => {
+      const memberIds = spoolById.get(spoolId)?.members ?? [];
+      void Promise.allSettled(memberIds.map((id) => actions.archive(id))).then(
+        (results) =>
+          reportBulk(
+            results,
+            (count) => `Archived ${nThreads(count)} from the spool.`,
+            (count) => `Couldn't archive ${nThreads(count)} from the spool.`,
+          ),
+      );
+    },
+    [actions],
+  );
+
+  /** Release every member: destructive — the spool simply stops existing. */
+  /** Destructive gate: both the card hover button and the ctx menu item land
+   * here, so there is exactly one confirm modal for unspooling. */
+  const requestUnspool = useCallback((spoolId: string) => {
+    setUnspoolConfirmId(spoolId);
+  }, []);
+
+  const unspoolSpool = useCallback(
+    (spoolId: string) => {
+      void spoolStore
+        .unspool(spoolId)
+        .then(() => toast.success(`Spool released.`))
+        .catch((cause: unknown) => toast.error(problem(cause)));
+    },
+    [spoolStore],
   );
 
   const handleGroupDragStart = useCallback((event: DragStartEvent) => {
@@ -1112,6 +1248,25 @@ export function SpoolerThreadList({
     [],
   );
 
+  /** Threads beyond this one can be thrown to any spool but their own. */
+  const spoolThrowTargetIds = useCallback(
+    (threadId: string) =>
+      [...spoolById.values()]
+        .filter((spool) => spoolIdByThreadId.get(threadId) !== spool.id)
+        .map((spool) => spool.id),
+    [spoolById, spoolIdByThreadId],
+  );
+
+  /** Which section keeps the spool (lead filed there). */
+  const spoolMenuSectionOf = useCallback(
+    (spoolId: string) => {
+      const spool = spoolById.get(spoolId);
+      const lead = spool?.leadThreadId ? rowById.get(spool.leadThreadId) : null;
+      return lead?.sectionId ?? null;
+    },
+    [spoolById, rowById],
+  );
+
   const menuThread = menu
     ? (threads.find((thread) => thread.id === menu.threadId) ?? null)
     : null;
@@ -1145,6 +1300,44 @@ export function SpoolerThreadList({
           ]
         : []),
       { kind: "item", id: "rename", label: "Rename…", icon: "Edit" },
+      // Spool actions: plain threads can start a spool; members get a release
+      // plus throw targets (spools never nest, throw breaks out first).
+      ...(spoolIdByThreadId.has(menuThread.id)
+        ? [
+            {
+              kind: "item" as const,
+              id: "spool:release",
+              label: "Remove from spool",
+              icon: "ListCollapse",
+            },
+          ]
+        : [
+            {
+              kind: "item" as const,
+              id: "spool:create",
+              label: "Create Spool from this Thread",
+              icon: "Layers",
+            },
+          ]),
+      ...(spoolThrowTargetIds(menuThread.id).length > 0
+        ? [
+            {
+              kind: "separator" as const,
+            },
+            {
+              kind: "header" as const,
+              label: "Throw onto spool",
+            },
+            ...spoolThrowTargetIds(menuThread.id).map(
+              (spoolId): SpoolerMenuItem => ({
+                kind: "item" as const,
+                id: `spool-throw:${spoolId}`,
+                label: spoolById.get(spoolId)?.title ?? "Spool",
+                icon: "Layers",
+              }),
+            ),
+          ]
+        : []),
       { kind: "separator" },
       { kind: "header", label: "Move to section" },
       ...sections.map(
@@ -1194,7 +1387,7 @@ export function SpoolerThreadList({
       },
     ];
     return items;
-  }, [menuThread, sections, childrenOf]);
+  }, [menuThread, sections, childrenOf, spoolById, spoolIdByThreadId, spoolThrowTargetIds]);
 
   const handleMenuSelect = useCallback(
     async (id: string) => {
@@ -1213,6 +1406,13 @@ export function SpoolerThreadList({
           await markFamilyRead(thread);
         } else if (id === "rename") {
           setEditingId(thread.id);
+        } else if (id === "spool:create") {
+          await spoolStore.createSpoolFromThread(thread.id);
+          toast.success(`Spool created from thread.`);
+        } else if (id === "spool:release") {
+          await spoolStore.releaseThread(thread.id);
+        } else if (id.startsWith("spool-throw:")) {
+          await spoolStore.throwOntoSpool(id.slice("spool-throw:".length), thread.id);
         } else if (id === "archive") {
           actions.archive(thread.id);
         } else if (id === "unarchive") {
@@ -1236,7 +1436,7 @@ export function SpoolerThreadList({
         toast.error(problem(cause));
       }
     },
-    [menuThread, actions, sdk, onNavigate, markFamilyRead],
+    [menuThread, actions, sdk, onNavigate, markFamilyRead, spoolStore],
   );
 
   const commitRename = useCallback(
@@ -1392,6 +1592,36 @@ export function SpoolerThreadList({
 
   const renderGroup = useCallback(
     (group: ThreadGroup, isSortable = false, draggable = false) => {
+      // Spool entries render as the stacked card, no section chrome, sempre
+      // inside the section DndContext (their own drag/drop is wired there).
+      if (group.spool) {
+        const data = group.spool;
+        return (
+          <div key={group.id} className="spooler-spool-slot">
+            <SpoolCard
+              data={data}
+              collapsed={collapsedGroupIds.has(group.id)}
+              onToggle={() => toggleGroup(group.id)}
+              onOpen={(threadId) => actions.open(threadId)}
+              onOpenTop={(threadId) => actions.open(threadId)}
+              onArchive={() => archiveSpool(data.id)}
+              onUnspool={() => requestUnspool(data.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: data.id });
+              }}
+              isRenaming={editingSpoolId === data.id}
+              onRenameCommit={(title) => commitSpoolRename(data.id, title)}
+              onRenameCancel={() => setEditingSpoolId(null)}
+              startRename={() => setEditingSpoolId(data.id)}
+              renderMember={(thread, index, isLast) =>
+                renderRow(thread, 1, null, isLast, null, false)
+              }
+              draggingThreadId={draggingThreadId}
+            />
+          </div>
+        );
+      }
       const isCollapsed = collapsedGroupIds.has(group.id);
 
       const groupContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -1420,6 +1650,7 @@ export function SpoolerThreadList({
                   index === group.roots.length - 1,
                   draggable,
                   isCollapsed,
+                  rowDrop,
                 ),
               )
             )
@@ -1494,6 +1725,13 @@ export function SpoolerThreadList({
       projectOrder.length,
       draggingThreadId,
       moveThreadToSection,
+      actions,
+      archiveSpool,
+      unspoolSpool,
+      editingSpoolId,
+      commitSpoolRename,
+      setEditingSpoolId,
+      rowDrop,
     ],
   );
 
@@ -1663,6 +1901,28 @@ export function SpoolerThreadList({
                 name={density === "compact" ? "ListView" : "Rows2"}
                 aria-hidden="true"
               />
+            </button>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={spoolNavOpen !== null}
+              disabled={spoolStore.spools.length === 0}
+              aria-label="Spools"
+              title={
+                spoolStore.spools.length === 0
+                  ? "No spools yet"
+                  : "Spools — open a member thread"
+              }
+              className="spooler-segmented-button spooler-segmented-icon"
+              onClick={(event) => {
+                if (spoolNavOpen) {
+                  setSpoolNavOpen(null);
+                  return;
+                }
+                setSpoolNavOpen({ x: event.clientX, y: event.clientY });
+              }}
+            >
+              <Icon name="Layers" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -1889,8 +2149,18 @@ export function SpoolerThreadList({
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragStart={(event) => {
-                  const id = event.active.data.current?.threadId;
+                  const data = event.active.data.current as
+                    | { threadId?: string; spoolId?: string }
+                    | undefined;
+                  if (typeof data?.spoolId === "string") {
+                    setDraggingSpoolId(data.spoolId);
+                    setDraggingThreadId(null);
+                    draggingThreadIds.current = [];
+                    return;
+                  }
+                  const id = data?.threadId;
                   setDraggingThreadId(typeof id === "string" ? id : null);
+                  setDraggingSpoolId(null);
                   draggingThreadIds.current = typeof id === "string"
                     ? selectedIds.has(id)
                       ? [...selectedIds].filter((selected) => visibleThreadIds.has(selected))
@@ -1898,20 +2168,129 @@ export function SpoolerThreadList({
                     : [];
                 }}
                 onDragEnd={(event) => {
-                  const threadId = event.active.data.current?.threadId;
-                  const target = event.over?.data.current;
+                  const activeData = event.active.data.current as
+                    | { threadId?: string; spoolId?: string; memberIds?: string[] }
+                    | undefined;
+                  const target = event.over?.data.current as
+                    | {
+                        kind?: string;
+                        spoolId?: string;
+                        sectionId?: string | null;
+                        threadId?: string;
+                      }
+                    | undefined;
                   const ids = draggingThreadIds.current;
                   draggingThreadIds.current = [];
                   setDraggingThreadId(null);
+                  setDraggingSpoolId(null);
+                  setRowDrop(null);
+                  if (typeof activeData?.spoolId === "string") {
+                    const spoolId = activeData.spoolId;
+                    const sectionId = target?.sectionId;
+                    moveSpoolToSection(spoolId, sectionId ?? null);
+                    return;
+                  }
+                  const threadId = activeData?.threadId;
                   if (typeof threadId !== "string") return;
                   if (!target || typeof target !== "object") return;
-                  const sectionId = (target as { sectionId?: string | null })
-                    .sectionId;
+                  if (target.kind === "spool" && typeof target.spoolId === "string") {
+                    // Throw the thread (and any selected batch) onto a spool.
+                    const thrownSpoolId = target.spoolId;
+                    void (async () => {
+                      const batch = ids.length ? ids : [threadId];
+                      for (const id of batch) {
+                        await spoolStore.throwOntoSpool(thrownSpoolId, id);
+                      }
+                    })();
+                    return;
+                  }
+                  if (target.kind === "threaddrop" && typeof target.threadId === "string") {
+                    const rowThreadId = target.threadId;
+                    // Positional zones: top/bottom 30% of the row say "move to
+                    // that row's section"; the middle 40% says "drop-onto" —
+                    // a plain thread pair becomes a new spool, target Top.
+                    const zone = rowDrop?.threadId === rowThreadId
+                      ? rowDrop.zone
+                      : ("onto" as const);
+                    if (zone === "onto") {
+                      const targetSpool = spoolIdByThreadId.get(rowThreadId);
+                      const draggedSpool = spoolIdByThreadId.get(threadId);
+                      // Same-spool drop-onto is a no-op: spools never nest and
+                      // there is no reordering inside a spool.
+                      if (threadId === rowThreadId || (draggedSpool && draggedSpool === targetSpool)) {
+                        return;
+                      }
+                      const batch = ids.length ? ids : [threadId];
+                      const extra = [
+                        ...new Set(batch.filter((id) => id !== rowThreadId)),
+                      ];
+                      void spoolStore
+                        .createSpoolFromThread(rowThreadId, {
+                          extraMemberIds: extra,
+                        })
+                        .then(() =>
+                          toast.success(
+                            `Spooled ${nThreads(extra.length + 1)} into “${
+                              rowById.get(rowThreadId)?.displayTitle ?? "new spool"
+                            }”.`,
+                          ),
+                        )
+                        .catch((cause: unknown) => toast.error(problem(cause)));
+                      return;
+                    }
+                    moveThreadToSection(threadId, target.sectionId ?? null, ids.length ? ids : [threadId]);
+                    return;
+                  }
+                  const sectionId = (target as { sectionId?: string | null }).sectionId;
                   moveThreadToSection(threadId, sectionId ?? null, ids.length ? ids : [threadId]);
+                }}
+                onDragOver={(event) => {
+                  // Compute the positional zone while over a row droppable.
+                  const over = event.over;
+                  const activeData = event.active.data.current as
+                    | { threadId?: string }
+                    | undefined;
+                  if (!activeData?.threadId || !over) {
+                    setRowDrop((prev) => (prev === null ? prev : null));
+                    return;
+                  }
+                  const overData = over.data.current as
+                    | { kind?: string; threadId?: string }
+                    | undefined;
+                  if (overData?.kind !== "threaddrop" || typeof overData.threadId !== "string") {
+                    setRowDrop((prev) => (prev === null ? prev : null));
+                    return;
+                  }
+                  const rowThreadId = overData.threadId;
+                  if (rowThreadId === activeData.threadId) {
+                    setRowDrop((prev) => (prev === null ? prev : null));
+                    return;
+                  }
+                  const rowRect = event.collisions?.find(
+                    (entry) => String(entry.id) === String(over.id),
+                  )?.data;
+                  const draggingRect = event.active.rect.current.translated;
+                  let zone: "above" | "below" | "onto";
+                  const overRow = rowDrop && rowDrop.threadId === rowThreadId ? rowDrop : null;
+                  if (!rowRect || !draggingRect) {
+                    zone = overRow?.zone ?? "onto";
+                  } else {
+                    const centerY = draggingRect.top + draggingRect.height / 2;
+                    const rel =
+                      (centerY - rowRect.top) / Math.max(rowRect.height, 1);
+                    zone = rel < 0.3 ? "above" : rel > 0.7 ? "below" : "onto";
+                  }
+                  setRowDrop((prev) =>
+                    prev && prev.threadId === rowThreadId && prev.zone === zone
+                      ? prev
+                      : { threadId: rowThreadId, zone },
+                  );
                 }}
                 onDragCancel={() => {
                   draggingThreadIds.current = [];
                   setDraggingThreadId(null);
+                  setDraggingSpoolId(null);
+                  setRowDrop(null);
                 }}
               >
                 {groups.map((group) => renderGroup(group, false, true))}
@@ -1924,6 +2303,19 @@ export function SpoolerThreadList({
                           rowById.get(draggingThreadId)?.displayTitle ??
                           "Thread"
                         }
+                      </span>
+                    </div>
+                  ) : draggingSpoolId ? (
+                    <div className="spooler-group-drag-preview">
+                      <span className="spooler-group-grip" aria-hidden="true">
+                        <Icon name="DragDropVertical" />
+                      </span>
+                      <Icon name="Layers" aria-hidden="true" className="spooler-group-drag-icon" />
+                      <span className="spooler-group-label">
+                        {spoolById.get(draggingSpoolId)?.title ?? "Spool"}
+                      </span>
+                      <span className="spooler-group-count">
+                        {spoolById.get(draggingSpoolId)?.members.length ?? 0}
                       </span>
                     </div>
                   ) : null}
@@ -2050,6 +2442,109 @@ export function SpoolerThreadList({
         />
       ) : null}
 
+      {spoolMenu && spoolById.has(spoolMenu.spoolId) ? (
+        <SpoolerMenu
+          x={spoolMenu.x}
+          y={spoolMenu.y}
+          items={[
+            {
+              kind: "item",
+              id: "open-top",
+              label: "Open top thread",
+              icon: "Layers",
+            },
+            { kind: "separator" },
+            { kind: "header", label: "Move all to section" },
+            ...sections.map(
+              (section): SpoolerMenuItem => ({
+                kind: "item",
+                id: `spool-section:${section.id}`,
+                label: section.name,
+                icon: "Folder",
+                checked:
+                  spoolMenuSectionOf(spoolMenu.spoolId) === section.id,
+              }),
+            ),
+            {
+              kind: "item",
+              id: "spool-section-none",
+              label: "No section",
+              icon: "Folder",
+            },
+            { kind: "separator" },
+            {
+              kind: "item",
+              id: "spool-archive",
+              label: "Archive Spool Threads",
+              icon: "Archive",
+            },
+            {
+              kind: "item",
+              id: "spool-unspool",
+              label: "Unspool threads…",
+              icon: "ListCollapse",
+              danger: true,
+            },
+          ]}
+          onSelect={(id) => {
+            const spoolId = spoolMenu.spoolId;
+            setSpoolMenu(null);
+            if (id === "open-top") {
+              const lead = spoolById.get(spoolId)?.leadThreadId;
+              if (lead) {
+                actions.open(lead);
+                onNavigate();
+              }
+            } else if (id === "spool-section-none") {
+              moveSpoolToSection(spoolId, null);
+            } else if (id.startsWith("spool-section:")) {
+              moveSpoolToSection(spoolId, id.slice("spool-section:".length));
+            } else if (id === "spool-archive") {
+              archiveSpool(spoolId);
+            } else if (id === "spool-unspool") {
+              requestUnspool(spoolId);
+            }
+          }}
+          onClose={() => setSpoolMenu(null)}
+        />
+      ) : null}
+
+      {spoolNavOpen ? (
+        <SpoolerMenu
+          x={spoolNavOpen.x}
+          y={spoolNavOpen.y}
+          items={[
+            ...spoolStore.spools.flatMap((spool): SpoolerMenuItem[] => [
+              {
+                kind: "header",
+                label: `${spool.title} · ${spool.members.length}`,
+              },
+              ...spool.members.map(
+                (memberId): SpoolerMenuItem => ({
+                  kind: "item",
+                  id: `spoolnav:${memberId}`,
+                  label:
+                    rowById.get(memberId)?.displayTitle ??
+                    "(inactive thread)",
+                  icon: memberId === spool.leadThreadId ? "MessageSquare" : "Submenu",
+                  checked: memberId === spool.leadThreadId,
+                }),
+              ),
+            ]),
+            ...(spoolStore.spools.length === 0
+              ? ([{ kind: "header", label: "No spools yet" }] as SpoolerMenuItem[])
+              : []),
+          ]}
+          onSelect={(id) => {
+            setSpoolNavOpen(null);
+            if (!id.startsWith("spoolnav:")) return;
+            actions.open(id.slice("spoolnav:".length));
+            onNavigate();
+          }}
+          onClose={() => setSpoolNavOpen(null)}
+        />
+      ) : null}
+
       {menu && menuThread ? (
         <ThreadActionBridge thread={menuThread} registry={threadActionRegistry} />
       ) : null}
@@ -2061,6 +2556,19 @@ export function SpoolerThreadList({
           items={menuItems}
           onSelect={handleMenuSelect}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+
+      {unspoolConfirmId && spoolById.has(unspoolConfirmId) ? (
+        <UnspoolConfirmDialog
+          title={spoolById.get(unspoolConfirmId)?.title ?? "Spool"}
+          count={spoolById.get(unspoolConfirmId)?.members.length ?? 0}
+          onConfirm={() => {
+            const spoolId = unspoolConfirmId;
+            setUnspoolConfirmId(null);
+            unspoolSpool(spoolId);
+          }}
+          onCancel={() => setUnspoolConfirmId(null)}
         />
       ) : null}
 

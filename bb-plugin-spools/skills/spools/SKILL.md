@@ -1,13 +1,14 @@
 ---
-name: spooler-sidebar
-description: Use the Spooler Sidebar plugin's thread list. Use when the user asks about the sidebar's groups, filters, pins, sections, or how to switch back to BB's list.
+name: spools
+description: Use the Spools plugin's thread list. Use when the user asks about the sidebar's groups, filters, pins, sections, spools, the `bb spools` CLI, or how to switch back to BB's list.
 ---
 
-# Spooler Sidebar
+# Spools
 
-Replaces BB's sidebar thread list. There is no
-CLI and no server state: everything below is UI in the BB app, and thread mutations go
-through BB's own flows (pins, reads, renames, archives, deletes).
+Replaces BB's sidebar thread list. The list itself is UI in the BB app; thread mutations go
+through BB's own flows (pins, reads, renames, archives, deletes), spool membership is
+plugin metadata on each thread, and a `bb spools` CLI can organise sections and spools
+without opening the app.
 
 ## Surfaces
 
@@ -17,7 +18,7 @@ through BB's own flows (pins, reads, renames, archives, deletes).
   a text filter, an Active / Archived / All switch, grouping + expand-all +
   density toggles, status chips, and the smart-views bar (New thread is
   BB's own, above the list, so the list keeps no duplicate). Preferences
-  persist per client in `localStorage` (`spooler-sidebar:*:v1` keys).
+  persist per client in `localStorage` (`spools:*:v1` keys).
 ## Navigation
 
 BB 0.46 retired the `experimental_sidebarNavigation` slot. BB's own navigation
@@ -30,7 +31,7 @@ both.
 
 - **Grouping modes** (`Clock` / `Folder` / `SectionMove` icons): time,
   project, or section. Project groups are drag-reorderable by their header
-  (order persisted in `spooler-sidebar:project-order:v1`; right-click a header
+  (order persisted in `spools:project-order:v1`; right-click a header
   to reset). Each project header also carries a New-thread-in-project button.
 - **Create a section**: switch to section grouping, choose **New section**,
   enter its name and submit with **Create section** or Enter. Cancel or Escape
@@ -51,7 +52,7 @@ both.
 - **Smart views** (`SpoolerSmartViews.tsx`): the bar under the filters offers a
   Pinned preset plus any saved view. Configure query + status chip +
   lifecycle, hit **Save view**, name it — stored in
-  `spooler-sidebar:smart-views:v1`. Click a pill to apply (click again to
+  `spools:smart-views:v1`. Click a pill to apply (click again to
   clear).
 - **Hover preview** (`SpoolerHoverCard.tsx`): pausing on a row opens a portal'd
   card (portaled because row `content-visibility` containment would clip a
@@ -71,6 +72,51 @@ both.
   measures `offsetWidth`/`offsetHeight` (not `getBoundingClientRect`) so the
   entrance `scale()` can't skew the maths, and re-places when the context
   section arrives and changes its height.
+
+## Thread spools
+
+**Spools gather child threads under one card.** A spool is a first-class card in section
+grouping only (other groupings keep ordinary rows), stored entirely in per-thread plugin
+metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
+by the spool's *lead* thread). Details:
+
+- The card shows the derived title (`Spool: <lead title>` until it is renamed — renaming
+  writes `spoolTitle` to the lead; clearing the title brings the derived one back), a
+  member count and folded stack layers; a hover peek lists members with coloured status
+  pips (gray idle / blue needs-you / amber question / red failed / green success; working
+  pips breathe unless `prefers-reduced-motion`).
+- Spools behave like families for sorting and navigation: open the lead via the card's
+  Layers icon, jump to members, and the header layer dropdown lists every spool and
+  its members for one-click navigation.
+- Drag & drop: dragging a card onto a section re-files **every member** to that section;
+  dragging a thread *onto another thread* (drop onto the middle 40% of a row; the outer
+  bands are the ordinary above/below filing) creates a new spool from the pair (a drag
+  with a selection sweeps the selection in).
+- Right-click affordances: threads gain *Create spool from this thread*, *Throw onto
+  spool ⏵* and (members) *Remove from spool*; cards gain open-lead / move-all-to-section
+  / archive / **unspool**. Archive drops a single member's membership silently;
+  unspooling every thread is destructive-looking and asks behind a confirm dialog
+  (`roles=alertdialog`) every time.
+- Quick palette (Mod+Shift+P): *Spools: move thread to section…* and *Spools: throw
+  thread onto spool…* open side-panel pickers that mirror the drag semantics (spool
+  members travel together).
+- Settings → Installed plugins → **Spools** gains a *Sections & spools* card: the section
+  editor (rename / delete with inline confirm, create; **Unfiled pinned read-only**;
+  counts refresh from the server) plus a spools accordion with member lists and an
+  Unspool… (always with confirm dialog) action.
+
+### CLI
+
+`bb spools` mirrors the semantics so scripts can do the same moves (spool ids may be
+written with or without their `spool_` prefix):
+
+- `bb spools list [--json]` — every visible thread with its section, family and spool
+  membership, name-resolved.
+- `bb spools mv-section <thread> <section> | none` — file a thread at a section by
+  name (ambiguous names error; `none` unfiles).
+- `bb spools mv-spool <thread> <target> | new [--title <title>]` — throw a thread onto
+  an existing spool (moving the whole spool to the target's section when you address a
+  member), or `new` to start one from the thread.
 
 ## Selecting it
 
@@ -217,7 +263,7 @@ list; disabling this plugin falls back to BB's list automatically.
 
 ## Settings
 
-`bb plugin config spooler-sidebar`, or Settings → Installed plugins → Spooler
+`bb plugin config spools`, or Settings → Installed plugins → Spools
 Sidebar. The frontend reads them through `useSettings()`, and every value
 has a default, so the list never waits on them. Until they load,
 `defaultDensity` and `twoLineTitles` use the value this client last saw, so

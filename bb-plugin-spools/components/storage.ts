@@ -1,22 +1,23 @@
 /**
- * One-time preference migration from the `codex-sidebar:` era.
+ * One-time preference migration from the `codex-sidebar:` and
+ * `spooler-sidebar:` eras.
  *
- * The plugin was renamed to Spooler Sidebar, and its per-client preferences
- * (grouping, density, collapsed groups and families, project order, status
- * filter, saved smart views) live under a namespaced localStorage key. Without
- * this pass those would silently reset on first launch.
+ * The plugin is now named Spools, and its per-client preferences (grouping,
+ * density, collapsed groups and families, project order, status filter, saved
+ * smart views) live under a namespaced localStorage key. Without this pass
+ * those would silently reset on first launch under the new name.
  */
 
-const LEGACY_PREFIX = "codex-sidebar:";
-const CURRENT_PREFIX = "spooler-sidebar:";
+const CURRENT_PREFIX = "spools:";
+const LEGACY_PREFIXES = ["codex-sidebar:", "spooler-sidebar:"];
 
 /**
  * Keys that were retired when nav placement moved to BB's own server-synced
  * UI preferences. They are deleted rather than carried over.
  */
 const RETIRED = new Set([
-  `${LEGACY_PREFIX}nav-pinned:v1`,
-  `${LEGACY_PREFIX}nav-hidden:v1`,
+  `${LEGACY_PREFIXES[0]}nav-pinned:v1`,
+  `${LEGACY_PREFIXES[0]}nav-hidden:v1`,
 ]);
 
 const MIGRATION_FLAG = `${CURRENT_PREFIX}migrated:v1`;
@@ -41,9 +42,11 @@ export function migrateLegacyPreferences(): void {
 
   const legacyKeys: string[] = [];
   try {
-    for (let index = 0; index < window.localStorage.length; index += 1) {
-      const key = window.localStorage.key(index);
-      if (key?.startsWith(LEGACY_PREFIX)) legacyKeys.push(key);
+    for (const prefix of LEGACY_PREFIXES) {
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key?.startsWith(prefix)) legacyKeys.push(key);
+      }
     }
   } catch {
     return;
@@ -60,7 +63,10 @@ export function migrateLegacyPreferences(): void {
         window.localStorage.removeItem(key);
         continue;
       }
-      const target = CURRENT_PREFIX + key.slice(LEGACY_PREFIX.length);
+      const prefix =
+        LEGACY_PREFIXES.find((candidate) => key.startsWith(candidate)) ??
+        LEGACY_PREFIXES[0];
+      const target = CURRENT_PREFIX + key.slice(prefix.length);
       if (window.localStorage.getItem(target) === null) {
         window.localStorage.setItem(target, value);
       }

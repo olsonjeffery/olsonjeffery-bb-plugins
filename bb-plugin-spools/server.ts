@@ -1,4 +1,4 @@
-// bb-plugin-spooler-sidebar — backend entry.
+// bb-plugin-spools — backend entry.
 //
 // The sidebar itself is frontend-only: thread state flows through the host's
 // sidebar hooks and the public SDK. What the backend owns is the plugin's
@@ -10,9 +10,11 @@ import {
   DEFAULT_SWIPE_RIGHT,
   SWIPE_ACTION_OPTION_LABELS,
 } from "./lib/swipe";
+import { buildSpoolsCli } from "./cli-spools";
 
 export default async function plugin(bb: BbPluginApi) {
   bb.log.info("loaded");
+  bb.cli.register(buildSpoolsCli(bb));
 
   // Read in the frontend through useSettings(); every value has a default,
   // so the sidebar keeps working before the first load resolves.

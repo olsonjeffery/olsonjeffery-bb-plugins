@@ -3148,3 +3148,681 @@ a.spooler-row-main:hover {
 [data-spooler-loud-unread="off"] .spooler-row-active.spooler-row-unread {
   box-shadow: none;
 }
+
+/* ==========================================================================
+   Spool cards (Group By Section): one stacked-deck row per spool.
+   ========================================================================== */
+
+.spooler-spool-card {
+  position: relative;
+  z-index: 0;
+  margin: 6px 2px 14px;
+  padding: 4px 0 6px;
+  border-radius: 10px;
+  /* Sidebar tint via color-mix, same convention as the group headers. */
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 60%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+  transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.spooler-spool-card:hover {
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 78%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 22%, transparent)
+  );
+}
+
+/* Collapsed: only the header shows, so the deck sits tighter. */
+.spooler-spool-card-collapsed {
+  padding: 4px 0;
+}
+
+.spooler-spool-card-dragging {
+  opacity: 0.5;
+}
+
+/* Stacked pseudo-card layers peeking out below (7px, then 14px). */
+.spooler-spool-stack-layer {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 14px;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 30%, transparent);
+  pointer-events: none;
+}
+
+.spooler-spool-stack-layer-1 {
+  bottom: -7px;
+  opacity: 0.55;
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 55%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 30%, transparent)
+  );
+}
+
+.spooler-spool-stack-layer-2 {
+  bottom: -14px;
+  opacity: 0.35;
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 45%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 25%, transparent)
+  );
+}
+
+/* Heavy drop-target affordance: 2px accent border + slight raise. */
+.spooler-spool-drop-active {
+  z-index: 1;
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+
+/* Header row: grip, Layers icon, title, (hover actions), member count. */
+.spooler-spool-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 54px;
+  padding: 0 10px 0 6px;
+}
+
+.spooler-spool-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.spooler-spool-icon:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--foreground);
+}
+
+.spooler-spool-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-spool-title-btn {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spooler-spool-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.spooler-spool-rename {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+}
+
+/* Hover-revealed actions (Archive / Unspool), like the row action cluster. */
+.spooler-spool-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.spooler-spool-card:hover .spooler-spool-actions,
+.spooler-spool-actions:focus-within {
+  opacity: 1;
+}
+
+.spooler-spool-unspool {
+  color: var(--muted-foreground);
+}
+
+.spooler-spool-count {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Member list: rows come from the ordinary renderer; just indent and tighten. */
+.spooler-spool-members {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 8px 6px 18px;
+}
+
+.spooler-spool-member {
+  min-width: 0;
+}
+
+.spooler-spool-member .spooler-row {
+  margin-block: 0;
+}
+
+/* Peek panel: a small side card anchored to the right of the spool card. */
+.spooler-spool-peek {
+  position: absolute;
+  z-index: 60;
+  left: calc(100% + 10px);
+  top: 0;
+  width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover, var(--card));
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent),
+    0 10px 28px rgb(0 0 0 / 0.2);
+  transition: opacity 160ms ease;
+  cursor: default;
+}
+
+/* Invisible bridge over the gap, so the pointer can travel card → peek. */
+.spooler-spool-peek::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -12px;
+  width: 12px;
+}
+
+.spooler-spool-peek-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.spooler-spool-peek-rule {
+  height: 1px;
+  margin: 8px 0;
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.spooler-spool-peek-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spooler-spool-peek-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spooler-spool-peek-row:hover {
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.spooler-spool-peek-entry {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status pips. Only `data-breathe` pips animate, and only via this class. */
+.spooler-peek-dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.spooler-peek-dot-idle {
+  background: var(--muted-foreground);
+}
+
+.spooler-peek-dot-need {
+  background: var(--primary);
+}
+
+.spooler-peek-dot-question {
+  background: var(--warning, #b98533);
+}
+
+.spooler-peek-dot-failed {
+  background: var(--destructive, #dc2626);
+}
+
+.spooler-peek-dot-success {
+  background: var(--success, #3f9a6b);
+}
+
+.spooler-peek-dot-working {
+  background: var(--muted-foreground);
+}
+
+.spooler-peek-dot-breathe::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px;
+  opacity: 0.14;
+  animation: spooler-peek-breathe 1.8s ease-in-out infinite alternate;
+}
+
+/* Idle pips breathe white, harder. */
+.spooler-peek-dot-idle.spooler-peek-dot-breathe::after {
+  box-shadow: 0 0 0 2px #fff;
+  animation-name: spooler-peek-breathe-idle;
+}
+
+@keyframes spooler-peek-breathe {
+  from {
+    opacity: 0.14;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@keyframes spooler-peek-breathe-idle {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-spool-card,
+  .spooler-spool-icon,
+  .spooler-spool-actions,
+  .spooler-spool-peek {
+    transition: opacity 120ms ease;
+  }
+
+  .spooler-spool-drop-active {
+    transform: none;
+  }
+
+  .spooler-peek-dot-breathe::after {
+    animation: none;
+  }
+}
+
+/* Unspool confirm dialog (single destructive gate for both menu + card). */
+.spooler-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, black 45%, transparent);
+}
+
+.spooler-confirm {
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border, color-mix(in srgb, var(--foreground) 15%, transparent));
+  box-shadow: 0 20px 50px rgb(0 0 0 / 35%);
+}
+
+.spooler-confirm-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-block: 0;
+}
+
+.spooler-confirm-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  margin-block: 0.5rem 1rem;
+}
+
+.spooler-confirm-text strong {
+  color: var(--foreground);
+}
+
+.spooler-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.spooler-confirm-cancel,
+.spooler-confirm-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.spooler-confirm-cancel {
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
+}
+
+.spooler-confirm-cancel:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.spooler-confirm-danger {
+  background: var(--destructive, #b3261e);
+  color: #fff;
+  border: none;
+}
+
+.spooler-confirm-danger:hover {
+  background: color-mix(in srgb, var(--destructive, #b3261e) 85%, black);
+}
+
+.spooler-confirm-danger:focus-visible,
+.spooler-confirm-cancel:focus-visible {
+  outline: 2px solid var(--ring, var(--foreground));
+  outline-offset: 1px;
+}
+
+/* Positional row drop zones: top/bottom 30% = heavy insert line (move),
+   middle 40% = heavy border (drop-onto → new spool). Cues land on the inner
+   .spooler-row because the draggable wrapper is display: contents. */
+.spooler-row-draggable.spooler-row-insert-above .spooler-row::before,
+.spooler-row-draggable.spooler-row-insert-below .spooler-row::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--foreground);
+  pointer-events: none;
+  z-index: 30;
+}
+
+.spooler-row-draggable.spooler-row-insert-above .spooler-row::before {
+  top: -2px;
+}
+
+.spooler-row-draggable.spooler-row-insert-below .spooler-row::after {
+  bottom: -2px;
+}
+
+.spooler-row-draggable.spooler-row-drop-onto .spooler-row {
+  box-shadow: inset 0 0 0 2px var(--foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-row-draggable.spooler-row-insert-above .spooler-row::before,
+  .spooler-row-draggable.spooler-row-insert-below .spooler-row::after,
+  .spooler-row-draggable.spooler-row-drop-onto .spooler-row {
+    transition: none;
+  }
+}
+
+/* Palette-driven side-panel pickers (move to section / throw onto spool). */
+.spooler-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spooler-palette-heading {
+  margin-block: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.spooler-palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spooler-palette-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spooler-palette-row:hover:not(:disabled) {
+  background: var(--muted, color-mix(in srgb, var(--foreground) 8%, transparent));
+}
+
+.spooler-palette-row:focus-visible {
+  outline: 2px solid var(--ring, var(--foreground));
+  outline-offset: 1px;
+}
+
+.spooler-palette-row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.spooler-palette-row-label {
+  color: var(--foreground);
+}
+
+.spooler-palette-row-detail {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-palette-note {
+  margin-block: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.spooler-palette-note-done {
+  color: var(--foreground);
+}
+
+/* Settings page — section editor + spools accordion. */
+.spooler-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.spooler-settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spooler-settings-heading {
+  margin-block: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.spooler-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-block: 0;
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.spooler-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.spooler-settings-newrow {
+  padding-block: 6px;
+}
+
+.spooler-settings-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spooler-settings-group-toggle {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spooler-settings-group-toggle:hover {
+  background: var(--muted, color-mix(in srgb, var(--foreground) 8%, transparent));
+}
+
+.spooler-settings-section-name {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.spooler-settings-section-name:hover {
+  text-decoration: underline;
+}
+
+.spooler-settings-muted {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.spooler-settings-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+}
+
+.spooler-settings-input:focus-visible {
+  outline: 2px solid var(--ring, var(--foreground));
+  outline-offset: 1px;
+}
+
+.spooler-settings-button {
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.spooler-settings-button:hover:not(:disabled) {
+  background: var(--muted, color-mix(in srgb, var(--foreground) 8%, transparent));
+}
+
+.spooler-settings-button:focus-visible {
+  outline: 2px solid var(--ring, var(--foreground));
+  outline-offset: 1px;
+}
+
+.spooler-settings-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.spooler-settings-button-danger {
+  color: var(--destructive, #b3261e);
+  border-color: color-mix(in srgb, var(--destructive, #b3261e) 40%, transparent);
+}
+
+.spooler-settings-members {
+  margin-block: 2px 8px;
+  margin-inline-start: 28px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
