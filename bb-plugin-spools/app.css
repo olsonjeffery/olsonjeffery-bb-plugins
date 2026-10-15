@@ -281,7 +281,7 @@
   pointer-events: auto;
 }
 
-.spooler-list-compact .spooler-action:not(.spooler-action-more) {
+.spooler-list-compact .spooler-action {
   display: none;
 }
 
@@ -3069,6 +3069,13 @@ a.spooler-row-main:hover {
   opacity: 1;
 }
 
+/* Spool cards aren't inside .spooler-row, so the row-hover reveal never
+   matches: reveal on card hover instead. */
+.spooler-spool-card:hover .spooler-row-grip,
+.spooler-spool-card .spooler-row-grip:focus-visible {
+  opacity: 1;
+}
+
 .spooler-row-grip:hover {
   background: var(--muted);
   color: var(--foreground);
@@ -3241,7 +3248,7 @@ a.spooler-row-main:hover {
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 65%, transparent);
 }
 
-/* Header row: grip, Layers icon, title, (hover actions), member count. */
+/* Header row: grip, Layers icon, title, pip/actions, member count. */
 .spooler-spool-header {
   display: flex;
   align-items: center;
@@ -3314,17 +3321,10 @@ a.spooler-row-main:hover {
   height: 24px;
 }
 
-/* The pip: the gray count chip, which on card hover becomes the ⋯ actions
-   button (both occupy the same spot; hover cross-fades between them). */
+/* The pip: the gray count chip, doubled as the spool-actions button (the
+   old hover-swapped ellipsis never got clicks in the real app). */
 .spooler-spool-pip {
-  position: relative;
-  display: inline-grid;
-  place-items: stretch;
   flex-shrink: 0;
-}
-
-.spooler-spool-pip > * {
-  grid-area: 1 / 1;
 }
 
 .spooler-spool-pip .spooler-spool-count {
@@ -3332,23 +3332,13 @@ a.spooler-row-main:hover {
   min-width: 22px;
   display: grid;
   place-items: center;
-  transition: opacity 150ms ease;
+  border: 0;
+  cursor: pointer;
 }
 
-.spooler-spool-pip .spooler-action-more {
-  border-radius: 999px;
-  opacity: 0;
-  transition: opacity 150ms ease;
-}
-
-.spooler-spool-card:hover .spooler-spool-pip .spooler-spool-count,
-.spooler-spool-pip:focus-within .spooler-spool-count {
-  opacity: 0;
-}
-
-.spooler-spool-card:hover .spooler-spool-pip .spooler-action-more,
-.spooler-spool-pip:focus-within .spooler-action-more {
-  opacity: 1;
+.spooler-spool-pip .spooler-spool-count:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 24%, transparent);
+  color: var(--foreground);
 }
 
 /* While a member runs, the pip breathes a halo matched to its own gray (the

@@ -429,32 +429,28 @@ export function SpoolCardImpl({
             ) : null}
           </div>
         ) : null}
+        {/* The count pip IS the actions button (the ellipsis never worked
+            reliably): clicking it opens the spool context menu. */}
         <span
           className={cn(
             "spooler-spool-pip",
             anyWorking && "spooler-spool-pip-working",
           )}
         >
-          <span
-            className="spooler-spool-count"
-            title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool`}
-          >
-            {data.members.length}
-          </span>
           <button
             type="button"
             tabIndex={-1}
             aria-label="Spool actions"
-            title="Spool actions"
+            title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool — actions`}
             aria-haspopup="menu"
-            className="spooler-action spooler-action-more"
+            className="spooler-spool-count"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
               onOpenMenu(event);
             }}
           >
-            <Icon name="MoreHorizontal" aria-hidden="true" />
+            {data.members.length}
           </button>
         </span>
       </div>

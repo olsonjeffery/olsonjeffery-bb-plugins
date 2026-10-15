@@ -1751,9 +1751,24 @@ export function SpoolerThreadList({
             onRenameCommit={(title) => commitSpoolRename(spool.id, title)}
             onRenameCancel={() => setEditingSpoolId(null)}
             startRename={() => setEditingSpoolId(spool.id)}
-            renderMember={(thread, index, isLast) =>
-              renderRow(thread, 1, null, isLast, null, false)
-            }
+            renderMember={(thread, index, isLast) => (
+              <DraggableThreadRow
+                threadId={thread.id}
+                dropData={{
+                  kind: "threaddrop",
+                  threadId: thread.id,
+                  sectionId: thread.sectionId,
+                }}
+                dropCue={
+                  rowDrop !== null && rowDrop.threadId === thread.id
+                    ? rowDrop.zone
+                    : null
+                }
+                renderRow={(handle) =>
+                  renderRow(thread, 1, null, isLast, handle, false)
+                }
+              />
+            )}
             draggingThreadId={draggingThreadId}
             projectNameFor={projectNameFor}
           />
