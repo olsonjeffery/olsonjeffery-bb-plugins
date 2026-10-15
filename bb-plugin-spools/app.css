@@ -1226,11 +1226,11 @@
 }
 
 .spooler-row-active {
-  /* Red ring instead of a gray fill: the accent wash clashed with colored
+  /* Danger ring instead of a gray fill: the accent wash clashed with colored
      section drawers (and dragged the panel off its section's tint). The
      ring outlines above children-style content without shifting layout.
      Kept after the keyboard rule so the ring survives focus navigation. */
-  outline: 2px solid #ff0000;
+  outline: 2px solid var(--destructive, #d43d3d);
   outline-offset: -2px;
 }
 
@@ -3208,10 +3208,10 @@ a.spooler-row-main:hover {
 
 /* The thread being viewed lives in this spool: while the card is collapsed
    its members render no rows, so the panel itself is ringed with the same
-   red active-row outline (expanded cards keep their member-row tinting, and
-   a normal card background — no gray wash clashing with section colors). */
+   danger-toned active-row outline (expanded cards keep their member-row tinting, and
+   a normal card background — no fill clashing with section colors). */
 .spooler-spool-card-active {
-  outline: 2px solid #ff0000;
+  outline: 2px solid var(--destructive, #d43d3d);
   outline-offset: -2px;
 }
 
