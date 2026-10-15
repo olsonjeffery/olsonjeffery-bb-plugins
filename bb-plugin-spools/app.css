@@ -3370,23 +3370,6 @@ a.spooler-row-main:hover {
   color: var(--foreground);
 }
 
-/* While a member runs, the pip breathes a halo matched to its own gray (the
-   pip COLOR, per the user — not white): an expanding border shadow. */
-.spooler-spool-pip-working .spooler-spool-count {
-  animation: spool-pip-halo 2.4s ease-in-out infinite;
-}
-
-@keyframes spool-pip-halo {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--muted-foreground) 0%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 4px
-      color-mix(in srgb, var(--muted-foreground) 38%, transparent);
-  }
-}
-
 .spooler-spool-unspool {
   color: var(--muted-foreground);
 }
@@ -3465,11 +3448,27 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
-/* Liveness rollup (N working · N needs you · …): the quiet right edge of the
-   badge line — same language as the peek meta, so an expanded spool still
-   answers "is anything wrong?" without unfolding and without hover. In the
-   one-line header it shrinks like the chips do, so a squeezed line degrades
-   to an ellipsis instead of a mid-letter cut at the container edge. */
+/* Liveness summary on the collapsed spool header. The Working Thread Count
+   reuses the per-thread WORKING badge classes (same spinner, same status
+   word) and flushes right; any other liveness parts stay in the muted
+   rollup string. Both vanish when the spool shows its members, EXCEPT for
+   the non-working parts (expanded threads carry their own working
+   badges — a summary count would be repetitive). */
+.spooler-spool-workcount {
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.spooler-spool-badges .spooler-spool-workcount + .spooler-spool-rollup {
+  margin-left: 6px;
+}
+
+/* Non-working liveness parts (needs you · unread · failed — and working
+   counts while expanded, which reduce to nothing): the quiet right edge of
+   the badge line — same language as the peek meta. In the one-line header
+   it shrinks like the chips do, so a squeezed line degrades to an ellipsis
+   instead of a mid-letter cut at the container edge. */
 .spooler-spool-rollup {
   margin-left: auto;
   padding-right: 2px;

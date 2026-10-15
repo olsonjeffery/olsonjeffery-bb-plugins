@@ -389,5 +389,47 @@ describe("SpoolCard", () => {
       // keeps its project / branch / PR context in both states.
       expect(screen.getAllByText("feat/spool").length).toBeGreaterThan(0);
     });
+
+    it("shows the Working Thread Count (spinner + WORKING status word) while collapsed", () => {
+      const running = (): PluginSidebarThread =>
+        makeThread({ id: "tw1", title: "Member tw1", indicator: "runtime" });
+      renderEl(
+        makeProps({
+          collapsed: true,
+          data: {
+            ...makeProps().data,
+            members: [running(), running(), member("t3")],
+          },
+        }),
+      );
+      // Same badge anatomy the per-thread WORKING indicator uses.
+      expect(screen.getByText("2 working")).toBeTruthy();
+      const badge = document.querySelector(
+        ".spooler-spool-badges .spooler-spool-workcount",
+      ) as HTMLElement;
+      expect(badge).toBeTruthy();
+      expect(
+        badge.querySelector(".spooler-spinner.spooler-tone-success"),
+      ).toBeTruthy();
+      expect(
+        badge.querySelector(".spooler-status-word.spooler-tone-success"),
+      ).toBeTruthy();
+    });
+
+    it("the Working Thread Count disappears when the spool is expanded", () => {
+      const running = (): PluginSidebarThread =>
+        makeThread({ id: "tw2", title: "Member tw2", indicator: "runtime" });
+      renderEl(
+        makeProps({
+          collapsed: false,
+          data: {
+            ...makeProps().data,
+            members: [running(), running()],
+          },
+        }),
+      );
+      expect(screen.queryByText(/working/)).toBeNull();
+      expect(screen.queryByText("2 working")).toBeNull();
+    });
   });
 });

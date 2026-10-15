@@ -23,7 +23,6 @@ import {
   prToneClass,
   projectHue,
 } from "./SpoolerThreadRow";
-import { isLiveThread } from "./time";
 import { type SpoolGroupData } from "./useThreadGroups";
 
 /** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
@@ -195,8 +194,8 @@ export function SpoolCardImpl({
     branchSet.size === 1 && lead?.environment?.branchName
       ? lead.environment.branchName
       : null;
-  // The count pip breathes while any member runs (user: gray halo, always).
-  const anyWorking = data.members.some((member) => isLiveThread(member));
+  // Liveness rollup (item 6): the card hides its member rows, so the common
+  // context must be summarized on the header.
 
   // Peek meta line (hover-card parity): thread count plus any live states.
   const peekStatuses = data.members.map(peekStatusFor);
@@ -204,8 +203,15 @@ export function SpoolCardImpl({
   const nQuestion = peekStatuses.filter((s) => s === "question").length;
   const nUnread = peekStatuses.filter((s) => s === "need").length;
   const nFailed = peekStatuses.filter((s) => s === "failed").length;
-  const rollupLabel = [
-    nWorking > 0 ? `${nWorking} working` : null,
+  // Working Thread Count: styled like the per-thread WORKING badge (green
+  // spinner + status word, same font) and shown ONLY while collapsed —
+  // expanded members carry their own working badges, so a count would be
+  // repetitive. The other liveness parts stay in both states.
+  const showWorkingCount = collapsed && nWorking > 0;
+  // The working count lives only in the badge above: never duplicated in
+  // the muted rollup (collapsed: the badge shows it; expanded: members
+  // carry their own working badges). Non-working parts stay in both states.
+  const rollupRest = [
     nQuestion > 0 ? `${nQuestion} needs you` : null,
     nUnread > 0 ? `${nUnread} unread` : null,
     nFailed > 0 ? `${nFailed} failed` : null,
@@ -503,20 +509,28 @@ export function SpoolCardImpl({
                 </span>
               </button>
             ) : null}
-            {rollupLabel ? (
+            {showWorkingCount ? (
+              <span
+                className="spooler-row-status-badge spooler-spool-workcount"
+                title={peekMeta}
+              >
+                <span className="spooler-spinner spooler-tone-success">
+                  <Icon name="Loading" aria-hidden="true" />
+                </span>
+                <span className="spooler-status-word spooler-tone-success">
+                  {nWorking} working
+                </span>
+              </span>
+            ) : null}
+            {rollupRest ? (
               <span className="spooler-spool-rollup" title={peekMeta}>
-                {rollupLabel}
+                {rollupRest}
               </span>
             ) : null}
           </div>
         {/* The count pip IS the actions button (the ellipsis never worked
             reliably): clicking it opens the spool context menu. */}
-        <span
-          className={cn(
-            "spooler-spool-pip",
-            anyWorking && "spooler-spool-pip-working",
-          )}
-        >
+        <span className="spooler-spool-pip">
           <button
             type="button"
             tabIndex={-1}
