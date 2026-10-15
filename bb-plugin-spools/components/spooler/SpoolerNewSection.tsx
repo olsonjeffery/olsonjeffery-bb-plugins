@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 
-export function SpoolerNewSection() {
+export function SpoolerNewSection({ onCreated }: { onCreated?: () => void } = {}) {
   const sdk = useSdk();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -39,6 +39,7 @@ export function SpoolerNewSection() {
       const section = await sdk.threadSections.create({ name: trimmed });
       close();
       toast.success(`Created section "${section.name}"`);
+      onCreated?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -66,6 +67,7 @@ export function SpoolerNewSection() {
         size="sm"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
+        data-testid="spooler-settings-new-trigger"
         onClick={() => {
           setOpen(true);
           inputRef.current?.focus();
@@ -85,6 +87,7 @@ export function SpoolerNewSection() {
           <Input
             ref={inputRef}
             className="spooler-section-create-input"
+            data-testid="spooler-settings-new-input"
             aria-label="Section name"
             aria-describedby={error ? `${id}-error` : undefined}
             aria-invalid={error ? true : undefined}
@@ -94,7 +97,7 @@ export function SpoolerNewSection() {
             disabled={pending}
             required
           />
-          <Button type="submit" size="sm" disabled={pending || !name.trim()}>
+          <Button type="submit" size="sm" disabled={pending || !name.trim()} data-testid="spooler-settings-new-create">
             {pending ? "Creating…" : "Create section"}
           </Button>
           <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={close}>

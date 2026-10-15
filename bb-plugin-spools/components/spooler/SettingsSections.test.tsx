@@ -41,6 +41,7 @@ import { SpoolsSettingsSection } from "./SettingsSections";
 var makeThread: (fixture: any) => any;
 afterEach(() => cleanup());
 beforeEach(async () => {
+  localStorage.clear();
   fakeList.mockReset().mockResolvedValue({ threads: [] });
   fakeUpdate.mockReset().mockResolvedValue({});
   fakeSectionsList.mockReset().mockResolvedValue([
@@ -113,7 +114,8 @@ describe("SpoolsSettingsSection — section editor", () => {
 
   it("creates a section and reloads the list", async () => {
     render(<SpoolsSettingsSection />);
-    fireEvent.change(await screen.findByTestId("spooler-settings-new-input"), {
+    fireEvent.click(await screen.findByTestId("spooler-settings-new-trigger"));
+    fireEvent.change(screen.getByTestId("spooler-settings-new-input"), {
       target: { value: "Gamma" },
     });
     fireEvent.click(screen.getByTestId("spooler-settings-new-create"));
@@ -121,5 +123,40 @@ describe("SpoolsSettingsSection — section editor", () => {
       expect(fakeSectionsCreate).toHaveBeenCalledWith({ name: "Gamma" }),
     );
     await waitFor(() => expect(fakeSectionsList).toHaveBeenCalledTimes(2));
+  });
+
+  it("paints a section color through the sidebar's shared localStorage map", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    render(<SpoolsSettingsSection />);
+    fireEvent.click(await screen.findByTestId("spooler-settings-swatch:sec-a"));
+    fireEvent.click(screen.getByTestId("spooler-settings-color:sec-a:gold"));
+    await waitFor(() => expect(setItem).toHaveBeenCalled());
+    const [key, value] = setItem.mock.calls.at(-1)!;
+    expect(key).toBe("spooler-sidebar:section-colors:v1");
+    expect(JSON.parse(value)).toEqual({ "sec-a": "gold" });
+    // The swatch reflects the choice; the strip is closed after picking.
+    expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
+      "Color: Gold",
+    );
+    expect(screen.queryByTestId("spooler-settings-color:sec-a:gold")).toBeNull();
+  });
+
+  it("clears a section's color with the No color choice", async () => {
+    localStorage.setItem(
+      "spooler-sidebar:section-colors:v1",
+      JSON.stringify({ "sec-a": "gold", "sec-b": "teal" }),
+    );
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    render(<SpoolsSettingsSection />);
+    fireEvent.click(await screen.findByTestId("spooler-settings-swatch:sec-a"));
+    expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
+      "Color: Gold",
+    );
+    fireEvent.click(screen.getByTestId("spooler-settings-color:sec-a:none"));
+    await waitFor(() => expect(setItem).toHaveBeenCalled());
+    expect(JSON.parse(setItem.mock.calls.at(-1)![1])).toEqual({ "sec-b": "teal" });
+    expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
+      "Change color",
+    );
   });
 });

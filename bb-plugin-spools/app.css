@@ -3940,8 +3940,6 @@ a.spooler-row-main:hover {
 }
 
 .spooler-settings-list {
-
-.spooler-settings-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -3952,13 +3950,10 @@ a.spooler-row-main:hover {
 
 .spooler-settings-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-}
-
-.spooler-settings-newrow {
-  padding-block: 6px;
 }
 
 .spooler-settings-section-name {
@@ -3982,50 +3977,75 @@ a.spooler-row-main:hover {
   font-size: 11px;
 }
 
+/* Sizing only — the shadcn Input supplies all visual styling. */
 .spooler-settings-input {
   flex: 1;
-  padding: 4px 8px;
-  border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
-  border-radius: 6px;
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
+  min-width: 0;
+  height: auto;
+  padding-block: 4px;
   font-size: 12px;
 }
 
-.spooler-settings-input:focus-visible {
-  outline: 2px solid var(--ring, var(--foreground));
-  outline-offset: 1px;
-}
-
-.spooler-settings-button {
-  padding: 3px 10px;
+/* Color swatch + strip, mirroring the sidebar's Change Color menu; the
+   colors come from the same localStorage map, so both views stay in sync. */
+.spooler-settings-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent);
-  border-radius: 6px;
+  border-radius: 999px;
   background: transparent;
-  color: var(--foreground);
-  font: inherit;
-  font-size: 11px;
   cursor: pointer;
 }
 
-.spooler-settings-button:hover:not(:disabled) {
-  background: var(--muted, color-mix(in srgb, var(--foreground) 8%, transparent));
+.spooler-settings-swatch:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
-.spooler-settings-button:focus-visible {
-  outline: 2px solid var(--ring, var(--foreground));
+.spooler-settings-swatch-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.spooler-settings-swatch-dot[data-none] {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+
+.spooler-settings-colorstrip {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-block: 4px;
+}
+
+.spooler-settings-colorswatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.spooler-settings-colorswatch[data-current] {
+  outline: 2px solid var(--foreground);
   outline-offset: 1px;
 }
 
-.spooler-settings-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.spooler-settings-button-danger {
-  color: var(--destructive, #b3261e);
-  border-color: color-mix(in srgb, var(--destructive, #b3261e) 40%, transparent);
+.spooler-settings-colorswatch-none {
+  color: var(--muted-foreground, var(--foreground));
 }
 
 /* ===== Settled threads shelf ===== */
