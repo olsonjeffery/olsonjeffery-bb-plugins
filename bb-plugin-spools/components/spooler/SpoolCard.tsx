@@ -200,6 +200,14 @@ export function SpoolCardImpl({
   const nQuestion = peekStatuses.filter((s) => s === "question").length;
   const nUnread = peekStatuses.filter((s) => s === "need").length;
   const nFailed = peekStatuses.filter((s) => s === "failed").length;
+  const rollupLabel = [
+    nWorking > 0 ? `${nWorking} working` : null,
+    nQuestion > 0 ? `${nQuestion} needs you` : null,
+    nUnread > 0 ? `${nUnread} unread` : null,
+    nFailed > 0 ? `${nFailed} failed` : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ") || null;
   const peekMeta = [
     `${data.members.length} thread${data.members.length === 1 ? "" : "s"}`,
     nWorking > 0 ? `${nWorking} working` : null,
@@ -409,9 +417,12 @@ export function SpoolCardImpl({
             <span className="spooler-spool-title">{data.label}</span>
           </button>
         )}
-        {collapsed ? (
-          <div className="spooler-spool-badges">
-            {uniformProjectName ? (
+        {/* Badges stay visible in both states: collapsing a spool hides its
+            thread list, not what the threads have in common. The rollup sits
+            on the right and fills the empty side of the badge line with the
+            liveness states the expanded body no longer shows. */}
+        <div className="spooler-spool-badges">
+          {uniformProjectName ? (
               <span
                 className="spooler-row-project"
                 title={`All threads in project: ${uniformProjectName}`}
@@ -465,8 +476,12 @@ export function SpoolCardImpl({
                 </span>
               </button>
             ) : null}
+            {rollupLabel ? (
+              <span className="spooler-spool-rollup" title={peekMeta}>
+                {rollupLabel}
+              </span>
+            ) : null}
           </div>
-        ) : null}
         {/* The count pip IS the actions button (the ellipsis never worked
             reliably): clicking it opens the spool context menu. */}
         <span

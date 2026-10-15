@@ -305,7 +305,7 @@ describe("SpoolCard", () => {
       expect(screen.queryByText("P:proj_a")).toBeNull();
     });
 
-    it("shows a uniform-branch chip plus the lead thread's PR badge, and none of it expanded", () => {
+    it("shows a uniform-branch chip plus the lead thread's PR badge in both states", () => {
       const branched = () =>
         makeThread({
           id: "t9",
@@ -354,8 +354,9 @@ describe("SpoolCard", () => {
           },
         }),
       );
-      expect(screen.queryByText("feat/spool")).toBeNull();
-      expect(screen.queryByText("P:proj_a")).toBeNull();
+      // Badges no longer vanish when the spool is folded open — the header
+      // keeps its project / branch / PR context in both states.
+      expect(screen.getAllByText("feat/spool").length).toBeGreaterThan(0);
     });
   });
 });

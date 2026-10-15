@@ -3463,6 +3463,20 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
+/* Liveness rollup (N working · N needs you · …): the quiet right edge of the
+   badge line — same language as the peek meta, so an expanded spool still
+   answers "is anything wrong?" without unfolding and without hover. */
+.spooler-spool-rollup {
+  margin-left: auto;
+  padding-right: 2px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  flex: none;
+}
+
 /* Member list: rows come from the ordinary renderer; just indent and tighten. */
 .spooler-spool-members {
   display: flex;
