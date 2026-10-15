@@ -82,7 +82,10 @@ by the spool's *lead* thread). Details:
 
 - The card shows the derived title (`Spool: <lead title>` until it is renamed — renaming
   writes `spoolTitle` to the lead; clearing the title brings the derived one back), a
-  member count and folded stack layers; a hover peek lists members with coloured status
+  member count and folded stack layers (when the collapsed line cannot fit the
+  working-count word it stands down to spinner + count — measured pre-paint, the
+  word returns when room does — and the badge tooltip keeps the detail); a hover
+  peek lists members with coloured status
   pips (gray idle / blue needs-you / amber question / red failed / green success; working
   pips breathe unless `prefers-reduced-motion`).
 - Spools behave like families for sorting and navigation: open the lead via the card's

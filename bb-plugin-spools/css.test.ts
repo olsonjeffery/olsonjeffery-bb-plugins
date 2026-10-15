@@ -176,4 +176,22 @@ describe("app.css", () => {
     // padding regression came back during this fix.
     expect(duplicated.map(([selector]) => selector)).toEqual([]);
   });
+
+  it("stands the spool working-count word down instead of clipping it mid-glyph", () => {
+    // jsdom cannot lay out the badges line either: the word zero-out is
+    // guarded here, the measurement decision in SpoolCard's tests.
+    const clip = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-spool-workcount .spooler-workcount-word-clip",
+    );
+    expect(clip?.body).toMatch(/flex:\s*0 0 0/);
+    expect(clip?.body).toMatch(/overflow:\s*hidden/);
+    // The badge itself refuses to shrink: the spinner and the count are the
+    // essential signal, so the line never slices them mid-glyph.
+    const badge = rules().find(
+      (rule) => rule.selector === ".spooler-spool-workcount",
+    );
+    expect(badge?.body).toMatch(/flex:\s*none/);
+  });
 });

@@ -1754,6 +1754,22 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
+/* Working Thread Count: the badges line shares its budget with the
+   project/branch chips, and an overflow:hidden parent clips text midway
+   through a glyph. Make the status word a mini flex row so the trailing
+   word is a flex item the card can zero out completely (`spooler
+   -workcount-word-clip`, measured by SpoolCard), keeping the essential
+   signal — spinner + count — with the detail left in the badge tooltip. */
+.spooler-spool-workcount .spooler-status-word {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.spooler-spool-workcount .spooler-workcount-word {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 .spooler-row-status-badge .spooler-dot {
   margin-top: 0;
 }
@@ -3543,14 +3559,31 @@ a.spooler-row-main:hover {
    rollup string. Both vanish when the spool shows its members, EXCEPT for
    the non-working parts (expanded threads carry their own working
    badges — a summary count would be repetitive). */
+/* The Working Thread Count is the essential signal: never let the line
+   clip the spinner or cut the count mid-glyph. The word is what stands
+   down (`spooler-workcount-word-clip`), so the badge itself doesn't
+   shrink; it is also what the card's measuring effect decomposes by
+   hand (its overflow:hidden keeps descendant scrollables out of the
+   line's natural-width sum), which is why it stays unclipped here. */
 .spooler-spool-workcount {
   margin-left: auto;
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: none;
 }
 
+/* Same visual as margin-left, but padding lands inside scrollWidth — the
+   measuring effect sums natural widths and must not miss this space. */
 .spooler-spool-badges .spooler-spool-workcount + .spooler-spool-rollup {
-  margin-left: 6px;
+  padding-left: 6px;
+}
+
+/* The word that stands down when the badges line cannot fit it. Zero
+   flex-basis shrinks the box to nothing while `scrollWidth` still reports
+   the natural text width, so the measuring effect can hand the word back
+   whenever the line grows content or size again. */
+.spooler-spool-workcount .spooler-workcount-word-clip {
+  flex: 0 0 0px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Non-working liveness parts (needs you · unread · failed — and working
