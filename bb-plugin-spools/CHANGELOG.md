@@ -6,6 +6,28 @@ All notable changes to Spools are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- **Section colors.** Right-click a section header (Group By Section) and choose
+  **Change color…** to pick from an eleven-color palette (neutrals included,
+  plus **No color** to clear). The tint paints the section's drawer and its
+  sticky
+  header, with black or white text kept for contrast; the palette supplies
+  light- and dark-theme variants of every color, detected from the host theme
+  at runtime. Colors live in local storage keyed by section — the server's
+  section record carries only `{id, name}`. Spool cards and unspooled thread
+  cards keep their own neutral panel color inside the tinted drawer.
+- **Rename section.** On the same header menu: **Rename section…** opens the
+  in-place editor on the title (Enter commits, Escape or empty input reverts)
+  and applies through the server section record.
+- **Unspooled thread cards.** Inside a section, threads that are not spooled
+  now render as cards matching their spool neighbors. Spool members stay flat
+  inside their spool card, separated by a subtle divider.
+
+### Changed
+
+- **Section grouping is the default** view and sits first (leftmost) in the
+  grouping control; an explicit stored choice still wins.
+
 ## 0.5.3 - 2026-10-10
 
 BB 0.46 retired the sidebar navigation slot that Spooler's navigation and rail

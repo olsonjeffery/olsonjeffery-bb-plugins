@@ -89,7 +89,8 @@ function mount(threads: PluginSidebarThread[], settings: Record<string, boolean>
       projects: [makeProject({ id: "proj_a" })], sections: [] },
   });
 }
-beforeAll(() => { Element.prototype.scrollIntoView = () => {}; });
+beforeAll(() => { Element.prototype.scrollIntoView = () => {};
+  localStorage.setItem("spooler-sidebar:grouping:v1", "time"); });
 
 /** The legacy `inspection.sidebarActionCalls` seam is gone at SDK 0.6.37:
  * archive now surfaces as `sdk.threads.archive` on `inspection.sdkCalls`. */
@@ -100,7 +101,10 @@ const archiveCalls = (slot: RenderedSlot) =>
       method: "archive",
       threadId: (call.args[0] as { threadId: string }).threadId,
     }));
-afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals();
+afterEach(() => { cleanup(); localStorage.clear();
+  // regressions were captured under the legacy grouping; section default is
+  // owned by SpoolerThreadList.test.tsx's grouping suite.
+  localStorage.setItem("spooler-sidebar:grouping:v1", "time"); vi.restoreAllMocks(); vi.unstubAllGlobals();
   probes.rowRenders = 0; probes.keyboardCoordinates = null; probes.onDragStart = null; probes.onDragEnd = null; probes.isOver = false; });
 
 describe("sidebar behavior regressions", () => {

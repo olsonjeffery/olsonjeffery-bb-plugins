@@ -3,6 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import Alert02Icon from "@hugeicons/core-free-icons/Alert02Icon";
 import AlertCircleIcon from "@hugeicons/core-free-icons/AlertCircleIcon";
 import Archive03Icon from "@hugeicons/core-free-icons/Archive03Icon";
+import BanIcon from "@hugeicons/core-free-icons/BanIcon";
 import ArrowDown01Icon from "@hugeicons/core-free-icons/ArrowDown01Icon";
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
@@ -151,6 +152,7 @@ const CORE_ICON_MAP = {
   AlertCircle: AlertCircleIcon,
   AlertTriangle: Alert02Icon,
   Archive: Archive03Icon,
+  Ban: BanIcon,
   Bot: BotIcon,
   Bug: Bug01Icon,
   Check: Tick02Icon,

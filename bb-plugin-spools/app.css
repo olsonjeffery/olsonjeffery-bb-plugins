@@ -4046,3 +4046,96 @@ a.spooler-row-main:hover {
 .spooler-group[data-settled] .spooler-row:focus-within .spooler-row-main {
   opacity: 1;
 }
+
+/* ===== Section buckets (Group By Section) ===== */
+
+/* A section's drawer and its sticky header carry the section color (chosen
+   from the header's context menu). The color vars come from sectionColors.ts;
+   they are absent for uncolored sections, which stay plain. */
+.spooler-group-colored {
+  border-radius: 10px;
+  background: var(--spooler-sec-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 35%, transparent);
+}
+
+.spooler-group-colored > .spooler-group-header {
+  /* Opaque tint: rows scrolling beneath the sticky header don't show through. */
+  background: var(--spooler-sec-bg);
+  color: var(--spooler-sec-fg);
+  border-radius: 9px 9px 0 0;
+}
+
+.spooler-group-colored .spooler-group-icon,
+.spooler-group-colored .spooler-group-count,
+.spooler-group-colored .spooler-group-unread,
+.spooler-group-colored .spooler-group-new-thread {
+  color: color-mix(in srgb, var(--spooler-sec-fg) 72%, transparent);
+}
+
+.spooler-group-colored > .spooler-group-header:hover {
+  background: color-mix(in srgb, rgb(0 0 0 / 7%), var(--spooler-sec-bg));
+  color: var(--spooler-sec-fg);
+}
+
+.spooler-group-colored > .spooler-group-header:hover .spooler-group-icon,
+.spooler-group-colored > .spooler-group-header:hover .spooler-group-toggle {
+  color: var(--spooler-sec-fg);
+}
+
+/* Inline rename input inside the header (context menu → Rename section). */
+.spooler-group-rename {
+  width: max(120px, 50%);
+  height: 20px;
+  font-size: 12px;
+}
+
+/* Unspooled threads in a bucket render as cards, matching their spool
+   neighbors. Spool members stay flat inside their spool card (:not excludes
+   them and their nested rows), and active rows keep their highlight. */
+.spooler-group-bucket .spooler-row:not(.spooler-spool-card *):not(.spooler-row-active) {
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 60%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+.spooler-group-bucket
+  .spooler-row:not(.spooler-spool-card *):not(.spooler-row-active):hover {
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 78%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 22%, transparent)
+  );
+}
+
+/* Spool members: same rhythm as unspooled rows, no individual box — a subtle
+   separator between members is all they get inside their card. */
+.spooler-spool-member + .spooler-spool-member {
+  border-top: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  padding-top: 3px;
+}
+
+/* Buckets sit closer together than unfolded groups elsewhere: the card
+   treatment already separates them visually, so the drawer reads as one
+   column of sections rather than spaced islands. */
+.spooler-list-sections .spooler-group {
+  margin-top: 1px;
+}
+
+.spooler-list-sections .spooler-group-expanded + .spooler-group {
+  margin-top: 4px;
+}
+
+/* Inside a bucket, a spool card gives back some of the slot margin the old
+   standalone entry needed — the drawer keeps its own breathing room. */
+.spooler-group-bucket .spooler-spool-card {
+  margin-bottom: 16px;
+}
+
+/* Color picker dots inside the context menu. */
+.spooler-menu-swatch {
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+}

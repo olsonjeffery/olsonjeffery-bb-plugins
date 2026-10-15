@@ -9,6 +9,8 @@ export type SpoolerMenuItem =
       id: string;
       label: string;
       icon?: string;
+      /** CSS color; renders a filled dot instead of an icon (color pickers). */
+      swatch?: string;
       checked?: boolean;
       danger?: boolean;
       disabled?: boolean;
@@ -146,7 +148,13 @@ export function SpoolerMenu({
             )}
             onClick={() => onSelect(item.id)}
           >
-            {item.icon === "🧵" ? (
+            {item.swatch ? (
+              <span
+                className="spooler-menu-icon spooler-menu-swatch"
+                style={{ background: item.swatch }}
+                aria-hidden="true"
+              />
+            ) : item.icon === "🧵" ? (
               <span
                 className="spooler-menu-icon spooler-spool-emoji"
                 aria-hidden="true"

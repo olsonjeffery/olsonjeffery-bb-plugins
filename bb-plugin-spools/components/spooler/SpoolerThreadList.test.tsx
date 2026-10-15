@@ -150,11 +150,16 @@ function shortcutTargetIds(container: HTMLElement): string[] {
 // jsdom has no layout, so keyboard navigation has nothing to scroll.
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
+  // Default the suite to the legacy grouping (see afterEach note).
+  localStorage.setItem("spooler-sidebar:grouping:v1", "time");
 });
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  // Most of this suite was written around the legacy time grouping; the new
+  // Section-first default is covered by the grouping-segmented tests below.
+  localStorage.setItem("spooler-sidebar:grouping:v1", "time");
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -1915,5 +1920,134 @@ describe("selection", () => {
       expect(visibleRowIds(slot.container)).toEqual(["unread"]),
     );
     expect(screen.queryByText("1 selected")).toBeNull();
+  });
+});
+
+describe("section-centered defaults and buckets", () => {
+  const sectionHeader = (name: string): HTMLElement | undefined =>
+    Array.from(document.querySelectorAll<HTMLElement>(".spooler-group-header")).find(
+      (node) => (node.textContent ?? "").includes(name),
+    );
+
+  it("defaults to section grouping when nothing is stored", () => {
+    localStorage.clear();
+    renderThreads([makeThread({ id: "t0" })]);
+    expect(
+      screen
+        .getByRole("button", { name: "Group by section (drag threads between them)" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.queryByRole("button", { name: "New section" })).not.toBeNull();
+  });
+
+  it("lists the section toggle first in the grouping control", () => {
+    renderThreads([]);
+    const group = screen.getByRole("group", { name: "Grouping" });
+    const labels = Array.from(group.querySelectorAll("button")).map(
+      (button) => button.getAttribute("aria-label") ?? "",
+    );
+    expect(labels[0]).toBe("Group by section (drag threads between them)");
+    expect(labels[1]).toBe("Group by time");
+    expect(labels[2]).toBe("Group by project");
+  });
+
+  it("offers rename and recolor on a filed section header only", () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [section],
+    });
+
+    const filed = sectionHeader("Research");
+    expect(filed).toBeTruthy();
+    fireEvent.contextMenu(filed!);
+    expect(screen.getByRole("menuitem", { name: "Rename section…" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Change color…" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Expand all folders" })).toBeTruthy();
+
+    // The Unfiled pseudo-section has no server record to rename or paint.
+    fireEvent.contextMenu(document.querySelector(".spooler-menu")!);
+    fireEvent.pointerDown(document.body);
+    const unfiled = sectionHeader("Unfiled");
+    expect(unfiled).toBeTruthy();
+    fireEvent.contextMenu(unfiled!);
+    expect(screen.queryByRole("menuitem", { name: "Rename section…" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Change color…" })).toBeNull();
+  });
+
+  it("keeps time buckets free of section actions", () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "time");
+    renderThreads([makeThread({ id: "t2", title: "Another" })]);
+    const header = Array.from(
+      document.querySelectorAll(".spooler-group-header"),
+    ).find((node) => /today|yesterday|previous|older/i.test(node.textContent ?? ""));
+    expect(header).toBeTruthy();
+    expect(header).toBeTruthy();
+    fireEvent.contextMenu(header!);
+    expect(screen.queryByRole("menuitem", { name: "Rename section…" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Change color…" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Expand all folders" })).toBeTruthy();
+  });
+
+  it("renames a section through the SDK from the header menu", async () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const rename = vi.fn(async () => ({ ok: true }));
+    const slot = renderThreads(
+      [makeThread({ id: "t3", title: "Doc", sectionId: "sec1" })],
+      {
+        sections: [section],
+        sdk: { ...sdkFakes(), threadSections: { update: rename } },
+      },
+    );
+
+    fireEvent.contextMenu(sectionHeader("Research")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename section…" }));
+    const input = screen.getByRole("textbox", {
+      name: "Rename Research",
+    }) as HTMLInputElement;
+    expect(input.value).toBe("Research");
+    fireEvent.change(input, { target: { value: "  Lab notes  " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(slot.inspection.sdkCalls).toContainEqual({
+        method: "threadSections.update",
+        args: [{ id: "sec1", name: "Lab notes" }],
+      }),
+    );
+    // The editor is gone after committing.
+    expect(screen.queryByRole("textbox", { name: "Rename Research" })).toBeNull();
+  });
+
+  it("paints a section from the color submenu and persists the choice", () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    renderThreads([makeThread({ id: "t4", title: "Doc", sectionId: "sec1" })], {
+      sections: [section],
+    });
+
+    fireEvent.contextMenu(sectionHeader("Research")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change color…" }));
+    expect(screen.getByText("Color: Research")).toBeTruthy();
+    // jsdom's resolved token is transparent/white: the light variant paints.
+    fireEvent.click(screen.getByRole("menuitem", { name: "Red" }));
+    const bucket = document.querySelector(".spooler-group-colored");
+    expect(bucket).toBeTruthy();
+    const style = bucket!.getAttribute("style") ?? "";
+    expect(style).toContain("--spooler-sec-bg");
+    expect(style).toContain("#f4d9d6");
+    expect(style).toContain("--spooler-sec-fg");
+    expect(
+      JSON.parse(localStorage.getItem("spooler-sidebar:section-colors:v1") ?? "{}"),
+    ).toEqual({ sec1: "red" });
+
+    // No color: from the same submenu clears both the tint and the storage.
+    fireEvent.contextMenu(sectionHeader("Research")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change color…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "No color" }));
+    expect(document.querySelector(".spooler-group-colored")).toBeNull();
+    expect(
+      JSON.parse(localStorage.getItem("spooler-sidebar:section-colors:v1") ?? "{}"),
+    ).toEqual({});
   });
 });

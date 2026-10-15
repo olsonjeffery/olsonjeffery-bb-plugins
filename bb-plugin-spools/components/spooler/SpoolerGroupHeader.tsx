@@ -1,4 +1,11 @@
-import type { MouseEvent, ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { CSS } from "@dnd-kit/utilities";
 import { useSortable } from "@dnd-kit/sortable";
 import { Icon } from "@/components/ui/icon";
@@ -79,6 +86,10 @@ interface HeaderProps {
   onToggle: () => void;
   onContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
   onNewThread?: () => void;
+  /** Inline section rename, driven from the header's context menu. */
+  renaming?: boolean;
+  onRenameCommit?: (title: string) => void;
+  onRenameCancel?: () => void;
   /** Drag-to-reorder affordance; only project grouping supplies these. */
   drag?: {
     attributes: ReturnType<typeof useSortable>["attributes"];
@@ -93,12 +104,51 @@ export function GroupHeader({
   onToggle,
   onContextMenu,
   onNewThread,
+  renaming = false,
+  onRenameCommit,
+  onRenameCancel,
   drag,
 }: HeaderProps) {
   const counts =
     group.unread > 0
       ? `${group.unread} unread of ${group.total}`
       : plural(group.total, "thread");
+
+  // Inline rename. Seeds once per rename start, like the spool card: Enter,
+  // blur, or outside click commits; Escape reverts. Empty input cancels.
+  const [renameValue, setRenameValue] = useState("");
+  const [cancelled, setCancelled] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!renaming) return;
+    setCancelled(false);
+    setRenameValue(group.label);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, [renaming, group.id, group.label]);
+  const commitRename = () => {
+    if (!renaming) return;
+    const trimmed = renameValue.trim();
+    if (trimmed === group.label || trimmed === "") {
+      setCancelled(true);
+      onRenameCancel?.();
+      return;
+    }
+    onRenameCommit?.(trimmed);
+  };
+  const onRenameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitRename();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setCancelled(true);
+      onRenameCancel?.();
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -132,7 +182,24 @@ export function GroupHeader({
           aria-hidden="true"
           className="spooler-group-icon"
         />
-        <span className="spooler-group-label">{group.label}</span>
+        {renaming ? (
+          <input
+            ref={inputRef}
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onKeyDown={onRenameKeyDown}
+            onBlur={() => {
+              // Escape already cancelled; don't double-fire through blur.
+              if (!cancelled) commitRename();
+            }}
+            aria-label={`Rename ${group.label}`}
+            placeholder={group.label}
+            maxLength={200}
+            className="spooler-rename spooler-group-rename"
+          />
+        ) : (
+          <span className="spooler-group-label">{group.label}</span>
+        )}
         <span className="spooler-group-meta">
           <GroupStatus group={group} />
           {group.unread > 0 ? (
