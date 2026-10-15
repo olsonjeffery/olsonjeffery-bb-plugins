@@ -73,7 +73,12 @@ describe("app.css", () => {
     expect(title?.body).toMatch(/-webkit-line-clamp:\s*2/);
     expect(title?.body).toMatch(/overflow-wrap:\s*anywhere/);
     expect(rules().filter((rule) => /spooler-title-wrap/.test(rule.selector) && /-webkit-line-clamp/.test(rule.body))
-      .map((rule) => rule.selector)).toEqual([".spooler-title-wrap .spooler-thread-title"]);
+      .map((rule) => rule.selector)).toEqual([
+      // Ordinary thread titles and the spool header title both honor the
+      // two-line setting; no third rule may sneak a clamp in.
+      ".spooler-title-wrap .spooler-thread-title",
+      ".spooler-title-wrap .spooler-spool-title",
+    ]);
   });
 
   it("sizes wrapping titles from content and declares wrapping metadata once", () => {

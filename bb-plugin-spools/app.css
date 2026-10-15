@@ -3315,6 +3315,33 @@ a.spooler-row-main:hover {
   font-weight: 600;
 }
 
+/* Two-line titles setting: the spool header honors it — the title clamps to
+   two lines like ordinary thread titles, and the collapsed badges drop to
+   their own full-width line (indented to the title column) instead of
+   squeezing the title. */
+.spooler-title-wrap .spooler-spool-header {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  align-items: flex-start;
+}
+
+.spooler-title-wrap .spooler-spool-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.spooler-title-wrap .spooler-spool-badges {
+  order: 3;
+  flex: 0 0 100%;
+  max-width: 100%;
+  /* Grip (16) + gap (4) + shape icon (24) + gap (4): the title column. */
+  margin-inline-start: 48px;
+}
+
 .spooler-spool-rename {
   flex: 1;
   min-width: 0;
