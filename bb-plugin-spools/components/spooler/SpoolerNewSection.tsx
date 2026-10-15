@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 
-export function SpoolerNewSection({ onCreated }: { onCreated?: () => void } = {}) {
+export function SpoolerNewSection({
+  compact,
+  onCreated,
+}: { compact?: boolean; onCreated?: () => void } = {}) {
   const sdk = useSdk();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -48,18 +51,80 @@ export function SpoolerNewSection({ onCreated }: { onCreated?: () => void } = {}
     }
   };
 
-  return (
-    <div
-      className="spooler-section-create"
-      onKeyDown={(event) => {
-        // Section controls must not archive/pin the last keyboard-focused row.
-        event.stopPropagation();
-        if (event.key === "Escape" && open) {
-          event.preventDefault();
-          if (!submitting.current) close();
-        }
-      }}
+  const keyGuard = (event: React.KeyboardEvent) => {
+    // Section controls must not archive/pin the last keyboard-focused row.
+    event.stopPropagation();
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      if (!submitting.current) close();
+    }
+  };
+
+  const formNode = open ? (
+    <form
+      id={id}
+      aria-label="New section"
+      aria-busy={pending}
+      className="spooler-section-create-form"
+      onSubmit={create}
+      onKeyDown={keyGuard}
     >
+      <Input
+        ref={inputRef}
+        className="spooler-section-create-input"
+        data-testid="spooler-settings-new-input"
+        aria-label="Section name"
+        aria-describedby={error ? `${id}-error` : undefined}
+        aria-invalid={error ? true : undefined}
+        placeholder="Section name…"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        disabled={pending}
+        required
+      />
+      <Button type="submit" size="sm" disabled={pending || !name.trim()} data-testid="spooler-settings-new-create">
+        {pending ? "Creating…" : "Create section"}
+      </Button>
+      <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={close}>
+        Cancel
+      </Button>
+      {error ? (
+        <p id={`${id}-error`} role="alert" className="spooler-section-create-error">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  ) : null;
+
+  // Bar variant lives inline in the sidebar chip row: the trigger is an
+  // icon-only chip and the form wraps onto a second line only while open.
+  if (compact) {
+    return (
+      <div className="spooler-section-create spooler-section-create-attached">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="spooler-section-add"
+          aria-expanded={open}
+          aria-controls={open ? id : undefined}
+          aria-label="New section"
+          title="New section"
+          data-testid="spooler-settings-new-trigger"
+          onKeyDown={keyGuard}
+          onClick={() => {
+            setOpen(true);
+            inputRef.current?.focus();
+          }}
+        >
+          <Icon name="Plus" aria-hidden="true" />
+        </button>
+        {formNode}
+      </div>
+    );
+  }
+
+  return (
+    <div className="spooler-section-create" onKeyDown={keyGuard}>
       <Button
         ref={triggerRef}
         type="button"
@@ -76,40 +141,7 @@ export function SpoolerNewSection({ onCreated }: { onCreated?: () => void } = {}
         <Icon name="Plus" aria-hidden="true" />
         New section
       </Button>
-      {open ? (
-        <form
-          id={id}
-          aria-label="New section"
-          aria-busy={pending}
-          className="spooler-section-create-form"
-          onSubmit={create}
-        >
-          <Input
-            ref={inputRef}
-            className="spooler-section-create-input"
-            data-testid="spooler-settings-new-input"
-            aria-label="Section name"
-            aria-describedby={error ? `${id}-error` : undefined}
-            aria-invalid={error ? true : undefined}
-            placeholder="Section name…"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            disabled={pending}
-            required
-          />
-          <Button type="submit" size="sm" disabled={pending || !name.trim()} data-testid="spooler-settings-new-create">
-            {pending ? "Creating…" : "Create section"}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={close}>
-            Cancel
-          </Button>
-          {error ? (
-            <p id={`${id}-error`} role="alert" className="spooler-section-create-error">
-              {error}
-            </p>
-          ) : null}
-        </form>
-      ) : null}
+      {formNode}
     </div>
   );
 }

@@ -2200,146 +2200,148 @@ export function SpoolerThreadList({
           </div>
         </div>
 
-        <div
-          role="radiogroup"
-          aria-label="Status filter"
-          className="spooler-status-chips"
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={statusFilter === "all"}
-            className={cn(
-              "spooler-chip",
-              statusFilter === "all" && "spooler-chip-active",
-            )}
-            onClick={() => {
-              setStatusFilter("all");
-              writeStored(STATUS_FILTER_KEY, "all");
-            }}
+        <div className="spooler-chip-row">
+          <div
+            role="radiogroup"
+            aria-label="Status filter"
+            className="spooler-status-chips"
           >
-            All
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={statusFilter === "live"}
-            className={cn(
-              "spooler-chip",
-              "spooler-chip-iconic",
-              statusFilter === "live" && "spooler-chip-active",
-            )}
-            aria-label="Live"
-            onClick={() => {
-              const next = statusFilter === "live" ? "all" : "live";
-              setStatusFilter(next);
-              writeStored(STATUS_FILTER_KEY, next);
-            }}
-            title="Filter live / active threads"
-          >
-            <span
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "all"}
               className={cn(
-                "spooler-chip-indicator spooler-tone-running",
-                statusCounts.live > 0 && "spooler-icon-pulse",
+                "spooler-chip",
+                statusFilter === "all" && "spooler-chip-active",
               )}
+              onClick={() => {
+                setStatusFilter("all");
+                writeStored(STATUS_FILTER_KEY, "all");
+              }}
             >
-              <Icon name="Zap" aria-hidden="true" />
-            </span>
-            <span className="spooler-chip-label">Live</span>
-            {statusCounts.live > 0 ? (
-              <span className="spooler-chip-count">{statusCounts.live}</span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={statusFilter === "waiting"}
-            className={cn(
-              "spooler-chip",
-              "spooler-chip-iconic",
-              statusFilter === "waiting" && "spooler-chip-active",
-            )}
-            aria-label="Waiting"
-            onClick={() => {
-              const next = statusFilter === "waiting" ? "all" : "waiting";
-              setStatusFilter(next);
-              writeStored(STATUS_FILTER_KEY, next);
-            }}
-            title="Filter threads waiting for input or confirmation"
-          >
-            <span
+              All
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "live"}
               className={cn(
-                "spooler-dot spooler-dot-attention",
-                statusCounts.waiting > 0 && "spooler-dot-pulse",
+                "spooler-chip",
+                "spooler-chip-iconic",
+                statusFilter === "live" && "spooler-chip-active",
               )}
-            />
-            <span className="spooler-chip-label">Waiting</span>
-            {statusCounts.waiting > 0 ? (
-              <span className="spooler-chip-count">{statusCounts.waiting}</span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={statusFilter === "unread"}
-            className={cn(
-              "spooler-chip",
-              "spooler-chip-iconic",
-              statusFilter === "unread" && "spooler-chip-active",
-            )}
-            aria-label="Unread"
-            onClick={() => {
-              const next = statusFilter === "unread" ? "all" : "unread";
-              setStatusFilter(next);
-              writeStored(STATUS_FILTER_KEY, next);
-            }}
-            title="Filter unread threads"
-          >
-            <span className="spooler-unread" />
-            <span className="spooler-chip-label">Unread</span>
-            {statusCounts.unread > 0 ? (
-              <span className="spooler-chip-count">{statusCounts.unread}</span>
-            ) : null}
-          </button>
-        </div>
+              aria-label="Live"
+              onClick={() => {
+                const next = statusFilter === "live" ? "all" : "live";
+                setStatusFilter(next);
+                writeStored(STATUS_FILTER_KEY, next);
+              }}
+              title="Filter live / active threads"
+            >
+              <span
+                className={cn(
+                  "spooler-chip-indicator spooler-tone-running",
+                  statusCounts.live > 0 && "spooler-icon-pulse",
+                )}
+              >
+                <Icon name="Zap" aria-hidden="true" />
+              </span>
+              <span className="spooler-chip-label">Live</span>
+              {statusCounts.live > 0 ? (
+                <span className="spooler-chip-count">{statusCounts.live}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "waiting"}
+              className={cn(
+                "spooler-chip",
+                "spooler-chip-iconic",
+                statusFilter === "waiting" && "spooler-chip-active",
+              )}
+              aria-label="Waiting"
+              onClick={() => {
+                const next = statusFilter === "waiting" ? "all" : "waiting";
+                setStatusFilter(next);
+                writeStored(STATUS_FILTER_KEY, next);
+              }}
+              title="Filter threads waiting for input or confirmation"
+            >
+              <span
+                className={cn(
+                  "spooler-dot spooler-dot-attention",
+                  statusCounts.waiting > 0 && "spooler-dot-pulse",
+                )}
+              />
+              <span className="spooler-chip-label">Waiting</span>
+              {statusCounts.waiting > 0 ? (
+                <span className="spooler-chip-count">{statusCounts.waiting}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "unread"}
+              className={cn(
+                "spooler-chip",
+                "spooler-chip-iconic",
+                statusFilter === "unread" && "spooler-chip-active",
+              )}
+              aria-label="Unread"
+              onClick={() => {
+                const next = statusFilter === "unread" ? "all" : "unread";
+                setStatusFilter(next);
+                writeStored(STATUS_FILTER_KEY, next);
+              }}
+              title="Filter unread threads"
+            >
+              <span className="spooler-unread" />
+              <span className="spooler-chip-label">Unread</span>
+              {statusCounts.unread > 0 ? (
+                <span className="spooler-chip-count">{statusCounts.unread}</span>
+              ) : null}
+            </button>
+          </div>
 
-        <SpoolerSmartViews
-          activeViewId={activeViewId}
-          currentQuery={query}
-          currentStatusFilter={statusFilter}
-          currentLifecycle={lifecycle}
-          counts={{
-            pinned: allRows.filter((thread) => thread.isPinned).length,
-            live: statusCounts.live,
-            waiting: statusCounts.waiting,
-            unread: statusCounts.unread,
-          }}
-          onSelectView={(view) => {
-            setActiveViewId(view.id);
-            startSwitch(() => {
-              setQuery(view.query);
-              setStatusFilter(view.statusFilter);
-              setLifecycle(view.lifecycle);
-            });
-            // "pinned" only exists as a view; a reload starts unfiltered.
-            writeStored(
-              STATUS_FILTER_KEY,
-              view.statusFilter === "pinned" ? "all" : view.statusFilter,
-            );
-            writeStored(LIFECYCLE_KEY, view.lifecycle);
-          }}
-          onClearView={() => {
-            setActiveViewId(null);
-            startSwitch(() => {
-              setQuery("");
-              setStatusFilter("all");
-              setLifecycle("active");
-            });
-            writeStored(STATUS_FILTER_KEY, "all");
-            writeStored(LIFECYCLE_KEY, "active");
-          }}
-        />
-        {grouping === "section" ? <SpoolerNewSection /> : null}
+          <SpoolerSmartViews
+            activeViewId={activeViewId}
+            currentQuery={query}
+            currentStatusFilter={statusFilter}
+            currentLifecycle={lifecycle}
+            counts={{
+              pinned: allRows.filter((thread) => thread.isPinned).length,
+              live: statusCounts.live,
+              waiting: statusCounts.waiting,
+              unread: statusCounts.unread,
+            }}
+            onSelectView={(view) => {
+              setActiveViewId(view.id);
+              startSwitch(() => {
+                setQuery(view.query);
+                setStatusFilter(view.statusFilter);
+                setLifecycle(view.lifecycle);
+              });
+              // "pinned" only exists as a view; a reload starts unfiltered.
+              writeStored(
+                STATUS_FILTER_KEY,
+                view.statusFilter === "pinned" ? "all" : view.statusFilter,
+              );
+              writeStored(LIFECYCLE_KEY, view.lifecycle);
+            }}
+            onClearView={() => {
+              setActiveViewId(null);
+              startSwitch(() => {
+                setQuery("");
+                setStatusFilter("all");
+                setLifecycle("active");
+              });
+              writeStored(STATUS_FILTER_KEY, "all");
+              writeStored(LIFECYCLE_KEY, "active");
+            }}
+          />
+          {grouping === "section" ? <SpoolerNewSection compact /> : null}
+        </div>
       </div>
 
       <div
