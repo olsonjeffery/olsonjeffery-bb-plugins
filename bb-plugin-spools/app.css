@@ -3964,3 +3964,24 @@ a.spooler-row-main:hover {
   flex-direction: column;
   gap: 2px;
 }
+
+/* ===== Settled threads shelf ===== */
+
+/* The shelf exists to undo a settle, so its rows surface the action cluster
+   without waiting for hover — restore is one click at rest. Cluster sits in
+   the same spot the hover reveal uses; pointer-events follow suit. */
+.spooler-group[data-settled] .spooler-row-actions {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* Settled work recedes: dimmed titles, quiet glyphs. */
+.spooler-group[data-settled] .spooler-row .spooler-row-main {
+  opacity: 0.72;
+}
+
+.spooler-group[data-settled] .spooler-row:hover .spooler-row-main,
+.spooler-group[data-settled] .spooler-row:focus-within .spooler-row-main {
+  opacity: 1;
+}

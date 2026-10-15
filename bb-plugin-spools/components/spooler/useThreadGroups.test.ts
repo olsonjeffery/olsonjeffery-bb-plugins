@@ -174,3 +174,99 @@ describe("spool groups (section view only)", () => {
     expect(hook.result.current.groups.some((g) => g.id.startsWith("spool:"))).toBe(false);
   });
 });
+
+describe("Settled threads shelf", () => {
+  const argsFor2 = (threads: Args["threads"], extra: Partial<Args> = {}): Args => ({
+    ...argsFor(threads),
+    ...extra,
+  });
+
+  it("sends recently archived threads to a Settled bucket that rides LAST", () => {
+    const fresh = makeThread({
+      id: "fresh",
+      isArchived: true,
+      archivedAt: NOW - HOUR,
+    });
+    const older = makeThread({
+      id: "older",
+      isArchived: true,
+      archivedAt: NOW - 3 * HOUR,
+    });
+    const live = makeThread({ id: "live", latestAttentionAt: NOW - HOUR });
+    const hook = renderHook(() => useThreadGroups(argsFor2([fresh, older, live])));
+    const groups = hook.result.current.groups;
+    expect(groups.map((g) => g.id)).toEqual(["time:today", "settled"]);
+    const settled = groups[1];
+    expect(settled.label).toBe("Settled threads");
+    expect(settled.roots.map((r) => r.id)).toEqual(["fresh", "older"]);
+    // Newest settle first on the shelf.
+    expect(settled.roots[0]?.archivedAt).toBeGreaterThan(
+      settled.roots[1]?.archivedAt ?? 0,
+    );
+    expect(hook.result.current.groups[0].roots.map((r) => r.id)).toEqual(["live"]);
+  });
+
+  it("is present in project and section groupings, always at the bottom", () => {
+    const fresh = makeThread({
+      id: "fresh",
+      isArchived: true,
+      archivedAt: NOW - HOUR,
+    });
+    const live = makeThread({ id: "live", sectionId: "sec_1" });
+    const section = { id: "sec_1", name: "Work" } as never;
+    const hook = renderHook(() =>
+      useThreadGroups(
+        argsFor2([fresh, live], {
+          grouping: "section",
+          sections: [section],
+        }),
+      ),
+    );
+    expect(hook.result.current.groups.map((g) => g.id)).toEqual([
+      "section:sec_1",
+      "section:__unfiled__",
+      "settled",
+    ]);
+
+    const byProject = renderHook(() =>
+      useThreadGroups(argsFor2([fresh, live], { grouping: "project" })),
+    );
+    expect(byProject.result.current.groups.map((g) => g.id)).toEqual([
+      "project:proj_a",
+      "settled",
+    ]);
+  });
+
+  it("keeps a settled family together and skips rows the filter hides", () => {
+    const parent = makeThread({
+      id: "p",
+      isArchived: true,
+      archivedAt: NOW - HOUR,
+    });
+    const child = makeThread({
+      id: "c",
+      parentThreadId: "p",
+      isArchived: true,
+      archivedAt: NOW - 2 * HOUR,
+    });
+    const hook = renderHook(() => useThreadGroups(argsFor2([parent, child])));
+    const settled = hook.result.current.groups.find((g) => g.id === "settled");
+    // The child nests under its settled parent instead of spawning a second entry.
+    expect(settled?.roots.map((r) => r.id)).toEqual(["p"]);
+    expect(settled?.total).toBe(2);
+  });
+
+  it("ages threads off the shelf once the 24h window passes", () => {
+    const aged = makeThread({
+      id: "aged",
+      isArchived: true,
+      archivedAt: NOW - 25 * HOUR,
+    });
+    const hook = renderHook(() => useThreadGroups(argsFor2([aged])));
+    // The shelf cut is on archivedAt only; the row's activity time still
+    // drives which ordinary bucket it rides in.
+    expect(hook.result.current.groups.map((g) => g.id)).toEqual([
+      "time:yesterday",
+    ]);
+  });
+});

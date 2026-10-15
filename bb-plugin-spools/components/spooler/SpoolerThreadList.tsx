@@ -63,6 +63,7 @@ import { UnspoolConfirmDialog } from "./UnspoolConfirmDialog";
 import { useArrivals } from "./useArrivals";
 import {
   useThreadGroups,
+  SETTLED_GROUP_ID,
   type ThreadGroup,
 } from "./useThreadGroups";
 import { SpoolerSmartViews } from "./SpoolerSmartViews";
@@ -1714,11 +1715,18 @@ export function SpoolerThreadList({
   const renderGroup = useCallback(
     (group: ThreadGroup, isSortable = false, draggable = false) => {
       const isCollapsed = collapsedGroupIds.has(group.id);
+      // The Settled shelf is a read-mostly bucket: no section drop target
+      // (dropping would write a bogus sectionId), no sortable handle in the
+      // project reorder flow, no section context menu.
+      const isSettled = group.id === SETTLED_GROUP_ID;
 
-      const groupContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        setGroupMenu({ x: event.clientX, y: event.clientY });
-      };
+      const groupContextMenu = isSettled
+        ? undefined
+        : (event: React.MouseEvent<HTMLDivElement>) => {
+            event.preventDefault();
+            setGroupMenu({ x: event.clientX, y: event.clientY });
+          };
+      const groupContextMenuStrict = groupContextMenu ?? (() => undefined);
 
       /** Spool cards anchored in this bucket: they render INSIDE the section,
        *  above its rows (moved from standalone entries above the bucket). */
@@ -1773,7 +1781,7 @@ export function SpoolerThreadList({
                     group.projectId,
                     collapseIds,
                     index === group.roots.length - 1,
-                    draggable,
+                    draggable && !isSettled,
                     isCollapsed,
                     rowDrop,
                   ),
@@ -1784,7 +1792,7 @@ export function SpoolerThreadList({
         </Fold>
       );
 
-      if (isSortable) {
+      if (isSortable && !isSettled) {
         return (
           <SortableGroupSection
             key={group.id}
@@ -1796,7 +1804,7 @@ export function SpoolerThreadList({
                 ? () => handleNewThreadInProject(group.projectId!)
                 : undefined
             }
-            onContextMenu={groupContextMenu}
+            onContextMenu={groupContextMenuStrict}
           >
             {foldContent}
           </SortableGroupSection>
@@ -1810,14 +1818,16 @@ export function SpoolerThreadList({
           className={cn(
             "spooler-group",
             group.projectId && "spooler-group-project",
+            isSettled && "spooler-group-settled",
             isCollapsed ? "spooler-group-collapsed" : "spooler-group-expanded",
           )}
+          data-settled={isSettled || undefined}
         >
           <GroupHeader
             group={group}
             isCollapsed={isCollapsed}
             onToggle={() => toggleGroup(group.id)}
-            onContextMenu={groupContextMenu}
+            onContextMenu={groupContextMenuStrict}
             onNewThread={
               group.projectId
                 ? () => handleNewThreadInProject(group.projectId!)
@@ -1828,7 +1838,7 @@ export function SpoolerThreadList({
         </section>
       );
 
-      return draggable ? (
+      return draggable && !isSettled ? (
         <DroppableSectionSection
           key={group.id}
           group={group}
@@ -2469,7 +2479,9 @@ export function SpoolerThreadList({
                 onDragCancel={handleGroupDragCancel}
               >
                 <SortableContext
-                  items={groups.map((group) => group.id)}
+                  items={groups
+                    .filter((group) => group.id !== SETTLED_GROUP_ID)
+                    .map((group) => group.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   {groups.map((group) => renderGroup(group, true))}

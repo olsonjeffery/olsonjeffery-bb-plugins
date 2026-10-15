@@ -85,6 +85,31 @@ function comparePinned(a: PluginSidebarThread, b: PluginSidebarThread): number {
 
 export const UNFILED_GROUP_ID = "section:__unfiled__";
 
+/** How long a recently archived thread stays on the Settled shelf. A shelf
+ *  that keeps everything ever archived would be the archived view with extra
+ *  steps; a day covers "I filed that this morning" and stays readable.
+ *  (Same bound as Dockside's settled shelf.) Nothing ages out destructively:
+ *  a thread past the window simply leaves the shelf and joins the rest of the
+ *  archived lifecycle wherever that view shows it. */
+export const SETTLED_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** The Settled threads bucket's group id (renders last in every grouping). */
+export const SETTLED_GROUP_ID = "settled";
+
+/** Whether a thread belongs on the Settled shelf at `now`. A settle stamped
+ *  in the future — a clock that moved — is kept rather than hidden: losing a
+ *  row the user just archived would be the worse failure. */
+export function isSettledRow(
+  thread: PluginSidebarThread,
+  now: number,
+): boolean {
+  return (
+    thread.isArchived &&
+    thread.archivedAt !== null &&
+    thread.archivedAt > now - SETTLED_WINDOW_MS
+  );
+}
+
 const EMPTY_SPOOL_MAP: ReadonlyMap<string, string> = new Map();
 
 /**
@@ -478,14 +503,82 @@ export function useThreadGroups(args: {
     return { extraRoots, byAnchor, children };
   }, [grouping, spools, spoolIdByThreadId, shownChildren, assembleSpoolGroup]);
 
+  /** The Settled shelf: recently archived threads as their own bucket, drawn
+   *  last in every grouping (by-time, by-project, by-section). Only settled
+   *  rows that survive the current query/status filter land here.
+   *
+   *  Roots are settled rows with no settled ancestor; their visible families
+   *  render nested inside the shelf, so active children of a settled parent
+   *  move with it instead of hanging under a row that left its bucket.
+   *  `familyIds` is the whole shelf population — what the ordinary flow must
+   *  give up so nothing renders twice. */
+  const settledShelf = useMemo(() => {
+    const settledIds = new Set<string>();
+    for (const thread of allRows) {
+      if (isSettledRow(thread, now) && shownIds.has(thread.id)) {
+        settledIds.add(thread.id);
+      }
+    }
+    if (settledIds.size === 0) return null;
+    const shelfRoots: PluginSidebarThread[] = [];
+    for (const id of settledIds) {
+      let cursor = parentOf.get(id);
+      let hasSettledAncestor = false;
+      while (cursor !== undefined) {
+        if (settledIds.has(cursor)) {
+          hasSettledAncestor = true;
+          break;
+        }
+        cursor = parentOf.get(cursor);
+      }
+      if (!hasSettledAncestor) {
+        const thread = rowById.get(id);
+        if (thread) shelfRoots.push(thread);
+      }
+    }
+    if (shelfRoots.length === 0) return null;
+    shelfRoots.sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
+    const familyIds = new Set<string>();
+    const walk = (parentId: string) => {
+      for (const kid of childrenOf.get(parentId) ?? []) {
+        if (!shownIds.has(kid.id)) continue;
+        familyIds.add(kid.id);
+        walk(kid.id);
+      }
+    };
+    for (const root of shelfRoots) {
+      familyIds.add(root.id);
+      walk(root.id);
+    }
+    const group = assembleGroup(
+      SETTLED_GROUP_ID,
+      "Settled threads",
+      "ArchiveRestore",
+      shelfRoots,
+    );
+    return { group, familyIds };
+  }, [allRows, parentOf, rowById, shownIds, childrenOf, now, assembleGroup]);
+
+  /** Ordinary flow minus everything the Settled shelf claims. */
+  const ordinaryRoots = useMemo(
+    () =>
+      settledShelf
+        ? roots.filter((root) => !settledShelf.familyIds.has(root.id))
+        : roots,
+    [roots, settledShelf],
+  );
+
   const pinnedGroup = useMemo<ThreadGroup | null>(() => {
-    const pinnedRoots = roots.filter((root) => root.isPinned).sort(comparePinned);
+    const pinnedRoots = ordinaryRoots
+      .filter((root) => root.isPinned)
+      .sort(comparePinned);
     if (pinnedRoots.length === 0) return null;
     return assembleGroup("pinned", "Pinned", "Pin", pinnedRoots);
-  }, [roots, assembleGroup]);
+  }, [ordinaryRoots, assembleGroup]);
 
   const groups = useMemo<ThreadGroup[]>(() => {
-    const rest = roots
+    const shelfGroup = settledShelf?.group ?? null;
+    const rest = ordinaryRoots
       .filter((root) => !root.isPinned)
       .sort((a, b) => subtreeActivity(b) - subtreeActivity(a));
     if (grouping === "project") {
@@ -496,7 +589,7 @@ export function useThreadGroups(args: {
         else byProject.set(root.projectId, [root]);
       }
       const rank = new Map(projectOrder.map((id, index) => [id, index]));
-      return [...byProject.entries()]
+      const projectGroups = [...byProject.entries()]
         .map(([projectId, list]) => ({
           group: assembleGroup(
             `project:${projectId}`,
@@ -517,6 +610,8 @@ export function useThreadGroups(args: {
           );
         })
         .map((entry) => entry.group);
+      if (shelfGroup) projectGroups.push(shelfGroup);
+      return projectGroups;
     }
     if (grouping === "section") {
       // Spool members never render as ordinary roots: they appear as flat
@@ -598,6 +693,8 @@ export function useThreadGroups(args: {
         ),
         UNFILED_GROUP_ID,
       );
+      // The Settled shelf rides last, past every section.
+      if (shelfGroup) ordered.push(shelfGroup);
       return ordered;
     }
     const buckets = new Map<string, PluginSidebarThread[]>();
@@ -607,17 +704,21 @@ export function useThreadGroups(args: {
       if (list) list.push(root);
       else buckets.set(key, [root]);
     }
-    return TIME_GROUP_ORDER.filter((key) => (buckets.get(key)?.length ?? 0) > 0).map(
-      (key) =>
-        assembleGroup(
-          `time:${key}`,
-          TIME_GROUP_LABELS[key],
-          "Clock",
-          buckets.get(key) ?? [],
-        ),
+    const timeGroups = TIME_GROUP_ORDER.filter(
+      (key) => (buckets.get(key)?.length ?? 0) > 0,
+    ).map((key) =>
+      assembleGroup(
+        `time:${key}`,
+        TIME_GROUP_LABELS[key],
+        "Clock",
+        buckets.get(key) ?? [],
+      ),
     );
+    // The Settled shelf rides last, past every time bucket.
+    return shelfGroup ? [...timeGroups, shelfGroup] : timeGroups;
   }, [
-    roots,
+    ordinaryRoots,
+    settledShelf,
     grouping,
     projectById,
     projectOrder,
