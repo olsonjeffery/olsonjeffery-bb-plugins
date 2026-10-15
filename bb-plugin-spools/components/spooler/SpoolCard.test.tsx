@@ -209,6 +209,32 @@ describe("SpoolCard", () => {
     expect(grip.hasAttribute("aria-describedby")).toBe(true);
   });
 
+  it("carries the active-row tint only while collapsed with the viewed thread inside", () => {
+    const view = renderEl(
+      makeProps({ collapsed: true, hasActiveThread: true }),
+    );
+    const card = () => document.querySelector('[data-spool-id="spool1"]')!;
+    expect(card().className).toContain("spooler-spool-card-active");
+    // Expanded: the members' own active rows carry the tint instead.
+    view.rerender(
+      h(
+        DndContext,
+        null,
+        h(SpoolCard, makeProps({ collapsed: false, hasActiveThread: true })),
+      ),
+    );
+    expect(card().className).not.toContain("spooler-spool-card-active");
+    // Collapsed, but the viewed thread is elsewhere: a plain card.
+    view.rerender(
+      h(
+        DndContext,
+        null,
+        h(SpoolCard, makeProps({ collapsed: true, hasActiveThread: false })),
+      ),
+    );
+    expect(card().className).not.toContain("spooler-spool-card-active");
+  });
+
   describe("peek panel", () => {
     it("appears on HEADER hover, lists member rows, then lingers ~500ms after leave", () => {
       vi.useFakeTimers();

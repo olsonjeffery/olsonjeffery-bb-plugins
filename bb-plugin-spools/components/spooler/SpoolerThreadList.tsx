@@ -1855,6 +1855,10 @@ export function SpoolerThreadList({
             )}
             draggingThreadId={draggingThreadId}
             projectNameFor={projectNameFor}
+            hasActiveThread={
+              activeThreadId != null &&
+              spool.members.some((member) => member.id === activeThreadId)
+            }
           />
         </div>
       ));
@@ -2000,6 +2004,7 @@ export function SpoolerThreadList({
       isDark,
       renamingSectionId,
       commitSectionRename,
+      activeThreadId,
     ],
   );
 

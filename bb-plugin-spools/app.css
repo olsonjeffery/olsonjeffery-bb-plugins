@@ -3201,6 +3201,14 @@ a.spooler-row-main:hover {
   );
 }
 
+/* The thread being viewed lives in this spool: while the card is collapsed
+   its members render no rows, so the panel itself carries the same accent
+   tint an active row would (expanded cards keep their member tinting). */
+.spooler-spool-card-active,
+.spooler-spool-card-active:hover {
+  background: var(--accent, var(--muted));
+}
+
 /* Collapsed: only the header shows, so the deck sits tighter. */
 .spooler-spool-card-collapsed {
   padding: 5px 0;

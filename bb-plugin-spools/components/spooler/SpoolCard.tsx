@@ -66,6 +66,10 @@ export interface SpoolCardProps {
   draggingThreadId: string | null;
   /** Resolves a member thread's display project name (badge chips). */
   projectNameFor(thread: PluginSidebarThread): string;
+  /** The thread being viewed is a member of this spool: while the card is
+   *  collapsed its members render no rows, so no active row tint could show;
+   *  the panel itself carries the active (accent) tint instead. */
+  hasActiveThread?: boolean;
 }
 
 type PeekStatus =
@@ -158,6 +162,7 @@ export function SpoolCardImpl({
   renderMember,
   draggingThreadId,
   projectNameFor,
+  hasActiveThread = false,
 }: SpoolCardProps) {
   // ONE draggable (grip only) and ONE droppable, both on this card.
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -355,6 +360,7 @@ export function SpoolCardImpl({
       className={cn(
         "spooler-spool-card",
         collapsed && "spooler-spool-card-collapsed",
+        collapsed && hasActiveThread && "spooler-spool-card-active",
         isDragging && "spooler-spool-card-dragging",
         dropActive && "spooler-spool-drop-active",
       )}
