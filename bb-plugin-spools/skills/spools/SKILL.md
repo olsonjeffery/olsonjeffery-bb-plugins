@@ -95,14 +95,22 @@ by the spool's *lead* thread). Details:
   dragging a thread *onto another thread* (drop onto the middle 40% of a row; the outer
   bands are the ordinary above/below filing) creates a new spool from the pair (a drag
   with a selection sweeps the selection in).
-- Right-click affordances: threads gain *Create spool from this thread*, *Throw onto
-  spool ⏵* and (members) *Remove from spool*; cards gain open-lead / move-all-to-section
-  / archive / **unspool**. Archive drops a single member's membership silently;
-  unspooling every thread is destructive-looking and asks behind a confirm dialog
-  (`roles=alertdialog`) every time.
+- Right-click affordances: one **Spools** menu section (a separator + header) holds it
+  all — threads gain *Create spool from this thread* or, for members, *Remove from
+  spool* followed by the *throw onto spool* targets (⏵); cards gain open-lead /
+  move-all-to-section / archive / **unspool**. Archive drops a single member's
+  membership silently; unspooling every thread is destructive-looking and asks behind
+  a confirm dialog (`roles=alertdialog`) every time.
 - Quick palette (Mod+Shift+P): *Spools: move thread to section…* and *Spools: throw
   thread onto spool…* open side-panel pickers that mirror the drag semantics (spool
   members travel together).
+- Add position: the settings page's *Behavior when adding thread to spool* select
+  (localStorage `spooler-sidebar:add-position:v1`) decides where a new arrival lands.
+  Default is *Add to bottom of spool* — members sort oldest-first by `spoolJoined`
+  like a work queue. *Add to top of spool* writes a **negative** stamp `-Date.now()`:
+  it out-sorts every positive-stamp member immediately, and successive top adds get
+  ever more negative stamps so each new arrival stays above the last (ties fall back
+  to thread id). No sorting code knows the setting exists.
 - Settings → Installed plugins → **Spools** gains a *Sections & spools* card: the section
   editor (rename / delete with inline confirm, create; **Unfiled pinned read-only**;
   counts refresh from the server) plus a spools accordion with member lists and an

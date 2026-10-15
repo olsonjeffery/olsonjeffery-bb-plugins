@@ -33,6 +33,11 @@ import {
   type SectionColorMap,
 } from "./sectionColors";
 import { useThemeIsDark } from "./useThemeIsDark";
+import {
+  readAddPosition,
+  writeAddPosition,
+  type SpoolAddPosition,
+} from "./addPosition";
 
 function problem(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Something went wrong.";
@@ -56,6 +61,9 @@ export function SpoolsSettingsSection() {
   const [busy, setBusy] = useState(false);
   const [colorMap, setColorMap] = useState<SectionColorMap>(() =>
     readSectionColorMap(),
+  );
+  const [addPosition, setAddPosition] = useState<SpoolAddPosition>(() =>
+    readAddPosition(),
   );
 
   const reloadSections = useCallback(() => {
@@ -147,6 +155,34 @@ export function SpoolsSettingsSection() {
 
   return (
     <div className="spooler-settings">
+      <div className="spooler-settings-block" data-testid="spooler-settings-add-position">
+        <label
+          className="spooler-settings-select-label"
+          htmlFor="spooler-settings-add-position-select"
+        >
+          Behavior when adding thread to spool
+        </label>
+        <select
+          id="spooler-settings-add-position-select"
+          className="spooler-settings-select"
+          data-testid="spooler-settings-add-position-select"
+          value={addPosition}
+          onChange={(event) => {
+            const position: SpoolAddPosition =
+              event.target.value === "top" ? "top" : "bottom";
+            writeAddPosition(position);
+            setAddPosition(position);
+          }}
+        >
+          <option value="bottom">Add to bottom of spool</option>
+          <option value="top">Add to top of spool</option>
+        </select>
+        <span className="spooler-settings-muted">
+          {addPosition === "top"
+            ? "New arrivals land above existing members."
+            : "New arrivals queue behind existing members."}
+        </span>
+      </div>
       <div className="spooler-settings-block" data-testid="spooler-settings-sections">
         <ul className="spooler-settings-list">
           {sectionRows.map((row) => {

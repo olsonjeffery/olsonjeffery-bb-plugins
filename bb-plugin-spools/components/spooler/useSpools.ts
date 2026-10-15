@@ -21,6 +21,7 @@ import {
   type SpoolMembership,
   type SpoolMetadataWrite,
 } from "./spoolStore";
+import { joinStampFor, readAddPosition } from "./addPosition";
 
 /** Minimal sdk shape used here (subset of PluginBrowserBbSdk["threads"]). */
 export interface SpoolSdkClient {
@@ -202,7 +203,13 @@ export function useSpools(args: {
       // from a previous spool, so no separate break-out write is needed.
       await write(
         planMetadataWrites(
-          { kind: "add", spoolId, memberIds: family, joinedAt: Date.now() },
+          {
+            kind: "add",
+            spoolId,
+            memberIds: family,
+            // Read at add time so a settings-page change takes effect live.
+            joinedAt: joinStampFor(readAddPosition()),
+          },
           membershipByThreadId,
         ),
       );

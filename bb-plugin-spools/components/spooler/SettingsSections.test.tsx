@@ -58,6 +58,33 @@ beforeEach(async () => {
 
 const meta = (threadId: string, metadata: Record<string, unknown>) => ({ threadId, metadata });
 
+describe("SpoolsSettingsSection — add-position behavior", () => {
+  it("defaults the select to bottom and persists a top choice", async () => {
+    render(<SpoolsSettingsSection />);
+    const select = screen.getByTestId(
+      "spooler-settings-add-position-select",
+    ) as HTMLSelectElement;
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("spooler-settings-section-name:sec-a"),
+      ).toBeTruthy(),
+    );
+    expect(select.value).toBe("bottom");
+    fireEvent.change(select, { target: { value: "top" } });
+    expect(select.value).toBe("top");
+    expect(localStorage.getItem("spooler-sidebar:add-position:v1")).toBe("top");
+  });
+
+  it("seeds the select from a stored top choice", async () => {
+    localStorage.setItem("spooler-sidebar:add-position:v1", "top");
+    render(<SpoolsSettingsSection />);
+    const select = screen.getByTestId(
+      "spooler-settings-add-position-select",
+    ) as HTMLSelectElement;
+    expect(select.value).toBe("top");
+  });
+});
+
 describe("SpoolsSettingsSection — section editor", () => {
   it("has no spool list: the sidebar owns spool management", async () => {
     render(<SpoolsSettingsSection />);

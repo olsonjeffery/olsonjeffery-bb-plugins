@@ -104,6 +104,32 @@ describe("useSpools writes", () => {
     expect(calls[0].pluginId).toBe("spools");
   });
 
+  it("throwOntoSpool queues the family at the bottom by default", async () => {
+    localStorage.clear();
+    fakeList.mockResolvedValue({ threads: [] });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1"), t("t2", { parentThreadId: "t1" })]);
+    await act(() => utils.result.current.throwOntoSpool("spool_a", "t1"));
+    const joined = fakeUpdate.mock.calls.map((c: any[]) => c[0].set["spoolJoined"]);
+    expect(joined[0]).toBeGreaterThan(0);
+    // Family members jump just behind the parent, in family order.
+    expect(joined[1]).toBeGreaterThan(joined[0]);
+  });
+
+  it("throwOntoSpool stacks the family on top when add-to-top is set", async () => {
+    localStorage.clear();
+    localStorage.setItem("spooler-sidebar:add-position:v1", "top");
+    fakeList.mockResolvedValue({ threads: [] });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1"), t("t2", { parentThreadId: "t1" })]);
+    await act(() => utils.result.current.throwOntoSpool("spool_a", "t1"));
+    const joined = fakeUpdate.mock.calls.map((c: any[]) => c[0].set["spoolJoined"]);
+    // Negative stamp sorts before every existing (positive) member; the
+    // parent's +index family offsets still keep the parent above its children.
+    expect(joined[0]).toBeLessThan(0);
+    expect(joined[1]).toBeGreaterThan(joined[0]);
+  });
+
   it("releaseThread migrates a custom title when the lead leaves", async () => {
     fakeList.mockResolvedValue({
       threads: [

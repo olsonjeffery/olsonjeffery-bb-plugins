@@ -47,6 +47,22 @@ describe("deriveSpools", () => {
     expect(spools[0].members).toEqual(["t2", "t3", "t1"]);
   });
 
+  /* "Add to top of spool" writes a negative join stamp (see ./addPosition]:
+     it must out-sort every positive-stamp member, and successive top adds
+     (ever more negative) must land above earlier ones. */
+  it("sorts negative top-add stamps above positive members, newest first", () => {
+    const { spools } = deriveSpools({
+      threads: [thread("t1"), thread("t2"), thread("t3"), thread("t4")],
+      metadataByThreadId: new Map([
+        ["t1", { spool: "spool_a", spoolJoined: 10 }],
+        ["t2", { spool: "spool_a", spoolJoined: -2_000 }],
+        ["t3", { spool: "spool_a", spoolJoined: -3_000 }],
+        ["t4", { spool: "spool_a", spoolJoined: 20 }],
+      ]),
+    });
+    expect(spools[0].members).toEqual(["t3", "t2", "t1", "t4"]);
+  });
+
   it("elects the oldest member when the lead disappears", () => {
     const { spools } = deriveSpools({
       threads: [thread("t2", "Second"), thread("t3")],

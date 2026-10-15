@@ -1498,10 +1498,18 @@ export function SpoolerThreadList({
           ]
         : []),
       { kind: "item", id: "rename", label: "Rename…", icon: "Edit" },
-      // Spool actions: plain threads can start a spool; members get a release
-      // plus throw targets (spools never nest, throw breaks out first).
+      // Spool actions under one "Spools" header: members get a release plus
+      // throw targets (spools never nest, throw breaks out first); plain
+      // threads create a spool or throw onto an existing one.
       ...(spoolIdByThreadId.has(menuThread.id)
         ? [
+            {
+              kind: "separator" as const,
+            },
+            {
+              kind: "header" as const,
+              label: "Spools",
+            },
             {
               kind: "item" as const,
               id: "spool:release",
@@ -1519,13 +1527,19 @@ export function SpoolerThreadList({
           ]),
       ...(spoolThrowTargetIds(menuThread.id).length > 0
         ? [
-            {
-              kind: "separator" as const,
-            },
-            {
-              kind: "header" as const,
-              label: "Move to spool",
-            },
+            // A member's release already sits under the Spools header; a
+            // plain thread still needs the header before its throw targets.
+            ...(spoolIdByThreadId.has(menuThread.id)
+              ? []
+              : [
+                  {
+                    kind: "separator" as const,
+                  },
+                  {
+                    kind: "header" as const,
+                    label: "Spools",
+                  },
+                ]),
             ...spoolThrowTargetIds(menuThread.id).map(
               (spoolId): SpoolerMenuItem => ({
                 kind: "item" as const,
