@@ -13,6 +13,10 @@ const PROMPTBOX_SELECTOR = "[data-promptbox]";
 const EDITOR_REGION_SELECTOR = "[data-promptbox-editor-content]";
 const SUBMIT_ACTION_SELECTOR = "[data-promptbox-submit-action]";
 const TYPEAHEAD_MENU_SELECTOR = ".bg-popover";
+// The flash is drawn by a dedicated overlay child inside the promptbox, not by
+// a ::after pseudo-element: the pseudo-element slot on [data-promptbox] is
+// claimed by other extensions of the composer (e.g. BBium's INSERT badge), and
+// CSS merges same-slot declarations into one box, corrupting both.
 const GLOW_CLASS = "enter-guard-glow";
 const GLOW_DURATION_VAR = "--enter-guard-flash-ms";
 
@@ -52,6 +56,7 @@ export default definePluginApp((app) => {
       let armedAt: number | null = null;
       let armedBox: HTMLElement | null = null;
       let armTimer: ReturnType<typeof setTimeout> | null = null;
+      let flashEl: HTMLElement | null = null;
 
       const disarm = () => {
         if (armTimer !== null) {
@@ -59,11 +64,17 @@ export default definePluginApp((app) => {
           armTimer = null;
         }
         armedAt = null;
-        if (armedBox !== null) {
-          armedBox.classList.remove(GLOW_CLASS);
-          armedBox.style.removeProperty(GLOW_DURATION_VAR);
-          armedBox = null;
-        }
+        armedBox = null;
+        flashEl?.remove();
+        flashEl = null;
+      };
+
+      const flash = (box: HTMLElement, windowMs: number) => {
+        const el = document.createElement("div");
+        el.className = GLOW_CLASS;
+        el.style.setProperty(GLOW_DURATION_VAR, `${windowMs}ms`);
+        box.appendChild(el);
+        flashEl = el;
       };
 
       const onKeyDown = (event: KeyboardEvent) => {
@@ -111,8 +122,7 @@ export default definePluginApp((app) => {
         disarm();
         armedAt = now;
         armedBox = box;
-        box.classList.add(GLOW_CLASS);
-        box.style.setProperty(GLOW_DURATION_VAR, `${guardConfig.windowMs}ms`);
+        flash(box, guardConfig.windowMs);
         armTimer = setTimeout(disarm, guardConfig.windowMs);
       };
 

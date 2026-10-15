@@ -1,7 +1,13 @@
 /* Glowing red flash on the prompt box border. Color derives from the host
-   theme's destructive token so it follows light/dark palettes. */
-[data-promptbox].enter-guard-glow::after {
-  content: "";
+   theme's destructive token so it follows light/dark palettes.
+
+   This styles an overlay element injected by the content script into the
+   promptbox, NOT a ::after pseudo-element: the ::after slot on
+   [data-promptbox] is also claimed by other composer extensions (e.g. BBium's
+   INSERT badge), and CSS collapses same-slot declarations into one box,
+   corrupting both visuals. A dedicated element renders identically whether or
+   not any such plugin is enabled. */
+.enter-guard-glow {
   position: absolute;
   inset: 0;
   border-radius: inherit;
