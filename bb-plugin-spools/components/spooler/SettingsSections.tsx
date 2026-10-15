@@ -1,8 +1,9 @@
-// Settings page: section editor + spools accordion.
+// Settings page: the section editor.
 //
-// Everything the sidebar exposes piecemeal (create sections, spool cards)
-// lives together here with the ops the sidebar does not expose at all
-// (rename/delete a section). Unfiled is pinned read-only, like the sidebar.
+// Everything the sidebar exposes piecemeal lives together here with the ops
+// the sidebar does not expose at all (rename/delete a section). Unfiled is
+// pinned read-only, like the sidebar. Spool management itself is fully covered
+// by the sidebar's spool cards, so there is no spool list here.
 import {
   experimental_usePluginId,
   experimental_useSidebarThreads,
@@ -11,12 +12,6 @@ import {
 import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PluginSidebarSection, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { useSpools } from "./useSpools";
-import type { Spool } from "./spoolStore";
-import { UnspoolConfirmDialog } from "./UnspoolConfirmDialog";
-
-/** useSpools declares the metadata subset it needs; the real client matches. */
-type PanelSdk = Parameters<typeof useSpools>[0]["sdk"];
 
 function problem(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Something went wrong.";
@@ -54,17 +49,10 @@ export function SpoolsSettingsSection() {
   const sdk = useSdk();
   const sidebar = experimental_useSidebarThreads();
   const pluginId = experimental_usePluginId() || "spools";
-  const spoolStore = useSpools({
-    threads: sidebar.threads,
-    pluginId,
-    sdk: sdk as unknown as PanelSdk,
-  });
 
   const [sections, setSections] = useState<PluginSidebarSection[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [confirmUnspoolId, setConfirmUnspoolId] = useState<string | null>(null);
-  const [openSpools, setOpenSpools] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(false);
 
   const reloadSections = useCallback(() => {
@@ -87,17 +75,6 @@ export function SpoolsSettingsSection() {
   const sectionById = useMemo(
     () => new Map((sections ?? sidebar.sections).map((section) => [section.id, section])),
     [sections, sidebar.sections],
-  );
-  const threadById = useMemo(
-    () => new Map(sidebar.threads.map((thread: PluginSidebarThread) => [thread.id, thread])),
-    [sidebar.threads],
-  );
-  const memberTitle = useCallback(
-    (threadId: string) => {
-      const row = threadById.get(threadId);
-      return row?.displayTitle ?? row?.title ?? threadId;
-    },
-    [threadById],
   );
   const sectionCount = useCallback(
     (sectionId: string) =>
@@ -141,80 +118,13 @@ export function SpoolsSettingsSection() {
     [draft, runSectionWrite, sdk],
   );
 
-  const toggleSpool = (spoolId: string) => {
-    setOpenSpools((open) => {
-      const next = new Set(open);
-      if (next.has(spoolId)) next.delete(spoolId);
-      else next.add(spoolId);
-      return next;
-    });
-  };
-
-  const startUnspool = (spool: Spool) => {
-    setConfirmUnspoolId(spool.id);
-  };
-
-  const confirmedSpool = spoolStore.spools.find(
-    (spool) => spool.id === (confirmUnspoolId ?? ""),
-  );
-
-  const spoolRows = () => (
-    <div className="spooler-settings-list" data-testid="spooler-settings-spools">
-      {spoolStore.spools.map((spool) => {
-        const open = openSpools.has(spool.id);
-        return (
-          <div key={spool.id} className="spooler-settings-group">
-            <button
-              type="button"
-              className="spooler-settings-group-toggle"
-              aria-expanded={open}
-              data-testid={`spooler-settings-spool:${spool.id}`}
-              onClick={() => toggleSpool(spool.id)}
-            >
-              <span aria-hidden={true}>▸</span>
-              <span>{spool.title}</span>
-              <span className="spooler-settings-muted">
-                {spool.members.length} thread{spool.members.length === 1 ? "" : "s"}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="spooler-settings-button spooler-settings-button-danger"
-              data-testid={`spooler-settings-unspool:${spool.id}`}
-              onClick={() => startUnspool(spool)}
-            >
-              Unspool…
-            </button>
-            {open ? (
-              <ul className="spooler-settings-members">
-                {spool.members.map((memberId) => (
-                  <li key={memberId}>
-                    <span title={memberId}>
-                      {memberId === spool.leadThreadId ? "◆ " : ""}
-                      {memberTitle(memberId)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        );
-      })}
-      {spoolStore.spools.length === 0 ? (
-        <p className="spooler-settings-muted" data-testid="spooler-settings-no-spools">
-          No spools yet — throw threads together from the sidebar.
-        </p>
-      ) : null}
-    </div>
-  );
-
   const sectionRows: (PluginSidebarSection | "unfiled")[] = [
     "unfiled",
     ...(sections ?? sidebar.sections),
   ];
 
   return (
-    <div className="spooler-settings" data-status={spoolStore.status}>
+    <div className="spooler-settings">
       <div className="spooler-settings-block" data-testid="spooler-settings-sections">
         <ul className="spooler-settings-list">
           {sectionRows.map((row) => {
@@ -338,26 +248,6 @@ export function SpoolsSettingsSection() {
           })}
         </div>
       </div>
-
-      <div className="spooler-settings-block">
-        <p className="spooler-settings-heading">Spools</p>
-        {spoolRows()}
-      </div>
-
-      {confirmedSpool ? (
-        <UnspoolConfirmDialog
-          title={confirmedSpool.title}
-          count={confirmedSpool.members.length}
-          onConfirm={() => {
-            setConfirmUnspoolId(null);
-            void spoolStore
-              .unspool(confirmedSpool.id)
-              .then(() => toast.success("Spool unraveled."))
-              .catch((cause: unknown) => toast.error(problem(cause)));
-          }}
-          onCancel={() => setConfirmUnspoolId(null)}
-        />
-      ) : null}
     </div>
   );
 }

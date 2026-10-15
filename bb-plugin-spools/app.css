@@ -3930,12 +3930,7 @@ a.spooler-row-main:hover {
   gap: 8px;
 }
 
-.spooler-settings-heading {
-  margin-block: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--foreground);
-}
+.spooler-settings-list {
 
 .spooler-settings-list {
   display: flex;
@@ -3955,32 +3950,6 @@ a.spooler-row-main:hover {
 
 .spooler-settings-newrow {
   padding-block: 6px;
-}
-
-.spooler-settings-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.spooler-settings-group-toggle {
-  flex: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--foreground);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.spooler-settings-group-toggle:hover {
-  background: var(--muted, color-mix(in srgb, var(--foreground) 8%, transparent));
 }
 
 .spooler-settings-section-name {
@@ -4048,16 +4017,6 @@ a.spooler-row-main:hover {
 .spooler-settings-button-danger {
   color: var(--destructive, #b3261e);
   border-color: color-mix(in srgb, var(--destructive, #b3261e) 40%, transparent);
-}
-
-.spooler-settings-members {
-  margin-block: 2px 8px;
-  margin-inline-start: 28px;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 /* ===== Settled threads shelf ===== */

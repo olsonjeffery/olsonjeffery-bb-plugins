@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { fakeList, fakeUpdate, fakeSectionsList, fakeSectionsCreate, fakeSectionsUpdate, fakeSectionsDelete, fakeSidebar, fakePluginId, sdkClient } = vi.hoisted(() => ({
@@ -58,6 +58,13 @@ beforeEach(async () => {
 const meta = (threadId: string, metadata: Record<string, unknown>) => ({ threadId, metadata });
 
 describe("SpoolsSettingsSection — section editor", () => {
+  it("has no spool list: the sidebar owns spool management", async () => {
+    render(<SpoolsSettingsSection />);
+    await waitFor(() => expect(screen.getByTestId("spooler-settings-section-name:sec-a")).toBeTruthy());
+    expect(screen.queryByTestId("spooler-settings-spools")).toBeNull();
+    expect(screen.queryByTestId("spooler-settings-no-spools")).toBeNull();
+  });
+
   it("pins Unfiled read-only above every server section, with counts", async () => {
     fakeSectionsList.mockResolvedValue([
       { id: "sec-a", name: "Alpha", createdAt: 1, updatedAt: 1 },
@@ -114,67 +121,5 @@ describe("SpoolsSettingsSection — section editor", () => {
       expect(fakeSectionsCreate).toHaveBeenCalledWith({ name: "Gamma" }),
     );
     await waitFor(() => expect(fakeSectionsList).toHaveBeenCalledTimes(2));
-  });
-});
-
-describe("SpoolsSettingsSection — spools accordion", () => {
-  it("lists spools; expanding shows members with a lead glyph; empty state otherwise", async () => {
-    fakeList.mockResolvedValue({
-      threads: [
-        meta("t1", { spool: "spool_a", spoolJoined: 10, spoolLead: true }),
-        meta("t2", { spool: "spool_a", spoolJoined: 20 }),
-      ],
-    });
-    fakeSidebar.mockReturnValue({
-      status: "ready",
-      threads: [makeThread({ id: "t1", title: "Alpha" }), makeThread({ id: "t2", title: "Beta" })],
-      projects: [],
-      sections: [],
-    });
-    const view = render(<SpoolsSettingsSection />);
-    await waitFor(() =>
-      expect(view.container.querySelector('[data-testid="spooler-settings-spools"] .spooler-settings-group'))
-        .toBeTruthy(),
-    );
-    const spoolRow = screen
-      .getByTestId("spooler-settings-spool:spool_a")
-      .closest(".spooler-settings-group") as HTMLElement;
-    expect(within(spoolRow).queryByText("Beta")).toBeFalsy();
-    fireEvent.click(screen.getByTestId("spooler-settings-spool:spool_a"));
-    expect(within(spoolRow).getByText("◆ Alpha")).toBeTruthy();
-    expect(within(spoolRow).getByText("Beta")).toBeTruthy();
-  });
-
-  it("unspools a member through the confirm dialog (releases membership metadata)", async () => {
-    fakeList.mockResolvedValue({
-      threads: [meta("t1", { spool: "spool_a", spoolJoined: 10, spoolLead: true })],
-    });
-    fakeSidebar.mockReturnValue({
-      status: "ready",
-      threads: [makeThread({ id: "t1", title: "Alpha" })],
-      projects: [],
-      sections: [],
-    });
-    const view = render(<SpoolsSettingsSection />);
-    await waitFor(() =>
-      expect(view.container.querySelector('[data-testid="spooler-settings-spool:spool_a"]')).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByTestId("spooler-settings-unspool:spool_a"));
-    fireEvent.click(screen.getByRole("button", { name: /Unspool 1 thread/ }));
-    await waitFor(() => expect(fakeUpdate).toHaveBeenCalledTimes(1));
-    const call = fakeUpdate.mock.calls[0][0];
-    expect(call).toMatchObject({ threadId: "t1", pluginId: "spools" });
-    expect(call.remove).toContain("spool");
-  });
-
-  it("shows the empty state when no membership metadata exists", async () => {
-    fakeSidebar.mockReturnValue({
-      status: "ready",
-      threads: [makeThread({ id: "t1", title: "Alpha" })],
-      projects: [],
-      sections: [],
-    });
-    render(<SpoolsSettingsSection />);
-    expect(await screen.findByTestId("spooler-settings-no-spools")).toBeTruthy();
   });
 });
