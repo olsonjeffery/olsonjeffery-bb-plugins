@@ -21,11 +21,11 @@ function sdk(): any {
 /* every fetch returns these rows (metadata = pluginId="spools" row) */
 const metaRow = (threadId: string, metadata: Record<string, unknown>) => ({ threadId, metadata });
 
-async function render(threads: any[]) {
+async function render(threads: any[], addPosition?: "bottom" | "top") {
   const { useSpools } = await import("./useSpools");
   const client = sdk(); // stable reference — a fresh object per render would retrigger the fetch effect
   const utils = renderHook(
-    () => useSpools({ threads, pluginId: "spools", sdk: client }),
+    () => useSpools({ threads, pluginId: "spools", sdk: client, addPosition }),
   );
   await waitFor(() => expect(utils.result.current.status).toBe("ready"));
   return utils;
@@ -105,7 +105,6 @@ describe("useSpools writes", () => {
   });
 
   it("throwOntoSpool queues the family at the bottom by default", async () => {
-    localStorage.clear();
     fakeList.mockResolvedValue({ threads: [] });
     fakeUpdate.mockResolvedValue({});
     const utils = await render([t("t1"), t("t2", { parentThreadId: "t1" })]);
@@ -117,11 +116,12 @@ describe("useSpools writes", () => {
   });
 
   it("throwOntoSpool stacks the family on top when add-to-top is set", async () => {
-    localStorage.clear();
-    localStorage.setItem("spooler-sidebar:add-position:v1", "top");
     fakeList.mockResolvedValue({ threads: [] });
     fakeUpdate.mockResolvedValue({});
-    const utils = await render([t("t1"), t("t2", { parentThreadId: "t1" })]);
+    const utils = await render(
+      [t("t1"), t("t2", { parentThreadId: "t1" })],
+      "top",
+    );
     await act(() => utils.result.current.throwOntoSpool("spool_a", "t1"));
     const joined = fakeUpdate.mock.calls.map((c: any[]) => c[0].set["spoolJoined"]);
     // Negative stamp sorts before every existing (positive) member; the

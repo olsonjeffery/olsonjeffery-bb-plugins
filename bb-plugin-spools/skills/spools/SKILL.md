@@ -104,13 +104,13 @@ by the spool's *lead* thread). Details:
 - Quick palette (Mod+Shift+P): *Spools: move thread to section…* and *Spools: throw
   thread onto spool…* open side-panel pickers that mirror the drag semantics (spool
   members travel together).
-- Add position: the settings page's *Behavior when adding thread to spool* select
-  (localStorage `spooler-sidebar:add-position:v1`) decides where a new arrival lands.
-  Default is *Add to bottom of spool* — members sort oldest-first by `spoolJoined`
-  like a work queue. *Add to top of spool* writes a **negative** stamp `-Date.now()`:
-  it out-sorts every positive-stamp member immediately, and successive top adds get
-  ever more negative stamps so each new arrival stays above the last (ties fall back
-  to thread id). No sorting code knows the setting exists.
+- Add position: the plugin's declarative **Behavior when adding thread to spool**
+  setting (main Settings container, under Swipe left) decides where a new arrival
+  lands. Default is *Add to bottom of spool* — members sort oldest-first by
+  `spoolJoined` like a work queue. *Add to top of spool* writes a **negative**
+  stamp `-Date.now()`: it out-sorts every positive-stamp member immediately, and
+  successive top adds get ever more negative stamps so each new arrival stays above
+  the last (ties fall back to thread id). No sorting code knows the setting exists.
 - Settings → Installed plugins → **Spools** gains a *Sections & spools* card: the section
   editor (rename / delete with inline confirm, create; **Unfiled pinned read-only**;
   counts refresh from the server) plus a spools accordion with member lists and an

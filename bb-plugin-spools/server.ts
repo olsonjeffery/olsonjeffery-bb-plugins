@@ -89,6 +89,18 @@ export default async function plugin(bb: BbPluginApi) {
       options: SWIPE_ACTION_OPTION_LABELS,
       default: DEFAULT_SWIPE_LEFT,
     },
+    addPosition: {
+      type: "select",
+      label: "Behavior when adding thread to spool",
+      description:
+        "Where a new arrival lands when a thread joins a spool — by drag-in, menu throw or palette throw. Members stay sorted oldest-first regardless.",
+      options: ["bottom", "top"],
+      experimental_optionLabels: {
+        bottom: "Add to bottom of spool",
+        top: "Add to top of spool",
+      },
+      default: "bottom",
+    },
   });
 
   bb.onDispose(() => {

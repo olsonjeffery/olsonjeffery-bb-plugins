@@ -174,6 +174,7 @@ function useSidebarSettings() {
     motion: flag("motion", true),
     loudUnread: flag("loudUnread", true),
     adaptiveCollapse: flag("adaptiveCollapse", true),
+    addPosition: values?.addPosition === "top" ? ("top" as const) : ("bottom" as const),
     defaultDensity,
     wrapTitles,
     swipeRight: swipeOn
@@ -632,6 +633,7 @@ export function SpoolerThreadList({
     threads,
     pluginId: runtimePluginId || "spools",
     sdk: sdk as unknown as Parameters<typeof useSpools>[0]["sdk"],
+    addPosition: settings.addPosition,
   });
   const spoolIdByThreadId = useMemo(() => {
     const map = new Map<string, string>();

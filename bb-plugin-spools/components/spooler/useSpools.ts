@@ -21,7 +21,7 @@ import {
   type SpoolMembership,
   type SpoolMetadataWrite,
 } from "./spoolStore";
-import { joinStampFor, readAddPosition } from "./addPosition";
+import { joinStampFor, type SpoolAddPosition } from "./addPosition";
 
 /** Minimal sdk shape used here (subset of PluginBrowserBbSdk["threads"]). */
 export interface SpoolSdkClient {
@@ -66,8 +66,10 @@ export function useSpools(args: {
   threads: readonly PluginSidebarThread[];
   pluginId: string;
   sdk: SpoolSdkClient;
+  /** Plugin setting: where a new arrival lands in a spool. Default bottom. */
+  addPosition?: SpoolAddPosition;
 }): UseSpoolsResult {
-  const { sdk, pluginId } = args;
+  const { sdk, pluginId, addPosition = "bottom" } = args;
   const [rows, setRows] = useState<ReadonlyMap<string, Record<string, unknown>>>(new Map());
   const [version, setVersion] = useState(0);
   const [status, setStatus] = useState<"loading" | "ready">("loading");
@@ -207,14 +209,14 @@ export function useSpools(args: {
             kind: "add",
             spoolId,
             memberIds: family,
-            // Read at add time so a settings-page change takes effect live.
-            joinedAt: joinStampFor(readAddPosition()),
+            // From the plugin setting; a change rebuilds this callback.
+            joinedAt: joinStampFor(addPosition),
           },
           membershipByThreadId,
         ),
       );
     },
-    [childrenOf, membershipByThreadId, write],
+    [childrenOf, membershipByThreadId, write, addPosition],
   );
 
   const releaseThread = useCallback<UseSpoolsResult["releaseThread"]>(
