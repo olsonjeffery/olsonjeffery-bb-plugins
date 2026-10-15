@@ -1,8 +1,28 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import {
+  experimental_useSidebarThreadPullRequest,
+  useBbNavigate,
+  type PluginSidebarThread,
+} from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import {
+  prBadgeClass,
+  prIconName,
+  prLabel,
+  prToneClass,
+  projectHue,
+} from "./SpoolerThreadRow";
 import { type SpoolGroupData } from "./useThreadGroups";
 
 /** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
@@ -22,12 +42,10 @@ export interface SpoolCardProps {
   onToggle(): void;
   /** Open a member thread. */
   onOpen(threadId: string): void;
-  /** Layers-icon click opens the top (lead) thread. */
+  /** 🧵 icon click opens the top (lead) thread. */
   onOpenTop(threadId: string): void;
-  /** Archive Spool Threads (confirm handled by parent). */
-  onArchive(): void;
-  /** Destructive unspool (confirm handled by parent). */
-  onUnspool(): void;
+  /** Ellipsis click opens the spool menu (parent positions it). */
+  onOpenMenu(event: React.MouseEvent<HTMLButtonElement>): void;
   onContextMenu(event: React.MouseEvent<HTMLDivElement>): void;
   /** In-place rename of the spool title (double-click the title). */
   isRenaming: boolean;
@@ -43,6 +61,8 @@ export interface SpoolCardProps {
   ): ReactNode;
   /** Current dragged thread id, for drop-affordance checks. */
   draggingThreadId: string | null;
+  /** Resolves a member thread's display project name (badge chips). */
+  projectNameFor(thread: PluginSidebarThread): string;
 }
 
 type PeekStatus =
@@ -56,7 +76,6 @@ type PeekStatus =
 function peekStatusFor(thread: PluginSidebarThread): PeekStatus {
   switch (thread.indicator) {
     case "waiting-for-input":
-      return "need";
     case "queued-waiting":
       return "question";
     case "unread-error":
@@ -126,8 +145,7 @@ export function SpoolCardImpl({
   onToggle,
   onOpen,
   onOpenTop,
-  onArchive,
-  onUnspool,
+  onOpenMenu,
   onContextMenu,
   isRenaming,
   onRenameCommit,
@@ -135,6 +153,7 @@ export function SpoolCardImpl({
   startRename,
   renderMember,
   draggingThreadId,
+  projectNameFor,
 }: SpoolCardProps) {
   // ONE draggable (grip only) and ONE droppable, both on this card.
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -149,6 +168,28 @@ export function SpoolCardImpl({
     data: { kind: "spool", spoolId: data.id },
   });
   const dropActive = draggingThreadId !== null && isOver;
+
+  // Collapsed-card badges (item 6): the card hides its member rows, so the
+  // common context must be summarized on the header. Lead thread only —
+  // members share a branch, so one PR stands for the spool.
+  const navigate = useBbNavigate();
+  const { pullRequest } = experimental_useSidebarThreadPullRequest(
+    data.leadThreadId,
+  );
+  const lead = data.members[0] ?? null;
+  const projectIds = new Set(
+    data.members.map((member) => member.projectId),
+  );
+  const uniformProjectName = projectIds.size === 1 && lead
+    ? projectNameFor(lead)
+    : null;
+  const branchSet = new Set(
+    data.members.map((member) => member.environment?.branchName ?? null),
+  );
+  const uniformBranch =
+    branchSet.size === 1 && lead?.environment?.branchName
+      ? lead.environment.branchName
+      : null;
 
   // In-place rename. Seeds once per rename start, like the ordinary row.
   const [renameValue, setRenameValue] = useState("");
@@ -167,9 +208,12 @@ export function SpoolCardImpl({
   }, [isRenaming]);
 
   // Member peek: opens immediately on card hover, lingers 500ms after the
-  // pointer leaves (the panel is a child of the card, so hovering it keeps
-  // the card hovered and clicks keep working through the linger).
+  // pointer leaves. The panel is portaled to document.body (so sidebar
+  // scroll containers can't clip it), so its own mouse handlers keep the
+  // linger alive while the pointer travels into the panel.
   const [peekOpen, setPeekOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const peekRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | null>(null);
   const openPeek = useCallback(() => {
     if (closeTimer.current !== null) {
@@ -194,6 +238,32 @@ export function SpoolCardImpl({
     };
   }, []);
 
+  // Position the portaled peek panel next to the card, clamped to the
+  // viewport. Runs before paint; offsetWidth/Height ignore transforms so
+  // the entrance animation can't skew the measurement.
+  useLayoutEffect(() => {
+    if (!peekOpen) return;
+    const el = peekRef.current;
+    const card = cardRef.current;
+    if (!el || !card) return;
+    const margin = 8;
+    const gap = 8;
+    const cardRect = card.getBoundingClientRect();
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = cardRect.right + gap;
+    if (left + width > vw - margin) left = cardRect.left - gap - width;
+    if (left < margin) left = margin;
+    if (left + width > vw - margin) left = Math.max(margin, vw - margin - width);
+    let top = cardRect.top;
+    if (top + height > vh - margin) top = vh - margin - height;
+    if (top < margin) top = margin;
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+  }, [peekOpen]);
+
   const commit = () => {
     if (cancelled) return;
     onRenameCommit(renameValue);
@@ -204,6 +274,7 @@ export function SpoolCardImpl({
       ref={(node) => {
         setNodeRef(node);
         setDropNodeRef(node);
+        cardRef.current = node;
       }}
       role="group"
       aria-label={`Spool ${data.label}, ${data.members.length} threads`}
@@ -245,7 +316,7 @@ export function SpoolCardImpl({
             onOpenTop(data.leadThreadId);
           }}
         >
-          <Icon name="Layers" aria-hidden="true" />
+          <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
         </button>
         {isRenaming ? (
           <input
@@ -286,34 +357,79 @@ export function SpoolCardImpl({
             <span className="spooler-spool-title">{data.label}</span>
           </button>
         )}
+        {collapsed ? (
+          <div className="spooler-spool-badges">
+            {uniformProjectName ? (
+              <span
+                className="spooler-row-project"
+                title={`All threads in project: ${uniformProjectName}`}
+                style={{
+                  "--spooler-project-hue": projectHue(lead!.projectId),
+                } as CSSProperties}
+              >
+                {uniformProjectName}
+              </span>
+            ) : projectIds.size > 1 ? (
+              <span
+                className="spooler-spool-badge-muted"
+                title={`Threads span ${projectIds.size} projects`}
+              >
+                {projectIds.size} projects
+              </span>
+            ) : null}
+            {uniformBranch ? (
+              <span
+                className="spooler-spool-badge-branch"
+                title={`All threads on branch: ${uniformBranch}`}
+              >
+                <Icon name="GitBranch" aria-hidden="true" />
+                <span className="spooler-branch-text">{uniformBranch}</span>
+              </span>
+            ) : null}
+            {uniformBranch && pullRequest ? (
+              <button
+                type="button"
+                tabIndex={-1}
+                className={cn(
+                  "spooler-pr-link",
+                  prBadgeClass(pullRequest.state, pullRequest.attention),
+                  prToneClass(pullRequest.attention),
+                )}
+                title={`${pullRequest.title} — open PR #${pullRequest.number} (${prLabel(pullRequest.state, pullRequest.attention)})`}
+                aria-label={`Open pull request ${pullRequest.number}: ${pullRequest.title}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  navigate.openUrl(pullRequest.url);
+                }}
+              >
+                <Icon
+                  name={prIconName(pullRequest.state, pullRequest.attention)}
+                  aria-hidden="true"
+                />
+                <span>
+                  #{pullRequest.number} ·{" "}
+                  {prLabel(pullRequest.state, pullRequest.attention)}
+                </span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="spooler-spool-actions">
           <button
             type="button"
             tabIndex={-1}
-            aria-label="Archive spool threads"
-            title="Archive spool threads"
-            className="spooler-action"
+            aria-label="Spool actions"
+            title="Spool actions"
+            aria-haspopup="menu"
+            className="spooler-action spooler-action-more"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              onArchive();
+              onOpenMenu(event);
             }}
           >
-            <Icon name="Archive" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-label="Unspool (release threads back to the list)"
-            title="Unspool (release threads back to the list)"
-            className="spooler-action spooler-spool-unspool"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onUnspool();
-            }}
-          >
-            <Icon name="X" aria-hidden="true" />
+            <Icon name="MoreHorizontal" aria-hidden="true" />
           </button>
         </div>
         <span
@@ -340,8 +456,16 @@ export function SpoolCardImpl({
         )}
       </Fold>
 
-      {peekOpen ? (
-        <div className="spooler-spool-peek" role="tooltip">
+      {peekOpen
+        ? createPortal(
+            <div
+          ref={peekRef}
+          className="spooler-spool-peek"
+          role="tooltip"
+          style={{ position: "fixed" }}
+          onMouseEnter={openPeek}
+          onMouseLeave={schedulePeekClose}
+        >
           <div className="spooler-spool-peek-title" title={data.label}>
             {data.label}
           </div>
@@ -379,8 +503,10 @@ export function SpoolCardImpl({
               );
             })}
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
     </div>
   );
 }

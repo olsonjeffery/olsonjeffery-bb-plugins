@@ -14,12 +14,15 @@ import { toast } from "sonner";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { makeThread, makeProject, makeSection, NOW } from "./fixtures";
 import { useThreadGroups } from "./useThreadGroups";
+import { requestPaletteIntent } from "./paletteBus";
 
 const probes = vi.hoisted(() => ({
   rowRenders: 0,
   keyboardCoordinates: null as KeyboardCoordinateGetter | null,
   onDragStart: null as ((event: unknown) => void) | null,
   onDragEnd: null as ((event: unknown) => void) | null,
+  /** Flip to make every useDroppable report `isOver` (drop-cue rendering). */
+  isOver: false,
 }));
 vi.mock("@get-bb/plugin-sdk/app", async importOriginal => {
   const actual = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
@@ -46,6 +49,10 @@ vi.mock("@dnd-kit/core", async importOriginal => {
       probes.onDragEnd = args.onDragEnd as ((event: unknown) => void) | undefined ?? null;
       return createElement(actual.DndContext, args);
     },
+    useDroppable: (args: Parameters<typeof actual.useDroppable>[0]) => {
+      const result = actual.useDroppable(args);
+      return probes.isOver ? { ...result, isOver: true } : result;
+    },
   };
 });
 
@@ -63,6 +70,19 @@ const sdk: Record<string, unknown> = {
   },
   providers: { models: async () => ({ models: [] }) },
 };
+type MetaRowFixture = { threadId: string; metadata: { [key: string]: string | number | boolean } };
+/** Spool membership lives on per-thread plugin metadata; feed the store. */
+const spoolSdk = (
+  metadata: MetaRowFixture[] = [],
+  updatePluginMetadata: (...args: unknown[]) => Promise<MetaRowFixture["metadata"]> = async () => ({}),
+) => ({
+  ...sdk,
+  threads: {
+    ...(sdk.threads as object),
+    experimental_listPluginMetadata: async () => ({ threads: metadata }),
+    updatePluginMetadata,
+  },
+});
 function mount(threads: PluginSidebarThread[], settings: Record<string, boolean> = {}) {
   return renderSlot(list, props, {
     sdk, settings, sidebarThreads: { status: "ready", threads,
@@ -81,7 +101,7 @@ const archiveCalls = (slot: RenderedSlot) =>
       threadId: (call.args[0] as { threadId: string }).threadId,
     }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals();
-  probes.rowRenders = 0; probes.keyboardCoordinates = null; probes.onDragStart = null; probes.onDragEnd = null; });
+  probes.rowRenders = 0; probes.keyboardCoordinates = null; probes.onDragStart = null; probes.onDragEnd = null; probes.isOver = false; });
 
 describe("sidebar behavior regressions", () => {
   it("applies an adaptiveCollapse setting change to already mounted rows", async () => {
@@ -330,3 +350,133 @@ describe("sidebar behavior regressions", () => {
   });
 
 });
+
+describe("spool drags across section buckets", () => {
+  it("moves every member when a spool card lands on a section bucket", async () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
+      ]),
+      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "old" })],
+        projects: [makeProject({ id: "proj_a" })],
+        sections: [makeSection({ id: "old", name: "Old" }), makeSection({ id: "dest", name: "Destination" })] },
+    });
+    await act(async () => {});
+    expect(slot.container.querySelector(".spooler-spool-slot")).not.toBeNull();
+    expect(probes.onDragEnd).not.toBeNull();
+    act(() => { probes.onDragStart!({ active: { data: { current: { spoolId: "spool_a" } } } }); });
+    await act(async () => { probes.onDragEnd!({
+      active: { data: { current: { spoolId: "spool_a" } } },
+      over: { data: { current: { sectionId: "dest" } } },
+    }); });
+    const moved = slot.inspection.sdkCalls
+      .filter((call) => call.method === "threads.update")
+      .map((call) => (call.args[0] as { threadId: string }).threadId);
+    expect(moved.sort()).toEqual(["t1", "t2"]);
+  });
+
+  it("does nothing when a spool card lands on another spool card", async () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
+        { threadId: "t3", metadata: { spool: "spool_b", spoolJoined: 1, spoolLead: true } },
+      ]),
+      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "old" }), makeThread({ id: "t3", sectionId: "old" })],
+        projects: [makeProject({ id: "proj_a" })],
+        sections: [makeSection({ id: "old", name: "Old" }), makeSection({ id: "dest", name: "Destination" })] },
+    });
+    await act(async () => {});
+    act(() => { probes.onDragStart!({ active: { data: { current: { spoolId: "spool_a" } } } }); });
+    await act(async () => { probes.onDragEnd!({
+      active: { data: { current: { spoolId: "spool_a" } } },
+      over: { data: { current: { kind: "spool", spoolId: "spool_b" } } },
+    }); });
+    // Without the guard the undefined sectionId would unfile spool_a's members.
+    expect(slot.inspection.sdkCalls.filter((call) => call.method === "threads.update")).toEqual([]);
+  });
+
+  it("highlights section buckets while a spool is dragged over them", async () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
+      ]),
+      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "old" })],
+        projects: [makeProject({ id: "proj_a" })],
+        sections: [makeSection({ id: "old", name: "Old" }), makeSection({ id: "dest", name: "Destination" })] },
+    });
+    await act(async () => {});
+    act(() => { probes.onDragStart!({ active: { data: { current: { spoolId: "spool_a" } } } }); });
+    // The spool sits in "Old" (the lead's section): that bucket reads as
+    // "already here", every other bucket reads as a new destination.
+    probes.isOver = true;
+    slot.rerender(createElement(list.component, { ...props }));
+    const cueFor = (name: string): string =>
+      slot.container.querySelector(`section[aria-label="${name}"]`)
+        ?.closest(".spooler-group-section")?.className ?? "";
+    expect(cueFor("Destination")).toContain("spooler-group-drop-active");
+    expect(cueFor("Old")).toContain("spooler-group-drop-same");
+  });
+});
+
+describe("palette commands drive the sidebar directly", () => {
+  it("moving a spool member re-files the whole spool, skipping members already there", async () => {
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
+      ]),
+      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "sec-a" })],
+        projects: [makeProject({ id: "proj_a" })],
+        sections: [makeSection({ id: "sec-a", name: "Alpha Section" })] },
+    });
+    await act(async () => {});
+    act(() => { requestPaletteIntent({ kind: "move-to-section", threadId: "t1" }); });
+    const row = await screen.findByTestId("spooler-move-section:sec-a");
+    act(() => { fireEvent.click(row); });
+    await waitFor(() => expect(slot.inspection.sdkCalls).toContainEqual(
+      { method: "threads.update", args: [{ threadId: "t1", sectionId: "sec-a" }] },
+    ));
+    // t2 already sits in sec-a — only the stale member moves.
+    expect(slot.inspection.sdkCalls.filter((call) => call.method === "threads.update")).toHaveLength(1);
+  });
+
+  it("throwing onto a spool writes the membership metadata", async () => {
+    const updatePluginMetadata = vi.fn(async () => ({}));
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: {} },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+      ], updatePluginMetadata),
+      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1" }), makeThread({ id: "t2" })],
+        projects: [makeProject({ id: "proj_a" })], sections: [] },
+    });
+    await act(async () => {});
+    act(() => { requestPaletteIntent({ kind: "throw-onto-spool", threadId: "t1" }); });
+    fireEvent.click(await screen.findByTestId("spooler-throw-spool:spool_a"));
+    await waitFor(() => expect(updatePluginMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "t1",
+        // pluginId is the runtime id (test-app default "test-plugin"); the
+        // spool key landing on t1 is what this regression guards.
+        set: expect.objectContaining({ spool: "spool_a" }),
+      }),
+    ));
+    void slot;
+  });
+
+  it("rejects intents for threads that are not in the spools list", async () => {
+    const error = vi.spyOn(toast, "error");
+    mount([makeThread({ id: "here" })]);
+    await act(async () => {});
+    act(() => { requestPaletteIntent({ kind: "move-to-section", threadId: "ghost" }); });
+    expect(error).toHaveBeenCalledWith("Thread isn't in the spools list.");
+    expect(screen.queryByTestId("spooler-palette-overlay")).toBeNull();
+  });
+});
+

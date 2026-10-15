@@ -143,7 +143,7 @@ function statusVisualFor(indicator: string): StatusVisual {
 }
 
 /** Human label for a pull request: attention first, then bare state. */
-function prLabel(state: string, attention: string): string {
+export function prLabel(state: string, attention: string): string {
   switch (attention) {
     case "ready_to_merge":
       return "Ready to merge";
@@ -183,7 +183,8 @@ function prLabel(state: string, attention: string): string {
   }
 }
 
-function prToneClass(attention: string): string {
+/** Visual tone for a pull request's attention, shared with the spool card. */
+export function prToneClass(attention: string): string {
   switch (attention) {
     case "checks_failed":
     case "conflicts":
@@ -202,14 +203,16 @@ function prToneClass(attention: string): string {
   }
 }
 
-function prBadgeClass(state: string, attention: string): string {
+/** Pill class for a pull request state, shared with the spool card. */
+export function prBadgeClass(state: string, attention: string): string {
   if (state === "merged" || attention === "merged") return "spooler-pr-merged";
   if (state === "closed" || attention === "closed") return "spooler-pr-closed";
   if (state === "draft" || attention === "draft") return "spooler-pr-draft";
   return "spooler-pr-open";
 }
 
-function prIconName(state: string, attention: string): string {
+/** Icon for a pull request state, shared with the spool card. */
+export function prIconName(state: string, attention: string): string {
   if (state === "merged" || attention === "merged") return "GitMerge";
   if (state === "closed" || attention === "closed") return "GitPullRequestClosed";
   if (state === "draft" || attention === "draft") return "GitPullRequestDraft";
@@ -312,6 +315,7 @@ function SpoolerThreadRowImpl({
   sdk,
   modelEpoch,
   density = "comfortable",
+  twoLine = false,
   isSelected = false,
   selectionActive = false,
   selectedIds,
@@ -358,6 +362,9 @@ function SpoolerThreadRowImpl({
   primaryHostId: string | null;
   sdk: PluginBrowserBbSdk;
   modelEpoch: number;
+  /** Two-line comfortable layout: the project chip and time drop to their
+   *  own line under the title instead of riding beside it. */
+  twoLine?: boolean;
   density?: "comfortable" | "compact";
   isSelected?: boolean;
   selectionActive?: boolean;
@@ -1137,21 +1144,26 @@ function SpoolerThreadRowImpl({
                 </span>
               );
             })()}
-            <span className="spooler-row-meta">
-              {projectTag ? (
-                <span
-                  className="spooler-row-project"
-                  title={projectTag}
-                  style={{
-                    "--spooler-project-hue":
-                      projectColorHue ?? projectHue(thread.projectId),
-                  } as CSSProperties}
-                >
-                  {projectTag}
-                </span>
-              ) : null}
-              {timeNode}
-            </span>
+          </span>
+          <span
+            className={cn(
+              "spooler-row-meta",
+              twoLine && "spooler-row-meta-line",
+            )}
+          >
+            {projectTag ? (
+              <span
+                className="spooler-row-project"
+                title={projectTag}
+                style={{
+                  "--spooler-project-hue":
+                    projectColorHue ?? projectHue(thread.projectId),
+                } as CSSProperties}
+              >
+                {projectTag}
+              </span>
+            ) : null}
+            {timeNode}
           </span>
           <span
             className={cn(

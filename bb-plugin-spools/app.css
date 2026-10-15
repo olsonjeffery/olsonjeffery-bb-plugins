@@ -1205,10 +1205,11 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  margin: 1px 0;
+  margin: 2px 0;
   border-radius: 8px;
+  /* Typical comfortable row is now title + meta line with 8px block padding. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 52px;
+  contain-intrinsic-size: auto 54px;
   box-shadow: inset 3px 0 0 transparent;
   transition:
     background-color 250ms ease,
@@ -1656,7 +1657,7 @@
   min-width: 0;
   align-items: flex-start;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 8px 8px;
   border-radius: 8px;
   color: inherit;
   text-decoration: none;
@@ -1747,7 +1748,21 @@ a.spooler-row-main:hover {
   flex: 1;
   min-width: 0;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
+}
+
+/* Two-line comfortable layout: the project chip + time own a line under the
+   title (chip left, time right), so the title line keeps the status cluster
+   clear at the right edge. */
+.spooler-row-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.spooler-row-meta-line .spooler-row-time {
+  margin-left: auto;
 }
 
 /* Backstop for squeezed rows: once the chip and time have shrunk and the
@@ -1865,17 +1880,18 @@ a.spooler-row-main:hover {
   max-width: 100%;
 }
 
-/* Height estimates for rows not yet rendered. Rows now range from one title
-   line (about 47px, 28px compact) to two lines with metadata below (about
-   84px, 60px compact), so estimate between the two rather than at either
-   end. The auto form remembers each row's real size once it has rendered. */
+/* Height estimates for rows not yet rendered. Comfortable rows now sit on a
+   title + meta line (about 54px, 28px compact); two-line titles plus the
+   subtitle and branch stack taller (about 68px, 44px compact), so estimate
+   between the ends rather than at either. The auto form remembers each row's
+   real size once it has rendered. */
 .spooler-title-wrap .spooler-row {
-  contain-intrinsic-size: auto 64px;
+  contain-intrinsic-size: auto 68px;
 }
 
 .spooler-title-wrap.spooler-density-compact .spooler-row,
 .spooler-title-wrap .spooler-row-compact {
-  contain-intrinsic-size: auto 40px;
+  contain-intrinsic-size: auto 44px;
 }
 
 /* Desktop hover actions sit on the row's last line of plain text: the
@@ -1891,11 +1907,11 @@ a.spooler-row-main:hover {
 }
 
 .spooler-title-wrap:not(.spooler-list-compact) .spooler-row-collapsed {
-  --spooler-actions-bottom: 7px;
+  --spooler-actions-bottom: 9px;
 }
 
 .spooler-title-wrap:not(.spooler-list-compact) .spooler-row:has(.spooler-branch-line) {
-  --spooler-actions-lift: 20px;
+  --spooler-actions-lift: 21px;
 }
 
 /* Compact density hides the branch line, so nothing needs clearing. A row one
@@ -2153,6 +2169,7 @@ a.spooler-row-main:hover {
 .spooler-row-extra {
   display: grid;
   grid-template-rows: 1fr;
+  margin-top: 2px;
   transition:
     grid-template-rows 280ms ease,
     opacity 220ms ease;
@@ -3156,8 +3173,8 @@ a.spooler-row-main:hover {
 .spooler-spool-card {
   position: relative;
   z-index: 0;
-  margin: 6px 2px 14px;
-  padding: 4px 0 6px;
+  margin: 8px 2px 20px;
+  padding: 6px 0 8px;
   border-radius: 10px;
   /* Sidebar tint via color-mix, same convention as the group headers. */
   background: color-mix(
@@ -3179,7 +3196,7 @@ a.spooler-row-main:hover {
 
 /* Collapsed: only the header shows, so the deck sits tighter. */
 .spooler-spool-card-collapsed {
-  padding: 4px 0;
+  padding: 5px 0;
 }
 
 .spooler-spool-card-dragging {
@@ -3230,7 +3247,7 @@ a.spooler-row-main:hover {
   align-items: center;
   gap: 6px;
   min-height: 54px;
-  padding: 0 10px 0 6px;
+  padding: 0 12px 0 8px;
 }
 
 .spooler-spool-icon {
@@ -3255,6 +3272,16 @@ a.spooler-row-main:hover {
 .spooler-spool-icon [data-icon-root] {
   width: 14px;
   height: 14px;
+}
+
+/* 🧵 thread glyph used wherever the old stacked-layers icon appeared. */
+.spooler-spool-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
 }
 
 .spooler-spool-title-btn {
@@ -3314,12 +3341,75 @@ a.spooler-row-main:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Header badges (project / multi-proj, branch, PR): they shrink with an
+   ellipsis before they can clip; the title keeps its min-width. */
+.spooler-spool-badges {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.spooler-spool-badges > * {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spooler-spool-badges .spooler-pr-link > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Shared branch chip for the uniform-branch badge. */
+.spooler-spool-badge-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.spooler-spool-badge-branch [data-icon-root] {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+
+.spooler-spool-badge-branch .spooler-branch-text {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+/* Gray fallback when members span more than one project. */
+.spooler-spool-badge-muted {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
 /* Member list: rows come from the ordinary renderer; just indent and tighten. */
 .spooler-spool-members {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 8px 6px 18px;
+  padding: 2px 10px 8px 18px;
 }
 
 .spooler-spool-member {

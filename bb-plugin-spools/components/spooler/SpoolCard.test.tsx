@@ -1,11 +1,40 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DndContext } from "@dnd-kit/core";
 import { createElement as h, type ReactNode } from "react";
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { SpoolCard } from "./SpoolCard";
 import { makeThread } from "./fixtures";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+
+// The card resolves the lead thread's PR and opens PR links through host
+// navigate; both are runtime hooks that need a stub in tests.
+const sdkStub = vi.hoisted(() => ({
+  pullRequest: null as null | {
+    number: number;
+    title: string;
+    url: string;
+    state: "closed" | "draft" | "merged" | "open";
+    attention: string;
+  },
+  openUrl: vi.fn(),
+}));
+vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    experimental_useSidebarThreadPullRequest: () => ({
+      isLoading: false,
+      pullRequest: sdkStub.pullRequest,
+    }),
+    useBbNavigate: () => ({ openUrl: sdkStub.openUrl }),
+  };
+});
+
+beforeEach(() => {
+  sdkStub.pullRequest = null;
+  sdkStub.openUrl.mockClear();
+});
 
 afterEach(() => {
   cleanup();
@@ -35,8 +64,7 @@ function makeProps(partial: Partial<PropsForTest> = {}): PropsForTest {
     onToggle: vi.fn(),
     onOpen: vi.fn(),
     onOpenTop: vi.fn(),
-    onArchive: vi.fn(),
-    onUnspool: vi.fn(),
+    onOpenMenu: vi.fn(),
     onContextMenu: vi.fn(),
     isRenaming: false,
     onRenameCommit: vi.fn(),
@@ -45,6 +73,8 @@ function makeProps(partial: Partial<PropsForTest> = {}): PropsForTest {
     renderMember: (thread: PluginSidebarThread): ReactNode =>
       h("div", { "data-testid": `member-${thread.id}` }, thread.displayTitle),
     draggingThreadId: null,
+    projectNameFor: (thread: PluginSidebarThread): string =>
+      `P:${thread.projectId}`,
     ...partial,
   };
 }
@@ -125,18 +155,14 @@ describe("SpoolCard", () => {
     expect(onOpenTop).toHaveBeenCalledWith("t1");
   });
 
-  it("wires the hover actions: archive and unspool buttons", () => {
-    const onArchive = vi.fn();
-    const onUnspool = vi.fn();
-    renderEl(makeProps({ onArchive, onUnspool }));
-    fireEvent.click(screen.getByRole("button", { name: "Archive spool threads" }));
-    expect(onArchive).toHaveBeenCalledTimes(1);
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Unspool (release threads back to the list)",
-      }),
-    );
-    expect(onUnspool).toHaveBeenCalledTimes(1);
+  it("the ellipsis button opens the spool menu via onOpenMenu", () => {
+    const onOpenMenu = vi.fn();
+    renderEl(makeProps({ onOpenMenu }));
+    fireEvent.click(screen.getByRole("button", { name: "Spool actions" }));
+    expect(onOpenMenu).toHaveBeenCalledTimes(1);
+    // The card must not also treat it as a plain card click.
+    const [eventArg] = onOpenMenu.mock.calls[0]!;
+    expect(eventArg.stopPropagation).toBeDefined();
   });
 
   it("renders inside a DndContext with draggable grip attributes and non-active droppable root", () => {
@@ -155,13 +181,16 @@ describe("SpoolCard", () => {
   describe("peek panel", () => {
     it("appears on card hover, lists member rows, then lingers ~500ms after leave", () => {
       vi.useFakeTimers();
-      renderEl(makeProps());
+      const slot = renderEl(makeProps());
       const card = document.querySelector('[data-spool-id="spool1"]')!;
-
-      // Not on screen before hover.
       expect(screen.queryByRole("tooltip")).toBeNull();
       fireEvent.mouseEnter(card);
       const peek = screen.getByRole("tooltip");
+      // Portaled: lives at document.body level, outside the mount container.
+      expect(document.body.contains(peek)).toBe(true);
+      expect(peek.parentElement).toBe(document.body);
+      expect(slot.container.contains(peek)).toBe(false);
+      expect(peek.style.position).toBe("fixed");
       expect(peek.textContent).toContain("Spool: Alpha");
       expect(peek.textContent).toContain("Member t1");
       expect(peek.textContent).toContain("Member t2");
@@ -200,6 +229,105 @@ describe("SpoolCard", () => {
         vi.advanceTimersByTime(1000);
       });
       expect(screen.getByRole("tooltip")).toBeTruthy();
+    });
+
+    it("moving the pointer into the portaled peek itself also cancels the linger", () => {
+      vi.useFakeTimers();
+      renderEl(makeProps());
+      const card = document.querySelector('[data-spool-id="spool1"]')!;
+
+      fireEvent.mouseEnter(card);
+      fireEvent.mouseLeave(card);
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      // Entering the peek (not just the card) must clear the pending close.
+      fireEvent.mouseEnter(screen.getByRole("tooltip"));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByRole("tooltip")).toBeTruthy();
+      // Leaving the peek again schedule the close normally.
+      fireEvent.mouseLeave(screen.getByRole("tooltip"));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+  });
+
+  describe("collapsed badges", () => {
+    it("shows a uniform-project chip and nothing on mixed projects but the fallback", () => {
+      renderEl(makeProps({ collapsed: true }));
+      expect(screen.getByText("P:proj_a")).toBeTruthy();
+      cleanup();
+
+      const mixed = makeProps({
+        collapsed: true,
+        data: {
+          ...makeProps().data,
+          members: [
+            { ...member("t1"), projectId: "proj_a" },
+            { ...member("t2"), projectId: "proj_b" },
+          ],
+        },
+      });
+      renderEl(mixed);
+      expect(screen.getByText(/2 projects/)).toBeTruthy();
+      expect(screen.queryByText("P:proj_a")).toBeNull();
+    });
+
+    it("shows a uniform-branch chip plus the lead thread's PR badge, and none of it expanded", () => {
+      const branched = () =>
+        makeThread({
+          id: "t9",
+          title: "Member t9",
+          environment: {
+            id: "env_t9",
+            name: null,
+            branchName: "feat/spool",
+            path: null,
+            isWorktree: false,
+            providerId: "project-checkout",
+            workspaceDisplayKind: null,
+          },
+        });
+      sdkStub.pullRequest = {
+        number: 42,
+        title: "Fix spools",
+        url: "https://github.com/o/r/pull/42",
+        state: "open",
+        attention: "checks_pending",
+      };
+      renderEl(
+        makeProps({
+          collapsed: true,
+          data: {
+            ...makeProps().data,
+            members: [branched(), branched()],
+          },
+        }),
+      );
+      expect(screen.getByText("feat/spool")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /Open pull request 42/ }));
+      expect(sdkStub.openUrl).toHaveBeenCalledWith(
+        "https://github.com/o/r/pull/42",
+      );
+      expect(screen.getByText(/#42 ·/)).toBeTruthy();
+      cleanup();
+
+      sdkStub.pullRequest = null;
+      renderEl(
+        makeProps({
+          collapsed: false,
+          data: {
+            ...makeProps().data,
+            members: [branched(), branched()],
+          },
+        }),
+      );
+      expect(screen.queryByText("feat/spool")).toBeNull();
+      expect(screen.queryByText("P:proj_a")).toBeNull();
     });
   });
 });

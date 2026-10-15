@@ -37,6 +37,7 @@ import {
   useBbNavigate,
   useSdk,
   useSettings,
+  type PluginSidebarSection,
   type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
@@ -67,6 +68,8 @@ import {
 import { SpoolerSmartViews } from "./SpoolerSmartViews";
 import { SpoolerNewSection } from "./SpoolerNewSection";
 import { SpoolCard } from "./SpoolCard";
+import { PaletteOverlay } from "./PaletteOverlay";
+import { onPaletteIntent, type PaletteIntent } from "./paletteBus";
 import { useSpools } from "./useSpools";
 import {
   ThreadActionBridge,
@@ -200,17 +203,24 @@ const noop = (): void => undefined;
 const nThreads = (count: number) => `${count} thread${count === 1 ? "" : "s"}`;
 
 /**
- * A section group that accepts a dragged thread. Highlighting is driven by
- * dnd-kit's `isOver`, so the drop target is unmistakable before release.
+ * A section group that accepts a dragged thread or spool. Highlighting is
+ * driven by dnd-kit's `isOver`, so the drop target is unmistakable before
+ * release — for either drag kind. Exported for the drop-cue tests.
  */
-function DroppableSectionSection({
+export function DroppableSectionSection({
   group,
   draggingThreadId,
+  draggingSpoolId,
+  draggingSpoolSectionId,
   onDropThread,
   children,
 }: {
   group: ThreadGroup;
   draggingThreadId: string | null;
+  draggingSpoolId: string | null;
+  /** Where the dragged spool currently sits (its lead thread's section),
+   * matching what "Move all to section" considers current. */
+  draggingSpoolSectionId: string | null;
   onDropThread: (threadId: string, sectionId: string | null) => void;
   children: ReactNode;
 }) {
@@ -218,12 +228,20 @@ function DroppableSectionSection({
     id: group.id,
     data: { sectionId: group.sectionId },
   });
-  const dragged = draggingThreadId
-    ? group.roots.find((root) => root.id === draggingThreadId)
+  const hasThreadDrag = draggingThreadId != null;
+  const hasSpoolDrag = draggingSpoolId != null;
+  const hasDrag = hasThreadDrag || hasSpoolDrag;
+  const dragged = hasThreadDrag
+    ? (group.roots.find((root) => root.id === draggingThreadId) ?? null)
     : null;
-  // No point offering a thread its own current section.
-  const alreadyHere =
-    dragged != null && (dragged.sectionId ?? null) === group.sectionId;
+  // No point offering a drag its own current section. A spool's members all
+  // count as sitting where the lead sits (same rule as the ctx menu).
+  const existingSectionId = hasSpoolDrag
+    ? draggingSpoolSectionId
+    : dragged != null
+      ? (dragged.sectionId ?? null)
+      : null;
+  const alreadyHere = hasDrag && existingSectionId === group.sectionId;
   return (
     // A plain div: the wrapped group already renders the labelled <section>.
     <div
@@ -231,16 +249,19 @@ function DroppableSectionSection({
       className={cn(
         "spooler-group",
         "spooler-group-section",
-        isOver && draggingThreadId && !alreadyHere && "spooler-group-drop-active",
-        isOver && draggingThreadId && alreadyHere && "spooler-group-drop-same",
+        isOver && hasDrag && !alreadyHere && "spooler-group-drop-active",
+        isOver && hasDrag && alreadyHere && "spooler-group-drop-same",
       )}
       onDrop={(event) => {
-        if (!draggingThreadId) return;
+        if (!hasDrag) return;
         event.preventDefault();
+        // A spool drag still resolves through the section DndContext's
+        // onDragEnd (it must re-file every member, not just one thread).
+        if (!hasThreadDrag) return;
         onDropThread(draggingThreadId, group.sectionId);
       }}
       onDragOver={(event) => {
-        if (draggingThreadId) event.preventDefault();
+        if (hasDrag) event.preventDefault();
       }}
     >
       {children}
@@ -557,6 +578,25 @@ export function SpoolerThreadList({
     () => new Map(spoolStore.spools.map((spool) => [spool.id, spool])),
     [spoolStore.spools],
   );
+  // Spools that first appear after the initial mount start collapsed, so a
+  // newly created or newly-joined spool doesn't blast the whole member list
+  // open. The first observation only records ids: pre-existing spools keep
+  // whatever stored collapse state they already have.
+  const seenSpoolIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = new Set(spoolStore.spools.map((spool) => spool.id));
+    const previous = seenSpoolIdsRef.current;
+    seenSpoolIdsRef.current = ids;
+    if (previous === null) return;
+    const fresh: string[] = [];
+    for (const id of ids) if (!previous.has(id)) fresh.push(`spool:${id}`);
+    if (fresh.length === 0) return;
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      for (const id of fresh) next.add(id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [spoolStore.spools]);
   const [editingSpoolId, setEditingSpoolId] = useState<string | null>(null);
   const [draggingSpoolId, setDraggingSpoolId] = useState<string | null>(null);
   const [spoolMenu, setSpoolMenu] = useState<{ x: number; y: number; spoolId: string } | null>(null);
@@ -570,6 +610,10 @@ export function SpoolerThreadList({
   const [spoolNavOpen, setSpoolNavOpen] = useState<{ x: number; y: number } | null>(
     null,
   );
+  // The host-rendered palette commands run in this same bundle and ask for a
+  // picker through the bus; the sidebar owns the thread resolution and the
+  // overlay (no right-hand thread panel involved anymore).
+  const [paletteIntent, setPaletteIntent] = useState<PaletteIntent | null>(null);
   const { providers } = experimental_useProviders();
   const providerById = useMemo(
     () => new Map(providers.map((provider) => [provider.id, provider])),
@@ -642,6 +686,23 @@ export function SpoolerThreadList({
   spoolIdByThreadIdRef.current = spoolIdByThreadId;
   const spoolStoreRef = useRef(spoolStore);
   spoolStoreRef.current = spoolStore;
+  const paletteIntentRef = useRef<PaletteIntent | null>(paletteIntent);
+  paletteIntentRef.current = paletteIntent;
+  // Subscribe once. While a picker is open further intents are dropped (the
+  // visible picker already targets a thread); unknown threads are rejected
+  // with an error toast instead of opening an empty picker.
+  useEffect(
+    () =>
+      onPaletteIntent((next) => {
+        if (paletteIntentRef.current) return;
+        if (!rowByIdRef.current.get(next.threadId)) {
+          toast.error("Thread isn't in the spools list.");
+          return;
+        }
+        setPaletteIntent(next);
+      }),
+    [],
+  );
   const actions = useMemo<SpoolerThreadActions>(() => ({
     open: (threadId, options) => navigate.toThread(threadId, options),
     openNewThread: (options) => navigate.toCompose({ focusPrompt: true, ...options }),
@@ -760,7 +821,67 @@ export function SpoolerThreadList({
       if (memberIds.length === 0) return;
       moveThreadToSection(memberIds[0], sectionId, memberIds);
     },
-    [moveThreadToSection],
+    // spoolById must be in the deps: without it the closure sees the first
+    // render's empty map and a spool drag silently does nothing.
+    [moveThreadToSection, spoolById],
+  );
+
+  /** Palette "move to section": ported from the old MoveToSectionPanel. A
+   * spool's rows travel together (skip members already in the destination);
+   * a plain thread moves alone. */
+  const paletteMoveToSection = useCallback(
+    (section: PluginSidebarSection | null) => {
+      const intent = paletteIntent;
+      setPaletteIntent(null);
+      if (!intent) return;
+      const destination = section ? section.name : "Unfiled";
+      const spoolId = spoolIdByThreadId.get(intent.threadId);
+      const spool = spoolId ? (spoolById.get(spoolId) ?? null) : null;
+      const destinationId = section?.id ?? null;
+      const ids = (spool ? spool.members : [intent.threadId]).filter((id) => {
+        const thread = rowById.get(id);
+        return thread && (thread.sectionId ?? null) !== destinationId;
+      });
+      if (ids.length === 0) {
+        toast.success(`Already in ${destination}.`);
+        return;
+      }
+      void Promise.allSettled(
+        ids.map((id) => sdk.threads.update({ threadId: id, sectionId: destinationId })),
+      ).then((settled) => {
+        const failed = settled.filter((row) => row.status === "rejected").length;
+        if (failed === ids.length) {
+          toast.error(`Couldn’t move to ${destination}.`);
+          return;
+        }
+        const suffix = spool
+          ? ` spool (${nThreads(ids.length)})`
+          : " thread";
+        toast.success(`Moved${suffix} to ${destination}.`);
+      });
+    },
+    [paletteIntent, spoolIdByThreadId, spoolById, rowById, sdk],
+  );
+
+  /** Palette "throw onto spool": ported from the old ThrowOntoSpoolPanel; a
+   * "New spool…" pick creates a spool out of the target thread alone. */
+  const paletteThrowOntoSpool = useCallback(
+    (spoolId: string | null) => {
+      const intent = paletteIntent;
+      setPaletteIntent(null);
+      if (!intent) return;
+      void (spoolId
+        ? spoolStore.throwOntoSpool(spoolId, intent.threadId)
+        : spoolStore.createSpoolFromThread(intent.threadId)
+      )
+        .then(() => {
+          toast.success(`Threw thread onto ${spoolId ? "spool" : "new spool"}.`);
+        })
+        .catch((cause: unknown) =>
+          toast.error(`Couldn’t throw thread onto spool: ${problem(cause)}`),
+        );
+    },
+    [paletteIntent, spoolStore],
   );
 
   const commitSpoolRename = useCallback(
@@ -1316,7 +1437,7 @@ export function SpoolerThreadList({
               kind: "item" as const,
               id: "spool:create",
               label: "Create Spool from this Thread",
-              icon: "Layers",
+              icon: "🧵",
             },
           ]),
       ...(spoolThrowTargetIds(menuThread.id).length > 0
@@ -1604,8 +1725,11 @@ export function SpoolerThreadList({
               onToggle={() => toggleGroup(group.id)}
               onOpen={(threadId) => actions.open(threadId)}
               onOpenTop={(threadId) => actions.open(threadId)}
-              onArchive={() => archiveSpool(data.id)}
-              onUnspool={() => requestUnspool(data.id)}
+              onOpenMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: data.id });
+              }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: data.id });
@@ -1618,6 +1742,7 @@ export function SpoolerThreadList({
                 renderRow(thread, 1, null, isLast, null, false)
               }
               draggingThreadId={draggingThreadId}
+              projectNameFor={projectNameFor}
             />
           </div>
         );
@@ -1707,6 +1832,12 @@ export function SpoolerThreadList({
           key={group.id}
           group={group}
           draggingThreadId={draggingThreadId}
+          draggingSpoolId={draggable ? draggingSpoolId : null}
+          draggingSpoolSectionId={
+            draggable && draggingSpoolId != null
+              ? spoolMenuSectionOf(draggingSpoolId)
+              : null
+          }
           onDropThread={moveThreadToSection}
         >
           {plainSection}
@@ -1724,6 +1855,8 @@ export function SpoolerThreadList({
       collapseIds,
       projectOrder.length,
       draggingThreadId,
+      draggingSpoolId,
+      spoolMenuSectionOf,
       moveThreadToSection,
       actions,
       archiveSpool,
@@ -1732,6 +1865,7 @@ export function SpoolerThreadList({
       commitSpoolRename,
       setEditingSpoolId,
       rowDrop,
+      projectNameFor,
     ],
   );
 
@@ -1922,7 +2056,7 @@ export function SpoolerThreadList({
                 setSpoolNavOpen({ x: event.clientX, y: event.clientY });
               }}
             >
-              <Icon name="Layers" aria-hidden="true" />
+              <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
             </button>
           </div>
         </div>
@@ -2186,6 +2320,10 @@ export function SpoolerThreadList({
                   setRowDrop(null);
                   if (typeof activeData?.spoolId === "string") {
                     const spoolId = activeData.spoolId;
+                    // Dropping a spool onto another spool card is a no-op:
+                    // spools never nest, and without this guard the spool-on-
+                    // spool over target would unfile every member.
+                    if (target?.kind === "spool") return;
                     const sectionId = target?.sectionId;
                     moveSpoolToSection(spoolId, sectionId ?? null);
                     return;
@@ -2310,7 +2448,7 @@ export function SpoolerThreadList({
                       <span className="spooler-group-grip" aria-hidden="true">
                         <Icon name="DragDropVertical" />
                       </span>
-                      <Icon name="Layers" aria-hidden="true" className="spooler-group-drag-icon" />
+                      <span aria-hidden="true" className="spooler-spool-emoji spooler-group-drag-icon">🧵</span>
                       <span className="spooler-group-label">
                         {spoolById.get(draggingSpoolId)?.title ?? "Spool"}
                       </span>
@@ -2451,7 +2589,7 @@ export function SpoolerThreadList({
               kind: "item",
               id: "open-top",
               label: "Open top thread",
-              icon: "Layers",
+              icon: "🧵",
             },
             { kind: "separator" },
             { kind: "header", label: "Move all to section" },
@@ -2569,6 +2707,19 @@ export function SpoolerThreadList({
             unspoolSpool(spoolId);
           }}
           onCancel={() => setUnspoolConfirmId(null)}
+        />
+      ) : null}
+
+      {paletteIntent && rowById.has(paletteIntent.threadId) ? (
+        <PaletteOverlay
+          intent={paletteIntent}
+          threads={threads}
+          sections={sections}
+          spools={spoolStore.spools}
+          loading={spoolStore.status !== "ready"}
+          onMove={paletteMoveToSection}
+          onThrow={paletteThrowOntoSpool}
+          onClose={() => setPaletteIntent(null)}
         />
       ) : null}
 

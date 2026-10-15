@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement as h } from "react";
 import { UnspoolConfirmDialog } from "./UnspoolConfirmDialog";
@@ -24,8 +24,11 @@ function dialog(overrides: {
 
 describe("UnspoolConfirmDialog", () => {
   it("announces itself as an alert dialog and states the member count and title", () => {
-    const container = render(dialog({ title: "Spool: Race", count: 2 }));
-    const alert = container.getByRole("alertdialog");
+    const { container } = render(dialog({ title: "Spool: Race", count: 2 }));
+    // Renders into document.body via createPortal, outside the mount container.
+    expect(container.contains(screen.getByRole("alertdialog"))).toBe(false);
+    expect(document.body.contains(screen.getByRole("alertdialog"))).toBe(true);
+    const alert = screen.getByRole("alertdialog");
     expect(alert.getAttribute("aria-modal")).toBe("true");
     expect(alert.textContent).toContain("Spool: Race");
     expect(alert.textContent).toContain("2");
@@ -33,11 +36,11 @@ describe("UnspoolConfirmDialog", () => {
   });
 
   it("uses the singular when one member", () => {
-    const container = render(dialog({ count: 1 }));
-    expect(container.getByRole("alertdialog").textContent).toContain(
+    render(dialog({ count: 1 }));
+    expect(screen.getByRole("alertdialog").textContent).toContain(
       "Unspool 1 thread",
     );
-    expect(container.getByRole("alertdialog").textContent).not.toContain(
+    expect(screen.getByRole("alertdialog").textContent).not.toContain(
       "1 threads",
     );
   });
@@ -45,7 +48,7 @@ describe("UnspoolConfirmDialog", () => {
   it("confirms on the danger button", () => {
     const onConfirm = vi.fn();
     const container = render(dialog({ onConfirm, count: 2 }));
-    fireEvent.click(container.getByText("Unspool 2 threads"));
+    fireEvent.click(screen.getByText("Unspool 2 threads"));
     expect(onConfirm).toHaveBeenCalledOnce();
   });
 
@@ -53,17 +56,20 @@ describe("UnspoolConfirmDialog", () => {
     const onCancel = vi.fn();
     const first = render(dialog({ onCancel }));
 
-    fireEvent.click(first.getByText("Cancel"));
+    fireEvent.click(screen.getByText("Cancel"));
     expect(onCancel).toHaveBeenCalledOnce();
 
     cleanup();
+    // cleanup() removed the portal content from document.body.
+    expect(document.querySelector(".spooler-confirm-backdrop")).toBeNull();
     const second = render(dialog({ onCancel }));
-    fireEvent.mouseDown(second.container.querySelector(".spooler-confirm-backdrop")!);
+    fireEvent.mouseDown(document.querySelector(".spooler-confirm-backdrop")!);
     expect(onCancel).toHaveBeenCalledTimes(2);
 
     // Clicks inside the dialog itself do NOT cancel.
-    fireEvent.mouseDown(second.getByRole("alertdialog"));
+    fireEvent.mouseDown(screen.getByRole("alertdialog"));
     expect(onCancel).toHaveBeenCalledTimes(2);
+    void first;
   });
 
   it("Enter confirms and Escape cancels; neither leaks as a window default", () => {
@@ -81,8 +87,8 @@ describe("UnspoolConfirmDialog", () => {
   });
 
   it("focuses the confirm button on open so keyboard users act deliberately", () => {
-    const container = render(dialog());
-    expect(document.activeElement).toBe(container.getByText("Unspool 3 threads"));
+    render(dialog());
+    expect(document.activeElement).toBe(screen.getByText("Unspool 3 threads"));
   });
 
   it("keydown handlers stop once unmounted", () => {

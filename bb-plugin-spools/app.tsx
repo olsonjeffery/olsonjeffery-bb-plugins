@@ -6,7 +6,7 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { migrateLegacyPreferences } from "./components/storage";
 import { SpoolerThreadList } from "./components/spooler/SpoolerThreadList";
-import { MoveToSectionPanel, ThrowOntoSpoolPanel } from "./components/spooler/PalettePanels";
+import { requestPaletteIntent } from "./components/spooler/paletteBus";
 import { SpoolsSettingsSection } from "./components/spooler/SettingsSections";
 import "./app.css";
 
@@ -17,24 +17,15 @@ migrateLegacyPreferences();
 export default definePluginApp((app) => {
   app.slots.experimental_threadList({
     id: "spooler",
-    title: "Spooler",
+    title: "Spools",
     description:
       "Activity-grouped threads, nested families, and loud attention states.",
     component: SpoolerThreadList,
   });
 
-  // The palette commands are host-rendered and can only run code, so the
-  // pick-and-commit UI lives in thread panel slots the commands open.
-  app.slots.threadPanelAction({
-    id: "spools-move-to-section",
-    title: "Spools: move to section…",
-    component: MoveToSectionPanel,
-  });
-  app.slots.threadPanelAction({
-    id: "spools-throw-onto-spool",
-    title: "Spools: throw onto spool…",
-    component: ThrowOntoSpoolPanel,
-  });
+  // The palette commands run in the same bundle as the sidebar thread list:
+  // they hand their intent to SpoolerThreadList over a window event and the
+  // sidebar shows the picker overlay (no thread-panel slot involved).
 
   app.slots.settingsSection({
     id: "sections-and-spools",
@@ -47,22 +38,14 @@ export default definePluginApp((app) => {
     id: "move-to-section",
     title: "Spools: move thread to section…",
     isAvailable: (context) => context.threadId !== null,
-    run: (context) => {
-      void context.openPanel({
-        actionId: "spools-move-to-section",
-        params: { threadId: context.threadId },
-      });
-    },
+    run: (context) =>
+      requestPaletteIntent({ kind: "move-to-section", threadId: context.threadId! }),
   });
   app.commands.register({
     id: "throw-onto-spool",
     title: "Spools: throw thread onto spool…",
     isAvailable: (context) => context.threadId !== null,
-    run: (context) => {
-      void context.openPanel({
-        actionId: "spools-throw-onto-spool",
-        params: { threadId: context.threadId },
-      });
-    },
+    run: (context) =>
+      requestPaletteIntent({ kind: "throw-onto-spool", threadId: context.threadId! }),
   });
 });

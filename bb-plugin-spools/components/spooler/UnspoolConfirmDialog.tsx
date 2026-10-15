@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
 
 /**
@@ -31,7 +32,7 @@ export function UnspoolConfirmDialog(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
+  return createPortal(
     <div className="spooler-confirm-backdrop" onMouseDown={props.onCancel}>
       <div
         className="spooler-confirm"
@@ -68,6 +69,7 @@ export function UnspoolConfirmDialog(props: {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

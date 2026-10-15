@@ -146,7 +146,14 @@ export function SpoolerMenu({
             )}
             onClick={() => onSelect(item.id)}
           >
-            {item.icon ? (
+            {item.icon === "🧵" ? (
+              <span
+                className="spooler-menu-icon spooler-spool-emoji"
+                aria-hidden="true"
+              >
+                🧵
+              </span>
+            ) : item.icon ? (
               <Icon name={item.icon} aria-hidden="true" className="spooler-menu-icon" />
             ) : (
               <span className="spooler-menu-icon" aria-hidden="true" />
