@@ -359,12 +359,19 @@ export function SpoolCardImpl({
       <div className="spooler-spool-stack-layer spooler-spool-stack-layer-2" aria-hidden="true" />
 
       {/* Peek triggers ONLY on the header: hovering a member row is the
-          row's own thread hover card, not the spool's. */}
+          row's own thread hover card, not the spool's. The header's own
+          click toggles too, so the badges line and empty header background
+          collapse/expand like the title does. Interactive children stop
+          propagation and keep their own behavior (drag, open-top, PR link,
+          actions pip); renaming guards the input. */}
       <div
         ref={headerRef}
         className="spooler-spool-header"
         onMouseEnter={openPeek}
         onMouseLeave={schedulePeekClose}
+        onClick={() => {
+          if (!isRenaming) onToggle();
+        }}
       >
         {/* Grip only: a plain click never starts a drag. */}
         <button
@@ -423,7 +430,12 @@ export function SpoolCardImpl({
                 ? data.label
                 : `${data.label} (double-click to rename)`
             }
-            onClick={() => onToggle()}
+            onClick={(event) => {
+              // The header background toggles too; don't let the title's
+              // toggle bubble up and fire twice.
+              event.stopPropagation();
+              onToggle();
+            }}
             onDoubleClick={(event) => {
               event.preventDefault();
               startRename();

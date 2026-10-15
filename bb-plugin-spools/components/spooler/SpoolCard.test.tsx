@@ -122,6 +122,32 @@ describe("SpoolCard", () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
+  it("clicking the header background (badges line) toggles via onToggle exactly once", () => {
+    const onToggle = vi.fn();
+    const { container } = render(
+      h(DndContext, null, h(SpoolCard, makeProps({ onToggle }))),
+    );
+    fireEvent.click(
+      container.querySelector(".spooler-spool-header") as HTMLElement,
+    );
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("clicking the header background while renaming does not toggle", () => {
+    const onToggle = vi.fn();
+    const { container } = render(
+      h(
+        DndContext,
+        null,
+        h(SpoolCard, makeProps({ onToggle, isRenaming: true })),
+      ),
+    );
+    fireEvent.click(
+      container.querySelector(".spooler-spool-header") as HTMLElement,
+    );
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
   it("double-clicking the title starts rename; Enter commits, Escape cancels", () => {
     const startRename = vi.fn();
     const onRenameCommit = vi.fn();
@@ -327,9 +353,11 @@ describe("SpoolCard", () => {
         state: "open",
         attention: "checks_pending",
       };
+      const onToggle = vi.fn();
       renderEl(
         makeProps({
           collapsed: true,
+          onToggle,
           data: {
             ...makeProps().data,
             members: [branched(), branched()],
@@ -337,7 +365,10 @@ describe("SpoolCard", () => {
         }),
       );
       expect(screen.getByText("feat/spool")).toBeTruthy();
+      // The badges keep their own behavior — a PR click opens the PR instead
+      // of fold-toggling the spool (round 11).
       fireEvent.click(screen.getByRole("button", { name: /Open pull request 42/ }));
+      expect(onToggle).not.toHaveBeenCalled();
       expect(sdkStub.openUrl).toHaveBeenCalledWith(
         "https://github.com/o/r/pull/42",
       );
