@@ -48,6 +48,9 @@ export interface SpoolCardProps {
   /** Ellipsis click opens the spool menu (parent positions it). */
   onOpenMenu(event: React.MouseEvent<HTMLButtonElement>): void;
   onContextMenu(event: React.MouseEvent<HTMLDivElement>): void;
+  /** True while the spool's context/pip menu is raised: the peek is
+   *  dismissed and re-opening it is suppressed for the menu's lifetime. */
+  menuOpen?: boolean;
   /** In-place rename of the spool title (double-click the title). */
   isRenaming: boolean;
   onRenameCommit(title: string): void;
@@ -148,6 +151,7 @@ export function SpoolCardImpl({
   onOpenTop,
   onOpenMenu,
   onContextMenu,
+  menuOpen = false,
   isRenaming,
   onRenameCommit,
   onRenameCancel,
@@ -244,6 +248,8 @@ export function SpoolCardImpl({
   const peekRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | null>(null);
   const openPeek = useCallback(() => {
+    // The context/pip menu owns the screen when it is up: no peek under it.
+    if (menuOpenRef.current) return;
     if (closeTimer.current !== null) {
       clearTimeout(closeTimer.current);
       closeTimer.current = null;
@@ -273,6 +279,15 @@ export function SpoolCardImpl({
     }
     setPeekOpen(false);
   }, []);
+
+  // Keep the openPeek suppression in a ref so the callback list stays empty
+  // (the handlers hang off the header's synthetic events) while menuOpen
+  // state changes drive dismissal from its own effect below.
+  const menuOpenRef = useRef(menuOpen);
+  useEffect(() => {
+    menuOpenRef.current = menuOpen;
+    if (menuOpen) closePeekNow();
+  }, [menuOpen, closePeekNow]);
 
   // Position the portaled peek panel next to the card, clamped to the
   // viewport. Runs before paint; offsetWidth/Height ignore transforms so

@@ -1758,6 +1758,7 @@ export function SpoolerThreadList({
               event.preventDefault();
               setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: spool.id });
             }}
+            menuOpen={spoolMenu?.spoolId === spool.id}
             isRenaming={editingSpoolId === spool.id}
             onRenameCommit={(title) => commitSpoolRename(spool.id, title)}
             onRenameCancel={() => setEditingSpoolId(null)}
@@ -1903,6 +1904,7 @@ export function SpoolerThreadList({
       setEditingSpoolId,
       rowDrop,
       projectNameFor,
+      spoolMenu,
     ],
   );
 
