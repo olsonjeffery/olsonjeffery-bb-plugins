@@ -3173,7 +3173,7 @@ a.spooler-row-main:hover {
 .spooler-spool-card {
   position: relative;
   z-index: 0;
-  margin: 8px 2px 20px;
+  margin: 8px 0 20px;
   padding: 6px 0 8px;
   border-radius: 10px;
   /* Sidebar tint via color-mix, same convention as the group headers. */
@@ -3245,9 +3245,11 @@ a.spooler-row-main:hover {
 .spooler-spool-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-height: 54px;
-  padding: 0 12px 0 8px;
+  /* No extra left inset: grip + icon start at the list edge so the spool
+     icon column lines up with peer freestanding threads. */
+  padding: 0 12px 0 2px;
 }
 
 .spooler-spool-icon {
@@ -3312,18 +3314,58 @@ a.spooler-row-main:hover {
   height: 24px;
 }
 
-/* Hover-revealed actions (Archive / Unspool), like the row action cluster. */
-.spooler-spool-actions {
-  display: flex;
+/* The pip: the gray count chip, which on card hover becomes the ⋯ actions
+   button (both occupy the same spot; hover cross-fades between them). */
+.spooler-spool-pip {
+  position: relative;
+  display: inline-grid;
+  place-items: stretch;
   flex-shrink: 0;
-  gap: 2px;
+}
+
+.spooler-spool-pip > * {
+  grid-area: 1 / 1;
+}
+
+.spooler-spool-pip .spooler-spool-count {
+  min-height: 22px;
+  min-width: 22px;
+  display: grid;
+  place-items: center;
+  transition: opacity 150ms ease;
+}
+
+.spooler-spool-pip .spooler-action-more {
+  border-radius: 999px;
   opacity: 0;
   transition: opacity 150ms ease;
 }
 
-.spooler-spool-card:hover .spooler-spool-actions,
-.spooler-spool-actions:focus-within {
+.spooler-spool-card:hover .spooler-spool-pip .spooler-spool-count,
+.spooler-spool-pip:focus-within .spooler-spool-count {
+  opacity: 0;
+}
+
+.spooler-spool-card:hover .spooler-spool-pip .spooler-action-more,
+.spooler-spool-pip:focus-within .spooler-action-more {
   opacity: 1;
+}
+
+/* While a member runs, the pip breathes a halo matched to its own gray (the
+   pip COLOR, per the user — not white): an expanding border shadow. */
+.spooler-spool-pip-working .spooler-spool-count {
+  animation: spool-pip-halo 2.4s ease-in-out infinite;
+}
+
+@keyframes spool-pip-halo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--muted-foreground) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px
+      color-mix(in srgb, var(--muted-foreground) 38%, transparent);
+  }
 }
 
 .spooler-spool-unspool {
@@ -3409,11 +3451,17 @@ a.spooler-row-main:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 10px 8px 18px;
+  /* Half the old inset (18px): member rows sit closer to the card edge. */
+  padding: 2px 10px 8px 9px;
 }
 
 .spooler-spool-member {
   min-width: 0;
+}
+
+/* Member rows render at depth 1; halve the ordinary child indent (16px). */
+.spooler-spool-member .spooler-row-child {
+  margin-left: 8px;
 }
 
 .spooler-spool-member .spooler-row {

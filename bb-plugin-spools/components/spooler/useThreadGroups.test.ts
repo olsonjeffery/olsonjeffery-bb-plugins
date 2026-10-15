@@ -108,7 +108,7 @@ describe("spool groups (section view only)", () => {
   const argsForSection = (threads: Args["threads"], extra: Partial<Args> = {}): Args =>
     argsWith(threads, { grouping: "section", sections: [section], ...extra });
 
-  it("lifts spool members out of section buckets into a card above their section", () => {
+  it("anchors spool cards INSIDE their section, lifting members out of the bucket", () => {
     const lead = makeThread({ id: "l", title: "Top", sectionId: "sec_1" });
     const peer = makeThread({ id: "m", sectionId: "sec_1" });
     const lone = makeThread({ id: "x", sectionId: "sec_1" });
@@ -119,13 +119,15 @@ describe("spool groups (section view only)", () => {
       }),
     ));
     const groups = hook.result.current.groups;
-    expect(groups.map((g) => g.id)).toEqual(["spool:spool_a", "section:sec_1", "section:__unfiled__"]);
-    expect(groups[0].spool).toMatchObject({
+    // No standalone spool entry anymore: the card rides inside its section.
+    expect(groups.map((g) => g.id)).toEqual(["section:sec_1", "section:__unfiled__"]);
+    expect(groups[0].spools).toHaveLength(1);
+    expect(groups[0].spools?.[0]).toMatchObject({
       id: "spool_a", label: "Spool: Top", leadThreadId: "l",
       members: [expect.objectContaining({ id: "l" }), expect.objectContaining({ id: "m" })],
     });
     // Members left the section bucket.
-    expect(groups[1].roots.map((r) => r.id)).toEqual(["x"]);
+    expect(groups[0].roots.map((r) => r.id)).toEqual(["x"]);
   });
 
   it("counts members only and drops their filtered-out kin from the card", () => {
@@ -138,11 +140,11 @@ describe("spool groups (section view only)", () => {
         spoolIdByThreadId: new Map([["l", "spool_a"], ["c", "spool_a"], ["f", "spool_a"]]),
       }),
     ));
-    const spoolGroup = hook.result.current.groups[0];
-    expect(spoolGroup.spool?.members.map((m) => m.id)).toEqual(["l", "c", "f"]);
+    const spoolGroup = hook.result.current.groups.find((g) => (g.spools?.length ?? 0) > 0);
+    expect(spoolGroup?.spools?.[0]?.members.map((m) => m.id)).toEqual(["l", "c", "f"]);
     // Members only — parent l and child c are both counted once, not as a family.
-    expect(spoolGroup.total).toBe(3);
-    expect(spoolGroup.failed).toBe(1);
+    expect(spoolGroup?.total).toBe(3);
+    expect(spoolGroup?.failed).toBe(1);
   });
 
   it("leaves members that are not spooled by the caller as ordinary rows", () => {
@@ -168,7 +170,7 @@ describe("spool groups (section view only)", () => {
         spoolIdByThreadId: new Map([["l", "spool_a"]]),
       }),
     ));
-    expect(hook.result.current.groups.every((g) => g.spool === null)).toBe(true);
+    expect(hook.result.current.groups.every((g) => g.spools === undefined)).toBe(true);
     expect(hook.result.current.groups.some((g) => g.id.startsWith("spool:"))).toBe(false);
   });
 });

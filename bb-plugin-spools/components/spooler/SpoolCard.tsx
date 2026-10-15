@@ -23,6 +23,7 @@ import {
   prToneClass,
   projectHue,
 } from "./SpoolerThreadRow";
+import { isLiveThread } from "./time";
 import { type SpoolGroupData } from "./useThreadGroups";
 
 /** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
@@ -190,6 +191,8 @@ export function SpoolCardImpl({
     branchSet.size === 1 && lead?.environment?.branchName
       ? lead.environment.branchName
       : null;
+  // The count pip breathes while any member runs (user: gray halo, always).
+  const anyWorking = data.members.some((member) => isLiveThread(member));
 
   // In-place rename. Seeds once per rename start, like the ordinary row.
   const [renameValue, setRenameValue] = useState("");
@@ -288,6 +291,14 @@ export function SpoolCardImpl({
       onContextMenu={onContextMenu}
       onMouseEnter={openPeek}
       onMouseLeave={schedulePeekClose}
+      onClick={(event) => {
+        // Whole-card click toggles fold/unfold — except on the interactive
+        // chrome (grip, icon, title, badges, actions, member rows), which
+        // must keep its own behavior.
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("button, input, a, [role='menu']")) return;
+        onToggle();
+      }}
     >
       {/* Stacked-deck layers peeking out below the card. */}
       <div className="spooler-spool-stack-layer spooler-spool-stack-layer-1" aria-hidden="true" />
@@ -300,7 +311,10 @@ export function SpoolCardImpl({
           className="spooler-row-grip"
           aria-label="Drag spool onto a section header to file its threads"
           title="Drag spool onto a section header to file its threads"
-          onClick={(event) => event.preventDefault()}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           {...attributes}
           {...listeners}
         >
@@ -415,7 +429,18 @@ export function SpoolCardImpl({
             ) : null}
           </div>
         ) : null}
-        <div className="spooler-spool-actions">
+        <span
+          className={cn(
+            "spooler-spool-pip",
+            anyWorking && "spooler-spool-pip-working",
+          )}
+        >
+          <span
+            className="spooler-spool-count"
+            title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool`}
+          >
+            {data.members.length}
+          </span>
           <button
             type="button"
             tabIndex={-1}
@@ -431,12 +456,6 @@ export function SpoolCardImpl({
           >
             <Icon name="MoreHorizontal" aria-hidden="true" />
           </button>
-        </div>
-        <span
-          className="spooler-spool-count"
-          title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool`}
-        >
-          {data.members.length}
         </span>
       </div>
 

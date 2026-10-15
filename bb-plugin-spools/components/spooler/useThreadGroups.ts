@@ -26,6 +26,14 @@ export interface SpoolGroupData {
   leadThreadId: string;
   /** Members in join order, limited to row-visible threads. */
   members: PluginSidebarThread[];
+  /** Attention rollup over members. The card rides INSIDE a section bucket
+   *  (no standalone entry anymore), so the section folds these into its own
+   *  counts to keep header badges honest. */
+  total: number;
+  unread: number;
+  live: number;
+  needsUser: number;
+  failed: number;
 }
 
 /** A rendered group of threads: a time bucket, a project, or a section. */
@@ -49,8 +57,10 @@ export interface ThreadGroup {
   projectId: string | null;
   /** Set for section groups: target of drag-to-organize moves. */
   sectionId: string | null;
-  /** Set when the group IS a spool entry (Group By Section only). */
-  spool: SpoolGroupData | null;
+  /** Spool entries anchored in this section (Group By Section only). Their
+   *  cards render INSIDE the section fold, above its thread rows. (The old
+   *  standalone `spool` field is retired — no more spool top-level entry.) */
+  spools?: SpoolGroupData[];
 }
 
 interface SubtreeCounts {
@@ -374,14 +384,13 @@ export function useThreadGroups(args: {
         failed,
         projectId,
         sectionId,
-        spool: null,
       };
     },
     [countSubtree],
   );
 
   const assembleSpoolGroup = useCallback(
-    (spool: Spool): { anchor: string; group: ThreadGroup } | null => {
+    (spool: Spool): { anchor: string; spool: SpoolGroupData } | null => {
       // Pinned members render as ordinary rows in the Pinned group, so the
       // card shows only unpinned visible members; if none remain the card is
       // skipped for now (the join metadata is untouched).
@@ -411,27 +420,19 @@ export function useThreadGroups(args: {
         anchorMember.sectionId && sectionById.has(anchorMember.sectionId)
           ? `section:${anchorMember.sectionId}`
           : UNFILED_GROUP_ID;
-      const group: ThreadGroup = {
-        id: `spool:${spool.id}`,
+      const spoolData: SpoolGroupData = {
+        id: spool.id,
         label: spool.title,
-        icon: "Layers",
-        roots: [],
+        customTitle: spool.customTitle,
+        leadThreadId: spool.leadThreadId ?? "",
+        members: memberRows,
         total,
         unread,
         live,
         needsUser,
         failed,
-        projectId: null,
-        sectionId: null,
-        spool: {
-          id: spool.id,
-          label: spool.title,
-          customTitle: spool.customTitle,
-          leadThreadId: spool.leadThreadId ?? "",
-          members: memberRows,
-        },
       };
-      return { anchor, group };
+      return { anchor, spool: spoolData };
     },
     [rowById, shownIds, sectionById],
   );
@@ -446,7 +447,7 @@ export function useThreadGroups(args: {
     if (grouping !== "section" || spools.length === 0) {
       return {
         extraRoots: [] as PluginSidebarThread[],
-        byAnchor: new Map<string, ThreadGroup[]>(),
+        byAnchor: new Map<string, SpoolGroupData[]>(),
         /** Replacement children map when spool members are lifted. */
         children: null as Map<string, PluginSidebarThread[]> | null,
       };
@@ -466,13 +467,13 @@ export function useThreadGroups(args: {
       }
       if (kept.length > 0) children.set(parentId, kept);
     }
-    const byAnchor = new Map<string, ThreadGroup[]>();
+    const byAnchor = new Map<string, SpoolGroupData[]>();
     for (const spool of spools) {
       const assembled = assembleSpoolGroup(spool);
       if (!assembled) continue;
       const list = byAnchor.get(assembled.anchor);
-      if (list) list.push(assembled.group);
-      else byAnchor.set(assembled.anchor, [assembled.group]);
+      if (list) list.push(assembled.spool);
+      else byAnchor.set(assembled.anchor, [assembled.spool]);
     }
     return { extraRoots, byAnchor, children };
   }, [grouping, spools, spoolIdByThreadId, shownChildren, assembleSpoolGroup]);
@@ -526,7 +527,7 @@ export function useThreadGroups(args: {
       const promotedSpoolChildren = spoolSectionData.extraRoots;
       // Server section order first, then an Unfiled bucket; empty sections
       // still render so there is always somewhere to drop a thread.
-      // Spool cards sit just above their anchor section (the Top thread's
+      // Spool cards render inside their anchor section (the Top thread's
       // section, or Unfiled when it has none).
       const bySection = new Map<string, PluginSidebarThread[]>();
       const unfiled: PluginSidebarThread[] = [];
@@ -540,10 +541,26 @@ export function useThreadGroups(args: {
         }
       }
       const ordered: ThreadGroup[] = [];
+      /** Spool cards live INSIDE their anchor section (user request): the
+       *  bucket's fold renders its cards above the thread rows. */
+      const intoSection = (group: ThreadGroup, anchor: string) => {
+        const spoolsHere = spoolSectionData.byAnchor.get(anchor);
+        if (spoolsHere && spoolsHere.length > 0) {
+          group.spools = spoolsHere;
+          // Members render inside the card, not as ordinary rows, so their
+          // attention states must fold into the bucket's header counts.
+          for (const spool of spoolsHere) {
+            group.total += spool.total;
+            group.unread += spool.unread;
+            group.live += spool.live;
+            group.needsUser += spool.needsUser;
+            group.failed += spool.failed;
+          }
+        }
+        ordered.push(group);
+      };
       for (const section of sections) {
-        // Spool cards anchored in this section come first.
-        ordered.push(...(spoolSectionData.byAnchor.get(`section:${section.id}`) ?? []));
-        ordered.push(
+        intoSection(
           assembleGroup(
             `section:${section.id}`,
             section.name,
@@ -552,13 +569,13 @@ export function useThreadGroups(args: {
             null,
             section.id,
           ),
+          `section:${section.id}`,
         );
         bySection.delete(section.id);
       }
       // Sections created since the last refresh still appear.
       for (const [sectionId, list] of bySection) {
-        ordered.push(...(spoolSectionData.byAnchor.get(`section:${sectionId}`) ?? []));
-        ordered.push(
+        intoSection(
           assembleGroup(
             `section:${sectionId}`,
             sectionById.get(sectionId)?.name ?? "Section",
@@ -567,10 +584,10 @@ export function useThreadGroups(args: {
             null,
             sectionId,
           ),
+          `section:${sectionId}`,
         );
       }
-      ordered.push(...(spoolSectionData.byAnchor.get(UNFILED_GROUP_ID) ?? []));
-      ordered.push(
+      intoSection(
         assembleGroup(
           UNFILED_GROUP_ID,
           "Unfiled",
@@ -579,6 +596,7 @@ export function useThreadGroups(args: {
           null,
           null,
         ),
+        UNFILED_GROUP_ID,
       );
       return ordered;
     }

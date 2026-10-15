@@ -1713,46 +1713,44 @@ export function SpoolerThreadList({
 
   const renderGroup = useCallback(
     (group: ThreadGroup, isSortable = false, draggable = false) => {
-      // Spool entries render as the stacked card, no section chrome, sempre
-      // inside the section DndContext (their own drag/drop is wired there).
-      if (group.spool) {
-        const data = group.spool;
-        return (
-          <div key={group.id} className="spooler-spool-slot">
-            <SpoolCard
-              data={data}
-              collapsed={collapsedGroupIds.has(group.id)}
-              onToggle={() => toggleGroup(group.id)}
-              onOpen={(threadId) => actions.open(threadId)}
-              onOpenTop={(threadId) => actions.open(threadId)}
-              onOpenMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: data.id });
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: data.id });
-              }}
-              isRenaming={editingSpoolId === data.id}
-              onRenameCommit={(title) => commitSpoolRename(data.id, title)}
-              onRenameCancel={() => setEditingSpoolId(null)}
-              startRename={() => setEditingSpoolId(data.id)}
-              renderMember={(thread, index, isLast) =>
-                renderRow(thread, 1, null, isLast, null, false)
-              }
-              draggingThreadId={draggingThreadId}
-              projectNameFor={projectNameFor}
-            />
-          </div>
-        );
-      }
       const isCollapsed = collapsedGroupIds.has(group.id);
 
       const groupContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
         event.preventDefault();
         setGroupMenu({ x: event.clientX, y: event.clientY });
       };
+
+      /** Spool cards anchored in this bucket: they render INSIDE the section,
+       *  above its rows (moved from standalone entries above the bucket). */
+      const spoolCards = (group.spools ?? []).map((spool) => (
+        <div key={`spool:${spool.id}`} className="spooler-spool-slot">
+          <SpoolCard
+            data={spool}
+            collapsed={collapsedGroupIds.has(`spool:${spool.id}`)}
+            onToggle={() => toggleGroup(`spool:${spool.id}`)}
+            onOpen={(threadId) => actions.open(threadId)}
+            onOpenTop={(threadId) => actions.open(threadId)}
+            onOpenMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: spool.id });
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setSpoolMenu({ x: event.clientX, y: event.clientY, spoolId: spool.id });
+            }}
+            isRenaming={editingSpoolId === spool.id}
+            onRenameCommit={(title) => commitSpoolRename(spool.id, title)}
+            onRenameCancel={() => setEditingSpoolId(null)}
+            startRename={() => setEditingSpoolId(spool.id)}
+            renderMember={(thread, index, isLast) =>
+              renderRow(thread, 1, null, isLast, null, false)
+            }
+            draggingThreadId={draggingThreadId}
+            projectNameFor={projectNameFor}
+          />
+        </div>
+      ));
 
       const foldContent = (
         <Fold
@@ -1761,23 +1759,26 @@ export function SpoolerThreadList({
           label={`${group.label} threads`}
         >
           {() =>
-            group.roots.length === 0 ? (
+            spoolCards.length === 0 && group.roots.length === 0 ? (
               <p className="spooler-group-empty">Drop a thread here to file it.</p>
             ) : (
-              group.roots.map((root, index) =>
-                renderSubtree(
-                  root,
-                  0,
-                  renderRow,
-                  shownChildren,
-                  group.projectId,
-                  collapseIds,
-                  index === group.roots.length - 1,
-                  draggable,
-                  isCollapsed,
-                  rowDrop,
-                ),
-              )
+              <>
+                {spoolCards}
+                {group.roots.map((root, index) =>
+                  renderSubtree(
+                    root,
+                    0,
+                    renderRow,
+                    shownChildren,
+                    group.projectId,
+                    collapseIds,
+                    index === group.roots.length - 1,
+                    draggable,
+                    isCollapsed,
+                    rowDrop,
+                  ),
+                )}
+              </>
             )
           }
         </Fold>
