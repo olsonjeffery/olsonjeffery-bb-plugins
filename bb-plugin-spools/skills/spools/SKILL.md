@@ -29,10 +29,17 @@ both.
 
 ## Organisation tools
 
-- **Grouping modes** (`Clock` / `Folder` / `SectionMove` icons): time,
+- **Grouping modes** (`Clock` / `Folder` / `Hash` icons): time,
   project, or section. Project groups are drag-reorderable by their header
   (order persisted in `spools:project-order:v1`; right-click a header
   to reset). Each project header also carries a New-thread-in-project button.
+  In section grouping only the chevron stays on the header's left; the hash
+  glyph, title, live-status spinner and a count **pip** right-align in the
+  meta. The pip's background matches the inner panels and the spinner —
+  when threads are running — overlays it centered in the section's accent
+  (`--spooler-sec-accent` from `sectionColorVars`: darker than the pastel in
+  light theme, lighter than the deep tone in dark; plain sections fall back
+  to `--primary`).
 - **Create a section**: switch to section grouping, choose **New section**,
   enter its name and submit with **Create section** or Enter. Cancel or Escape
   closes the form without creating anything. Names are trimmed; blank names
@@ -81,8 +88,8 @@ metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTit
 by the spool's *lead* thread). Details:
 
 - The card shows the derived title (`Spool: <lead title>` until it is renamed — renaming
-  writes `spoolTitle` to the lead; clearing the title brings the derived one back), a
-  member count and folded stack layers (when the collapsed line cannot fit the
+  writes `spoolTitle` to the lead; clearing the title brings the derived one back) and a
+  member count (when the collapsed line cannot fit the
   working-count word it stands down to spinner + count — measured pre-paint, the
   word returns when room does — and the badge tooltip keeps the detail); a hover
   peek lists members with coloured status

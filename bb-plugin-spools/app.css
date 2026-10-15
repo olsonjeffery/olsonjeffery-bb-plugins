@@ -1014,6 +1014,22 @@
   cursor: grabbing;
 }
 
+/* Section-bucket headers only paint the chevron on the left: glyph, title,
+   status pip all right-align in the meta, so the header is tighter on its
+   left edge and the click affordance reads around the chevron. */
+.spooler-group-header-right {
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+/* Section-bucket headers only paint the chevron on the left: glyph, title,
+   status pip all right-align in the meta, so the header is tighter on its
+   left edge and the click affordance reads around the chevron. */
+.spooler-group-header-right {
+  gap: 4px;
+  padding: 4px 6px;
+}
+
 .spooler-group-chevron {
   width: 14px;
   height: 14px;
@@ -1061,6 +1077,46 @@
 .spooler-group-count {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+/* Sections mode turns the count into a pip whose background matches the
+   inner spool/row panels. The live-status spinner overlays it — same size,
+   centered — in the section's high-contrast accent (see sectionColorVars). */
+.spooler-group-count-pip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 17px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 60%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.spooler-group-count-pip .spooler-group-status {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+
+.spooler-group-count-pip .spooler-group-status [data-icon-root],
+.spooler-group-count-pip .spooler-spinner [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-count-pip .spooler-tone-running {
+  color: var(--spooler-sec-accent, var(--primary));
 }
 
 .spooler-group-unread {
@@ -3254,13 +3310,13 @@ a.spooler-row-main:hover {
 }
 
 /* ==========================================================================
-   Spool cards (Group By Section): one stacked-deck row per spool.
+   Spool cards (Group By Section): one row per spool.
    ========================================================================== */
 
 .spooler-spool-card {
   position: relative;
   z-index: 0;
-  margin: 8px 0 20px;
+  margin: 4px 0 10px;
   padding: 6px 0 8px;
   border-radius: 10px;
   /* Sidebar tint via color-mix, same convention as the group headers. */
@@ -3305,37 +3361,6 @@ a.spooler-row-main:hover {
 
 .spooler-spool-card-dragging {
   opacity: 0.5;
-}
-
-/* Stacked pseudo-card layers peeking out below (7px, then 14px). */
-.spooler-spool-stack-layer {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  height: 14px;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 30%, transparent);
-  pointer-events: none;
-}
-
-.spooler-spool-stack-layer-1 {
-  bottom: -7px;
-  opacity: 0.55;
-  background: color-mix(
-    in srgb,
-    var(--card, var(--background)) 55%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 30%, transparent)
-  );
-}
-
-.spooler-spool-stack-layer-2 {
-  bottom: -14px;
-  opacity: 0.35;
-  background: color-mix(
-    in srgb,
-    var(--card, var(--background)) 45%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 25%, transparent)
-  );
 }
 
 /* Heavy drop-target affordance: 2px accent border + slight raise. The
@@ -4273,13 +4298,13 @@ a.spooler-row-main:hover {
 }
 
 .spooler-list-sections .spooler-group-expanded + .spooler-group {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
-/* Inside a bucket, a spool card gives back some of the slot margin the old
-   standalone entry needed — the drawer keeps its own breathing room. */
-.spooler-group-bucket .spooler-spool-card {
-  margin-bottom: 16px;
+/* The first entry clears the section header by the same inset the panels
+   keep from the bucket's side and bottom edges (3px) — no extra buffer. */
+.spooler-list-sections .spooler-fold-inner > :first-child {
+  margin-top: 0;
 }
 
 /* Interior panels keep a small gutter from the bucket's left/right edges:
@@ -4289,8 +4314,15 @@ a.spooler-row-main:hover {
   padding-inline: 3px;
 }
 
-/* Color picker dots inside the context menu. */
-.spooler-menu-swatch {
+/* Between stacked section containers the bucket breathes like its own
+   inner panels: the fold's bottom padding doubles the old 4px inset. */
+.spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner {
+/* Between stacked section containers the bucket breathes like its own
+   inner panels: the fold's bottom padding doubles the old 4px inset. */
+.spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner {
+  padding-top: 3px;
+  padding-bottom: 8px;
+}
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
 }

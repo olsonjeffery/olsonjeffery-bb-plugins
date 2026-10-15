@@ -1958,6 +1958,7 @@ export function SpoolerThreadList({
             isCollapsed={isCollapsed}
             onToggle={() => toggleGroup(group.id)}
             onContextMenu={groupContextMenuStrict}
+            titleRight={grouping === "section"}
             onNewThread={
               group.projectId
                 ? () => handleNewThreadInProject(group.projectId!)

@@ -659,7 +659,7 @@ export function useThreadGroups(args: {
           assembleGroup(
             `section:${section.id}`,
             section.name,
-            "SectionMove",
+            "Hash",
             bySection.get(section.id) ?? [],
             null,
             section.id,
@@ -674,7 +674,7 @@ export function useThreadGroups(args: {
           assembleGroup(
             `section:${sectionId}`,
             sectionById.get(sectionId)?.name ?? "Section",
-            "SectionMove",
+            "Hash",
             list,
             null,
             sectionId,

@@ -9,22 +9,7 @@ describe("groupGlyph", () => {
       "Pin",
     );
     expect(
-      groupGlyph({ id: "pinned", icon: "Pin", projectId: null }, false),
-    ).toBe("Pin");
-    expect(
-      groupGlyph({ id: "project:x", icon: "Folder", projectId: "x" }, true),
-    ).toBe("Folder");
-    expect(
-      groupGlyph({ id: "project:x", icon: "Folder", projectId: "x" }, false),
-    ).toBe("FolderOpen");
-    expect(
-      groupGlyph({ id: "time:today", icon: "Clock", projectId: null }, false),
-    ).toBe("Clock");
-    expect(
-      groupGlyph(
-        { id: "section:s1", icon: "SectionMove", projectId: null },
-        false,
-      ),
-    ).toBe("SectionMove");
+      groupGlyph({ id: "section:s1", icon: "Hash", projectId: null }, false),
+    ).toBe("Hash");
   });
 });

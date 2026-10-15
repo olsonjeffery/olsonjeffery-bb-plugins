@@ -433,9 +433,6 @@ export function SpoolCardImpl({
       )}
       onContextMenu={onContextMenu}
     >
-      {/* Stacked-deck layers peeking out below the card. */}
-      <div className="spooler-spool-stack-layer spooler-spool-stack-layer-1" aria-hidden="true" />
-      <div className="spooler-spool-stack-layer spooler-spool-stack-layer-2" aria-hidden="true" />
 
       {/* Peek triggers ONLY on the header: hovering a member row is the
           row's own thread hover card, not the spool's. The header's own

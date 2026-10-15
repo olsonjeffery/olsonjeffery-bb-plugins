@@ -194,4 +194,56 @@ describe("app.css", () => {
     );
     expect(badge?.body).toMatch(/flex:\s*none/);
   });
+
+  it("retired the stacked-deck layers under spool cards", () => {
+    // The layers poked out below the card's negative bottom margin, so the
+    // panel border had blank space under it; the card now sits plainly.
+    expect(css).not.toContain("spooler-spool-stack-layer");
+  });
+
+  it("overlays the section status on the count pip in the accent color", () => {
+    const pip = rules().find((rule) =>
+      rule.selector === ".spooler-group-count-pip",
+    );
+    // Same panel recipe as spool cards, so the pip reads as belonging.
+    expect(pip?.body).toMatch(/border-radius:\s*999px/);
+    expect(pip?.body).toMatch(/color-mix\((?:[\s\S]*?)card/);
+    const status = rules().find(
+      (rule) =>
+        rule.selector === ".spooler-group-count-pip .spooler-group-status",
+    );
+    // The status spans the pip exactly: inset zero, not resized separately.
+    expect(status?.body).toMatch(/position:\s*absolute/);
+    expect(status?.body).toMatch(/inset:\s*0/);
+    // The spinner takes the section-anchor accent, unlocked via the vars.
+    const tone = rules().find(
+      (rule) =>
+        rule.selector === ".spooler-group-count-pip .spooler-tone-running",
+    );
+    expect(tone?.body).toMatch(/--spooler-sec-accent/);
+  });
+
+  it("right-aligns the section header chrome and keeps the chevron alone", () => {
+    const header = rules().find(
+      (rule) => rule.selector === ".spooler-group-header-right",
+    );
+    expect(header?.body).toMatch(/padding:\s*\d+px\s+\d+px/);
+  });
+
+  it("tightens the first entry to the bucket's edge insets", () => {
+    const fold = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner",
+    );
+    expect(fold?.body).toMatch(/padding-top:\s*3px/);
+    // Sections breathe double the old 4px inset between containers.
+    expect(fold?.body).toMatch(/padding-bottom:\s*8px/);
+    const first = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-list-sections .spooler-fold-inner > :first-child",
+    );
+    expect(first?.body).toMatch(/margin-top:\s*0/);
+  });
 });

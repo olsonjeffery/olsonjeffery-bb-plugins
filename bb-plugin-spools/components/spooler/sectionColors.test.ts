@@ -42,14 +42,20 @@ describe("section colors storage", () => {
 
   it("variables swap with the theme", () => {
     const gold = sectionColorOption({ g: "gold" }, "g")!;
-    expect(sectionColorVars(gold, false)).toMatchObject({
+    const light = sectionColorVars(gold, false)! as Record<string, string>;
+    expect(light).toMatchObject({
       "--spooler-sec-bg": gold.light,
       "--spooler-sec-fg": "#262626",
     });
-    expect(sectionColorVars(gold, true)).toMatchObject({
+    // Light theme accent darkens the anchor away from the bucket background.
+    expect(light["--spooler-sec-accent"]).toContain("#000000");
+    const dark = sectionColorVars(gold, true)! as Record<string, string>;
+    expect(dark).toMatchObject({
       "--spooler-sec-bg": gold.dark,
       "--spooler-sec-fg": "#f8f8f8",
     });
+    // Dark theme accent lightens the anchor away from the bucket background.
+    expect(dark["--spooler-sec-accent"]).toContain("#ffffff");
     expect(colorSwatchFor(gold, true)).toBe(gold.dark);
   });
 

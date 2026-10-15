@@ -133,5 +133,12 @@ export function sectionColorVars(
   return {
     "--spooler-sec-bg": bg,
     "--spooler-sec-fg": isDark ? SECTION_TEXT_DARK : SECTION_TEXT_LIGHT,
+    // High-contrast accent for the header's status overlay (running spinner
+    // painted over the count pip): darker than the pastel anchor in the light
+    // theme, lighter than the deep anchor in the dark one. Mixed away from the
+    // anchor toward black/white so it never matches the bucket background.
+    "--spooler-sec-accent": `color-mix(in srgb, ${bg} ${isDark ? "40%" : "70%"}, ${
+      isDark ? "#ffffff" : "#000000"
+    })`,
   } as CSSProperties;
 }

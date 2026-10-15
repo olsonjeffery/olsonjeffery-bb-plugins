@@ -42,6 +42,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+/** The status chip the count pip overlays in right-title headers. */
 function GroupStatus({ group }: { group: GroupHeaderData }) {
   // Attention takes priority over execution, matching the folded-family dot.
   if (group.failed > 0) {
@@ -90,6 +91,10 @@ interface HeaderProps {
   renaming?: boolean;
   onRenameCommit?: (title: string) => void;
   onRenameCancel?: () => void;
+  /** Sections mode: the glyph and title join the right-aligned meta ahead
+   *  of the status, so only the chevron stays on the header's left,
+   *  and the count renders as a pip the status overlays. */
+  titleRight?: boolean;
   /** Drag-to-reorder affordance; only project grouping supplies these. */
   drag?: {
     attributes: ReturnType<typeof useSortable>["attributes"];
@@ -108,6 +113,7 @@ export function GroupHeader({
   onRenameCommit,
   onRenameCancel,
   drag,
+  titleRight = false,
 }: HeaderProps) {
   const counts =
     group.unread > 0
@@ -154,6 +160,7 @@ export function GroupHeader({
       className={cn(
         "spooler-group-header",
         drag && "spooler-group-header-sortable",
+        titleRight && "spooler-group-header-right",
       )}
       onContextMenu={onContextMenu}
     >
@@ -177,12 +184,14 @@ export function GroupHeader({
           aria-hidden="true"
           className="spooler-group-chevron"
         />
-        <Icon
-          name={groupGlyph(group, isCollapsed)}
-          aria-hidden="true"
-          className="spooler-group-icon"
-        />
-        {renaming ? (
+        {titleRight ? null : (
+          <Icon
+            name={groupGlyph(group, isCollapsed)}
+            aria-hidden="true"
+            className="spooler-group-icon"
+          />
+        )}
+        {titleRight ? null : renaming ? (
           <input
             ref={inputRef}
             value={renameValue}
@@ -201,14 +210,49 @@ export function GroupHeader({
           <span className="spooler-group-label">{group.label}</span>
         )}
         <span className="spooler-group-meta">
-          <GroupStatus group={group} />
+          {titleRight ? (
+            <>
+              <Icon
+                name={groupGlyph(group, isCollapsed)}
+                aria-hidden="true"
+                className="spooler-group-icon"
+              />
+              {renaming ? (
+                <input
+                  ref={inputRef}
+                  value={renameValue}
+                  onChange={(event) => setRenameValue(event.target.value)}
+                  onKeyDown={onRenameKeyDown}
+                  onBlur={() => {
+                    // Escape already cancelled; don't double-fire through blur.
+                    if (!cancelled) commitRename();
+                  }}
+                  aria-label={`Rename ${group.label}`}
+                  placeholder={group.label}
+                  maxLength={200}
+                  className="spooler-rename spooler-group-rename"
+                />
+              ) : (
+                <span className="spooler-group-label">{group.label}</span>
+              )}
+            </>
+          ) : null}
+          {titleRight ? null : <GroupStatus group={group} />}
           {group.unread > 0 ? (
             <span className="spooler-group-unread" aria-hidden="true">
               <span className="spooler-unread" />
               {group.unread}
             </span>
           ) : null}
-          <span className="spooler-group-count">{group.total}</span>
+          <span
+            className={cn(
+              "spooler-group-count",
+              titleRight && "spooler-group-count-pip",
+            )}
+          >
+            {group.total}
+            {titleRight ? <GroupStatus group={group} /> : null}
+          </span>
         </span>
       </button>
       {onNewThread ? (
