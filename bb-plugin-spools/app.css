@@ -1220,12 +1220,17 @@
   background: var(--muted);
 }
 
-.spooler-row-active {
-  background: var(--accent, var(--muted));
-}
-
 .spooler-row-keyboard-focused {
   outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.spooler-row-active {
+  /* Red ring instead of a gray fill: the accent wash clashed with colored
+     section drawers (and dragged the panel off its section's tint). The
+     ring outlines above children-style content without shifting layout.
+     Kept after the keyboard rule so the ring survives focus navigation. */
+  outline: 2px solid #ff0000;
   outline-offset: -2px;
 }
 
@@ -3202,11 +3207,20 @@ a.spooler-row-main:hover {
 }
 
 /* The thread being viewed lives in this spool: while the card is collapsed
-   its members render no rows, so the panel itself carries the same accent
-   tint an active row would (expanded cards keep their member tinting). */
-.spooler-spool-card-active,
+   its members render no rows, so the panel itself is ringed with the same
+   red active-row outline (expanded cards keep their member-row tinting, and
+   a normal card background — no gray wash clashing with section colors). */
+.spooler-spool-card-active {
+  outline: 2px solid #ff0000;
+  outline-offset: -2px;
+}
+
 .spooler-spool-card-active:hover {
-  background: var(--accent, var(--muted));
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 78%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 22%, transparent)
+  );
 }
 
 /* Collapsed: only the header shows, so the deck sits tighter. */
