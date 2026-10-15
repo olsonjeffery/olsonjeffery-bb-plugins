@@ -4143,8 +4143,10 @@ a.spooler-row-main:hover {
 
 /* Unspooled threads in a bucket render as cards, matching their spool
    neighbors. Spool members stay flat inside their spool card (:not excludes
-   them and their nested rows), and active rows keep their highlight. */
-.spooler-group-bucket .spooler-row:not(.spooler-spool-card *):not(.spooler-row-active) {
+   them and their nested rows). Active rows keep this same card background —
+   with the gray fill retired, excluding them would let the drawer's darker
+   tint show through where the row box is. The danger ring is the highlight. */
+.spooler-group-bucket .spooler-row:not(.spooler-spool-card *) {
   background: color-mix(
     in srgb,
     var(--card, var(--background)) 60%,
@@ -4153,8 +4155,7 @@ a.spooler-row-main:hover {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
 }
 
-.spooler-group-bucket
-  .spooler-row:not(.spooler-spool-card *):not(.spooler-row-active):hover {
+.spooler-group-bucket .spooler-row:not(.spooler-spool-card *):hover {
   background: color-mix(
     in srgb,
     var(--card, var(--background)) 78%,
