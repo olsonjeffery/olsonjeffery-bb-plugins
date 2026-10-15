@@ -1517,7 +1517,7 @@ export function SpoolerThreadList({
             },
             {
               kind: "header" as const,
-              label: "Throw onto spool",
+              label: "Move to spool",
             },
             ...spoolThrowTargetIds(menuThread.id).map(
               (spoolId): SpoolerMenuItem => ({

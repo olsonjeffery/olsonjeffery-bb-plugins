@@ -74,7 +74,7 @@ export function PaletteOverlay(props: PaletteOverlayProps): React.ReactNode {
     undefined;
 
   const heading =
-    intent.kind === "move-to-section" ? "Move to section…" : "Throw onto spool…";
+    intent.kind === "move-to-section" ? "Move to section…" : "Move to spool…";
 
   return createPortal(
     <div className="spooler-confirm-backdrop" onMouseDown={props.onClose}>
