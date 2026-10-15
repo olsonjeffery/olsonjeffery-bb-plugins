@@ -3316,7 +3316,7 @@ a.spooler-row-main:hover {
 }
 
 /* Two-line titles setting: the spool header honors it — the title clamps to
-   two lines like ordinary thread titles, and the collapsed badges drop to
+   two lines like ordinary thread titles, and the badges drop to
    their own full-width line (indented to the title column) instead of
    squeezing the title. */
 .spooler-title-wrap .spooler-spool-header {
@@ -3336,8 +3336,10 @@ a.spooler-row-main:hover {
 
 .spooler-title-wrap .spooler-spool-badges {
   order: 3;
-  flex: 0 0 100%;
-  max-width: 100%;
+  /* basis auto + explicit width so the 48px start margin fits INSIDE the
+     header instead of extending the box past the card edge. */
+  flex: 0 0 auto;
+  width: calc(100% - 48px);
   /* Grip (16) + gap (4) + shape icon (24) + gap (4): the title column. */
   margin-inline-start: 48px;
 }
@@ -3465,7 +3467,9 @@ a.spooler-row-main:hover {
 
 /* Liveness rollup (N working · N needs you · …): the quiet right edge of the
    badge line — same language as the peek meta, so an expanded spool still
-   answers "is anything wrong?" without unfolding and without hover. */
+   answers "is anything wrong?" without unfolding and without hover. In the
+   one-line header it shrinks like the chips do, so a squeezed line degrades
+   to an ellipsis instead of a mid-letter cut at the container edge. */
 .spooler-spool-rollup {
   margin-left: auto;
   padding-right: 2px;
@@ -3474,7 +3478,10 @@ a.spooler-row-main:hover {
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
   white-space: nowrap;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Member list: rows come from the ordinary renderer; just indent and tighten. */
