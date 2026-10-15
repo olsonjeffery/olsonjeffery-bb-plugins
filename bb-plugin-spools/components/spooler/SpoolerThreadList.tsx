@@ -1011,9 +1011,20 @@ export function SpoolerThreadList({
       walk(pinnedGroup.roots);
     }
     for (const group of groups) {
-      if (!collapsedGroupIds.has(group.id)) {
-        walk(group.roots);
+      if (collapsedGroupIds.has(group.id)) {
+        continue;
       }
+      // Spool members render BEFORE the section's ordinary rows (their cards
+      // sit at the top of the bucket) and their rows show hover cards too.
+      for (const spool of group.spools ?? []) {
+        if (collapsedGroupIds.has(`spool:${spool.id}`)) {
+          continue;
+        }
+        for (const member of spool.members) {
+          list.push(member.id);
+        }
+      }
+      walk(group.roots);
     }
     return list;
   }, [pinnedGroup, groups, collapsedGroupIds, collapseIds, shownChildren]);

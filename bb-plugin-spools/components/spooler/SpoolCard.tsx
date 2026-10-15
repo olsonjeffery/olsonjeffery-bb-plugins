@@ -194,6 +194,22 @@ export function SpoolCardImpl({
   // The count pip breathes while any member runs (user: gray halo, always).
   const anyWorking = data.members.some((member) => isLiveThread(member));
 
+  // Peek meta line (hover-card parity): thread count plus any live states.
+  const peekStatuses = data.members.map(peekStatusFor);
+  const nWorking = peekStatuses.filter((s) => s === "working").length;
+  const nQuestion = peekStatuses.filter((s) => s === "question").length;
+  const nUnread = peekStatuses.filter((s) => s === "need").length;
+  const nFailed = peekStatuses.filter((s) => s === "failed").length;
+  const peekMeta = [
+    `${data.members.length} thread${data.members.length === 1 ? "" : "s"}`,
+    nWorking > 0 ? `${nWorking} working` : null,
+    nQuestion > 0 ? `${nQuestion} needs you` : null,
+    nUnread > 0 ? `${nUnread} unread` : null,
+    nFailed > 0 ? `${nFailed} failed` : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
+
   // In-place rename. Seeds once per rename start, like the ordinary row.
   const [renameValue, setRenameValue] = useState("");
   const [cancelled, setCancelled] = useState(false);
@@ -216,6 +232,7 @@ export function SpoolCardImpl({
   // linger alive while the pointer travels into the panel.
   const [peekOpen, setPeekOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
   const peekRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | null>(null);
   const openPeek = useCallback(() => {
@@ -241,6 +258,14 @@ export function SpoolCardImpl({
     };
   }, []);
 
+  const closePeekNow = useCallback(() => {
+    if (closeTimer.current !== null) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setPeekOpen(false);
+  }, []);
+
   // Position the portaled peek panel next to the card, clamped to the
   // viewport. Runs before paint; offsetWidth/Height ignore transforms so
   // the entrance animation can't skew the measurement.
@@ -257,7 +282,11 @@ export function SpoolCardImpl({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     let left = cardRect.right + gap;
-    if (left + width > vw - margin) left = cardRect.left - gap - width;
+    let side = "right";
+    if (left + width > vw - margin) {
+      left = cardRect.left - gap - width;
+      side = "left";
+    }
     if (left < margin) left = margin;
     if (left + width > vw - margin) left = Math.max(margin, vw - margin - width);
     let top = cardRect.top;
@@ -265,6 +294,18 @@ export function SpoolCardImpl({
     if (top < margin) top = margin;
     el.style.left = `${Math.round(left)}px`;
     el.style.top = `${Math.round(top)}px`;
+    el.dataset.side = side;
+    // Keep the arrow pointing at the header row even after the nudge.
+    const header = headerRef.current;
+    if (header) {
+      const headerRect = header.getBoundingClientRect();
+      const rowMid = (headerRect.top + headerRect.bottom) / 2;
+      const arrow = Math.min(
+        Math.max(rowMid - top, 14),
+        Math.max(height - 14, 14),
+      );
+      el.style.setProperty("--spooler-arrow-y", `${Math.round(arrow)}px`);
+    }
   }, [peekOpen]);
 
   const commit = () => {
@@ -289,22 +330,19 @@ export function SpoolCardImpl({
         dropActive && "spooler-spool-drop-active",
       )}
       onContextMenu={onContextMenu}
-      onMouseEnter={openPeek}
-      onMouseLeave={schedulePeekClose}
-      onClick={(event) => {
-        // Whole-card click toggles fold/unfold — except on the interactive
-        // chrome (grip, icon, title, badges, actions, member rows), which
-        // must keep its own behavior.
-        const target = event.target as HTMLElement | null;
-        if (target?.closest("button, input, a, [role='menu']")) return;
-        onToggle();
-      }}
     >
       {/* Stacked-deck layers peeking out below the card. */}
       <div className="spooler-spool-stack-layer spooler-spool-stack-layer-1" aria-hidden="true" />
       <div className="spooler-spool-stack-layer spooler-spool-stack-layer-2" aria-hidden="true" />
 
-      <div className="spooler-spool-header">
+      {/* Peek triggers ONLY on the header: hovering a member row is the
+          row's own thread hover card, not the spool's. */}
+      <div
+        ref={headerRef}
+        className="spooler-spool-header"
+        onMouseEnter={openPeek}
+        onMouseLeave={schedulePeekClose}
+      >
         {/* Grip only: a plain click never starts a drag. */}
         <button
           type="button"
@@ -457,7 +495,7 @@ export function SpoolCardImpl({
 
       <Fold collapsed={collapsed} label={`${data.label} members`}>
         {() => (
-          <div className="spooler-spool-members">
+          <div className="spooler-spool-members" onMouseEnter={closePeekNow}>
             {data.members.map((member, index) => (
               <div
                 key={member.id}
@@ -481,10 +519,20 @@ export function SpoolCardImpl({
           onMouseEnter={openPeek}
           onMouseLeave={schedulePeekClose}
         >
-          <div className="spooler-spool-peek-title" title={data.label}>
-            {data.label}
+          <div className="spooler-spool-peek-head">
+            <div className="spooler-spool-peek-head-row">
+              <span
+                aria-hidden="true"
+                className="spooler-spool-peek-emoji"
+              >
+                🧵
+              </span>
+              <span className="spooler-spool-peek-title" title={data.label}>
+                {data.label}
+              </span>
+            </div>
+            <div className="spooler-spool-peek-meta">{peekMeta}</div>
           </div>
-          <div className="spooler-spool-peek-rule" aria-hidden="true" />
           <div className="spooler-spool-peek-list">
             {data.members.map((member) => {
               const status = peekStatusFor(member);

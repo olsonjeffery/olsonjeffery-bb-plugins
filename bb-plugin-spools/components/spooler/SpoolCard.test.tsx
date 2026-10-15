@@ -184,12 +184,13 @@ describe("SpoolCard", () => {
   });
 
   describe("peek panel", () => {
-    it("appears on card hover, lists member rows, then lingers ~500ms after leave", () => {
+    it("appears on HEADER hover, lists member rows, then lingers ~500ms after leave", () => {
       vi.useFakeTimers();
       const slot = renderEl(makeProps());
       const card = document.querySelector('[data-spool-id="spool1"]')!;
+      const header = card.querySelector<HTMLElement>(".spooler-spool-header")!;
       expect(screen.queryByRole("tooltip")).toBeNull();
-      fireEvent.mouseEnter(card);
+      fireEvent.mouseEnter(header);
       const peek = screen.getByRole("tooltip");
       // Portaled: lives at document.body level, outside the mount container.
       expect(document.body.contains(peek)).toBe(true);
@@ -197,12 +198,13 @@ describe("SpoolCard", () => {
       expect(slot.container.contains(peek)).toBe(false);
       expect(peek.style.position).toBe("fixed");
       expect(peek.textContent).toContain("Spool: Alpha");
+      expect(peek.textContent).toContain("3 threads");
       expect(peek.textContent).toContain("Member t1");
       expect(peek.textContent).toContain("Member t2");
       expect(peek.textContent).toContain("Member t3");
 
       // Lingering: 400ms after leave it is still mounted.
-      fireEvent.mouseLeave(card);
+      fireEvent.mouseLeave(header);
       act(() => {
         vi.advanceTimersByTime(400);
       });
@@ -219,9 +221,10 @@ describe("SpoolCard", () => {
       const onOpen = vi.fn();
       renderEl(makeProps({ onOpen }));
       const card = document.querySelector('[data-spool-id="spool1"]')!;
+      const header = card.querySelector<HTMLElement>(".spooler-spool-header")!;
 
-      fireEvent.mouseEnter(card);
-      fireEvent.mouseLeave(card);
+      fireEvent.mouseEnter(header);
+      fireEvent.mouseLeave(header);
       act(() => {
         vi.advanceTimersByTime(200);
       });
@@ -229,7 +232,7 @@ describe("SpoolCard", () => {
       fireEvent.click(screen.getByRole("button", { name: /Member t2/ }));
       expect(onOpen).toHaveBeenCalledWith("t2");
       // Re-enter clears the pending close entirely.
-      fireEvent.mouseEnter(card);
+      fireEvent.mouseEnter(header);
       act(() => {
         vi.advanceTimersByTime(1000);
       });
@@ -240,9 +243,10 @@ describe("SpoolCard", () => {
       vi.useFakeTimers();
       renderEl(makeProps());
       const card = document.querySelector('[data-spool-id="spool1"]')!;
+      const header = card.querySelector<HTMLElement>(".spooler-spool-header")!;
 
-      fireEvent.mouseEnter(card);
-      fireEvent.mouseLeave(card);
+      fireEvent.mouseEnter(header);
+      fireEvent.mouseLeave(header);
       act(() => {
         vi.advanceTimersByTime(200);
       });
@@ -256,6 +260,25 @@ describe("SpoolCard", () => {
       fireEvent.mouseLeave(screen.getByRole("tooltip"));
       act(() => {
         vi.advanceTimersByTime(500);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("hovering the member list closes the peek at once — member rows show their own hover cards instead", () => {
+      vi.useFakeTimers();
+      renderEl(makeProps());
+      const card = document.querySelector('[data-spool-id="spool1"]')!;
+      const header = card.querySelector<HTMLElement>(".spooler-spool-header")!;
+      const members = card.querySelector<HTMLElement>(
+        ".spooler-spool-members",
+      )!;
+      fireEvent.mouseEnter(header);
+      expect(screen.getByRole("tooltip")).toBeTruthy();
+      // Down into the members: the spool peek must NOT linger in the way.
+      fireEvent.mouseEnter(members);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1000);
       });
       expect(screen.queryByRole("tooltip")).toBeNull();
     });
