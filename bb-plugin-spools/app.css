@@ -3249,11 +3249,16 @@ a.spooler-row-main:hover {
   );
 }
 
-/* Heavy drop-target affordance: 2px accent border + slight raise. */
+/* Heavy drop-target affordance: 2px accent border + slight raise. The
+   inset box-shadow sits UNDER the card's children — members and the boxed
+   header reach the card's left/right edges, hiding all but the corners.
+   outline draws above the content, so the ring stays unbroken. */
 .spooler-spool-drop-active {
   z-index: 1;
   transform: translateY(-1px);
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 65%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--primary) 80%, transparent);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 /* Header row: grip, Layers icon, title, pip/actions, member count. The
@@ -3850,7 +3855,10 @@ a.spooler-row-main:hover {
 }
 
 .spooler-row-draggable.spooler-row-drop-onto .spooler-row {
-  box-shadow: inset 0 0 0 2px var(--foreground);
+  /* outline, not an inset shadow: the row's inner content boxes cover a
+     shadow at the edges, leaving just the corners visible. */
+  outline: 2px solid var(--foreground);
+  outline-offset: -2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4162,6 +4170,13 @@ a.spooler-row-main:hover {
    standalone entry needed — the drawer keeps its own breathing room. */
 .spooler-group-bucket .spooler-spool-card {
   margin-bottom: 16px;
+}
+
+/* Interior panels keep a small gutter from the bucket's left/right edges:
+   boxed rows and spool cards otherwise sit flush against the drawer (the
+   colored frame especially), reading as glued to it. */
+.spooler-group-bucket .spooler-fold-inner {
+  padding-inline: 3px;
 }
 
 /* Color picker dots inside the context menu. */
