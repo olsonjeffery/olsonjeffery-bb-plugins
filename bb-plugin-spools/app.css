@@ -3634,6 +3634,12 @@ a.spooler-row-main:hover {
   gap: 4px;
   /* Half the old inset (18px): member rows sit closer to the card edge. */
   padding: 2px 10px 8px 9px;
+  /* The 5px runway above this rule matches the 5px pad below the member
+     separators (5px + 1px hairline = the same 6px beat): the header keeps
+     daylight before the divide instead of sitting on it. The space lives
+     with the roster inside the fold, so a collapsed card (0fr, hidden)
+     sheds it along with the divide. */
+  margin-top: 5px;
   /* Header/roster divide: the same hairline ink as the member separators,
      one full-width rule where the header yields to the thread list — the
      card reads header above, roster below. It lives inside the fold, so a

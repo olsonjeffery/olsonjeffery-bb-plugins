@@ -308,6 +308,12 @@ describe("app.css", () => {
         /border-top:\s*1px solid color-mix\(in srgb, var\(--border\) 60%, transparent\)/,
       );
     }
+    // The header keeps the same 5px runway above the divide that member
+    // separators carry below theirs (5px pad + 1px rule = one 6px beat).
+    const members = rules().find(
+      (candidate) => candidate.selector === ".spooler-spool-members",
+    );
+    expect(members?.body).toMatch(/margin-top:\s*5px/);
   });
 
   it("keeps the menu color swatch its own pill", () => {
