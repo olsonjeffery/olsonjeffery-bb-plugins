@@ -296,6 +296,20 @@ describe("app.css", () => {
     );
   });
 
+  it("divides the spool card between header and roster with one darker hairline", () => {
+    // Both rules share the ink: members' separators and the header/roster
+    // divide read 60% of the border color, past the panel tint.
+    for (const selector of [
+      ".spooler-spool-members",
+      ".spooler-spool-member + .spooler-spool-member",
+    ]) {
+      const rule = rules().find((candidate) => candidate.selector === selector);
+      expect(rule?.body).toMatch(
+        /border-top:\s*1px solid color-mix\(in srgb, var\(--border\) 60%, transparent\)/,
+      );
+    }
+  });
+
   it("keeps the menu color swatch its own pill", () => {
     // Restored after a merge ate its rule into the bucket fold-inner one.
     const swatch = rules().find((rule) => rule.selector === ".spooler-menu-swatch");

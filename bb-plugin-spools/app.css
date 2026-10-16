@@ -3634,6 +3634,11 @@ a.spooler-row-main:hover {
   gap: 4px;
   /* Half the old inset (18px): member rows sit closer to the card edge. */
   padding: 2px 10px 8px 9px;
+  /* Header/roster divide: the same hairline ink as the member separators,
+     one full-width rule where the header yields to the thread list — the
+     card reads header above, roster below. It lives inside the fold, so a
+     collapsed card (0fr, hidden) shows no divide. */
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
 .spooler-spool-member {
@@ -4280,12 +4285,13 @@ a.spooler-row-main:hover {
   );
 }
 
-/* Spool members: same rhythm as unspooled rows, no individual box — a subtle
-   separator between members is all they get inside their card. The 5px pad
-   plus the 1px hairline adds to the bucket's 6px inter-box gap, so threads
-   inside a spool beat in time with the cards around it. */
+/* Spool members: same rhythm as unspooled rows, no individual box — a darker
+   separator between members is all they get inside their card (60% ink so it
+   reads past the panel tint at a glance). The 5px pad plus the 1px hairline
+   adds to the bucket's 6px inter-box gap, so threads inside a spool beat in
+   time with the cards around it. */
 .spooler-spool-member + .spooler-spool-member {
-  border-top: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   padding-top: 5px;
 }
 
