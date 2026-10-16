@@ -1811,6 +1811,11 @@ a.spooler-row-main:hover {
 .spooler-spool-workcount .spooler-status-word {
   display: inline-flex;
   align-items: baseline;
+  /* The count and word are flex children, so the word's literal leading
+     space trims at the line start — the badge renders "1WORKING" without
+     one. This 4px gap is the real separation, and it is the exact value the
+     measuring effect adds between num and word when computing the fit. */
+  gap: 4px;
 }
 
 .spooler-spool-workcount .spooler-workcount-word {

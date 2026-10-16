@@ -193,6 +193,15 @@ describe("app.css", () => {
       (rule) => rule.selector === ".spooler-spool-workcount",
     );
     expect(badge?.body).toMatch(/flex:\s*none/);
+    // The inline-flex status word trims the word's literal leading space at
+    // the line start, so the count/word separation must come from this gap —
+    // and only this value matches what the measuring effect assumes.
+    const word = rules().find(
+      (rule) =>
+        rule.selector === ".spooler-spool-workcount .spooler-status-word",
+    );
+    expect(word?.body).toMatch(/display:\s*inline-flex/);
+    expect(word?.body).toMatch(/gap:\s*4px/);
   });
 
   it("retired the stacked-deck layers under spool cards", () => {
