@@ -208,14 +208,10 @@ export function SpoolCardImpl({
   const nQuestion = peekStatuses.filter((s) => s === "question").length;
   const nUnread = peekStatuses.filter((s) => s === "need").length;
   const nFailed = peekStatuses.filter((s) => s === "failed").length;
-  // Working Thread Count: styled like the per-thread WORKING badge (green
-  // spinner + status word, same font) and shown ONLY while collapsed —
-  // expanded members carry their own working badges, so a count would be
-  // repetitive. The other liveness parts stay in both states.
-  const showWorkingCount = collapsed && nWorking > 0;
-  // The working count lives only in the badge above: never duplicated in
-  // the muted rollup (collapsed: the badge shows it; expanded: members
-  // carry their own working badges). Non-working parts stay in both states.
+  // Working liveness presents in the count pip itself (a green spinner
+  // behind the numeral), the same pip grammar the section headers use —
+  // there is no separate text badge, and the rollup never repeats it.
+  // Non-working parts stay in both states.
   const rollupRest = [
     nQuestion > 0 ? `${nQuestion} needs you` : null,
     nUnread > 0 ? `${nUnread} unread` : null,
@@ -232,73 +228,6 @@ export function SpoolCardImpl({
   ]
     .filter((part) => part !== null)
     .join(" · ");
-
-  // The badges line shares one budget with the project/branch chips, and the
-  // Working Thread Count used to clip the status word mid-glyph. The WORD
-  // stands down when the line cannot fit it: the badge keeps the essential
-  // signal (spinner + count) and the badge tooltip keeps the detail. Measured
-  // in a pre-paint layout effect: scrollWidth reports a box's natural content
-  // width no matter how hard flex (or the line's own overflow:hidden) has
-  // squeezed it, and is untouched by transforms, so one formula covers both
-  // the shown and hide-word states and the value never oscillates. The badge
-  // decomposes by hand because its overflow:hidden keeps shadowed descendant
-  // scrollables out of the line's own scrollWidth sum.
-  const badgesLineRef = useRef<HTMLDivElement>(null);
-  const workBadgeRef = useRef<HTMLSpanElement>(null);
-  const workNumRef = useRef<HTMLSpanElement>(null);
-  const workWordRef = useRef<HTMLSpanElement>(null);
-  const [workWordClipped, setWorkWordClipped] = useState(false);
-  useLayoutEffect(() => {
-    if (!showWorkingCount) return;
-    const line = badgesLineRef.current;
-    if (!line) return;
-    const evaluate = () => {
-      const badge = workBadgeRef.current;
-      const word = workWordRef.current;
-      const num = workNumRef.current;
-      if (!badge || !word || !num) return;
-      const spinner = badge.querySelector<HTMLElement>(".spooler-spinner");
-      if (!spinner) return;
-      // Status gaps: the line and the inner badge each lay items out 4px apart.
-      let natural =
-        spinner.scrollWidth +
-        4 +
-        num.scrollWidth +
-        4 +
-        word.scrollWidth;
-      for (const child of Array.from(line.children)) {
-        if (child === badge) continue;
-        natural += (child as HTMLElement).scrollWidth + 4;
-      }
-      if (line.children.length > 0) natural -= 4;
-      // jsdom and display-off both read 0: without a real layout the word
-      // gets the benefit of the doubt instead of hiding everywhere.
-      if (line.clientWidth === 0) return;
-      setWorkWordClipped(natural > line.clientWidth);
-    };
-    evaluate();
-    // Chip content changes re-run the effect; resizes arrive here instead.
-    const observer =
-      typeof ResizeObserver === "function"
-        ? new ResizeObserver(evaluate)
-        : null;
-    observer?.observe(line);
-    return () => {
-      observer?.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    showWorkingCount,
-    nWorking,
-    uniformProjectName,
-    projectIds.size,
-    uniformBranch,
-    pullRequest?.number,
-    pullRequest?.state,
-    rollupRest,
-    data.id,
-    data.members.length,
-  ]);
 
   // In-place rename. Seeds once per rename start, like the ordinary row.
   const [renameValue, setRenameValue] = useState("");
@@ -524,7 +453,7 @@ export function SpoolCardImpl({
             thread list, not what the threads have in common. The rollup sits
             on the right and fills the empty side of the badge line with the
             liveness states the expanded body no longer shows. */}
-        <div ref={badgesLineRef} className="spooler-spool-badges">
+        <div className="spooler-spool-badges">
           {uniformProjectName ? (
               <span
                 className="spooler-row-project"
@@ -579,29 +508,6 @@ export function SpoolCardImpl({
                 </span>
               </button>
             ) : null}
-            {showWorkingCount ? (
-              <span
-                ref={workBadgeRef}
-                className="spooler-row-status-badge spooler-spool-workcount"
-                title={peekMeta}
-              >
-                <span className="spooler-spinner spooler-tone-success">
-                  <Icon name="Loading" aria-hidden="true" />
-                </span>
-                <span className="spooler-status-word spooler-tone-success">
-                  <span ref={workNumRef}>{nWorking}</span>
-                  <span
-                    ref={workWordRef}
-                    className={cn(
-                      "spooler-workcount-word",
-                      workWordClipped && "spooler-workcount-word-clip",
-                    )}
-                  >
-                    {" working"}
-                  </span>
-                </span>
-              </span>
-            ) : null}
             {rollupRest ? (
               <span className="spooler-spool-rollup" title={peekMeta}>
                 {rollupRest}
@@ -624,7 +530,16 @@ export function SpoolCardImpl({
               onOpenMenu(event);
             }}
           >
-            {data.members.length}
+            {nWorking > 0 ? (
+              <span
+                className="spooler-spool-pip-status spooler-spinner spooler-tone-success"
+                title={`${nWorking} working`}
+                aria-label={`${nWorking} working`}
+              >
+                <Icon name="Loading" aria-hidden="true" />
+              </span>
+            ) : null}
+            <span className="spooler-pip-numeral">{data.members.length}</span>
           </button>
         </span>
       </div>

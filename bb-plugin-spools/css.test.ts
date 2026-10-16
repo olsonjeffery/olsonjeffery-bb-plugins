@@ -177,31 +177,38 @@ describe("app.css", () => {
     expect(duplicated.map(([selector]) => selector)).toEqual([]);
   });
 
-  it("stands the spool working-count word down instead of clipping it mid-glyph", () => {
-    // jsdom cannot lay out the badges line either: the word zero-out is
-    // guarded here, the measurement decision in SpoolCard's tests.
-    const clip = rules().find(
+  it("presents one circular pip: numeral centered, spinner behind it", () => {
+    // Both pips — the section header's and the spool card's — share the
+    // same fixed-circle recipe: the pip is a circle, never a stadium that
+    // stretches with two digits.
+    for (const selector of [
+      ".spooler-group-count-pip",
+      ".spooler-spool-pip .spooler-spool-count",
+    ]) {
+      const rule = rules().find(
+        (candidate) => candidate.selector === selector,
+      );
+      expect(rule?.body).toMatch(/width:\s*18px/);
+      expect(rule?.body).toMatch(/height:\s*18px/);
+      expect(rule?.body).toMatch(/border-radius:\s*999px/);
+      expect(rule?.body).not.toMatch(/padding:\s*[1-9]/);
+    }
+    // The numeral paints above the overlay spinner (it is positioned and
+    // later in DOM), centered without the font's half-leading nudging it off
+    // the geometric middle.
+    const numeral = rules().find(
+      (rule) => rule.selector === ".spooler-pip-numeral",
+    );
+    expect(numeral?.body).toMatch(/position:\s*relative/);
+    expect(numeral?.body).toMatch(/z-index:\s*1/);
+    expect(numeral?.body).toMatch(/line-height:\s*1/);
+    // The spool pip's spinner spans its pip exactly like the section's.
+    const status = rules().find(
       (rule) =>
-        rule.selector ===
-        ".spooler-spool-workcount .spooler-workcount-word-clip",
+        rule.selector === ".spooler-spool-pip .spooler-spool-pip-status",
     );
-    expect(clip?.body).toMatch(/flex:\s*0 0 0/);
-    expect(clip?.body).toMatch(/overflow:\s*hidden/);
-    // The badge itself refuses to shrink: the spinner and the count are the
-    // essential signal, so the line never slices them mid-glyph.
-    const badge = rules().find(
-      (rule) => rule.selector === ".spooler-spool-workcount",
-    );
-    expect(badge?.body).toMatch(/flex:\s*none/);
-    // The inline-flex status word trims the word's literal leading space at
-    // the line start, so the count/word separation must come from this gap —
-    // and only this value matches what the measuring effect assumes.
-    const word = rules().find(
-      (rule) =>
-        rule.selector === ".spooler-spool-workcount .spooler-status-word",
-    );
-    expect(word?.body).toMatch(/display:\s*inline-flex/);
-    expect(word?.body).toMatch(/gap:\s*4px/);
+    expect(status?.body).toMatch(/position:\s*absolute/);
+    expect(status?.body).toMatch(/inset:\s*0/);
   });
 
   it("retired the stacked-deck layers under spool cards", () => {
@@ -210,7 +217,7 @@ describe("app.css", () => {
     expect(css).not.toContain("spooler-spool-stack-layer");
   });
 
-  it("overlays the section status on the count pip in the accent color", () => {
+  it("overlays the section status on the count pip in success green", () => {
     const pip = rules().find((rule) =>
       rule.selector === ".spooler-group-count-pip",
     );
@@ -224,12 +231,14 @@ describe("app.css", () => {
     // The status spans the pip exactly: inset zero, not resized separately.
     expect(status?.body).toMatch(/position:\s*absolute/);
     expect(status?.body).toMatch(/inset:\s*0/);
-    // The spinner takes the section-anchor accent, unlocked via the vars.
+    // The spinner is success green — the same mix the WORKING badges read —
+    // and does not pulse inside the pip: the numeral above it stays steady.
     const tone = rules().find(
       (rule) =>
         rule.selector === ".spooler-group-count-pip .spooler-tone-running",
     );
-    expect(tone?.body).toMatch(/--spooler-sec-accent/);
+    expect(tone?.body).toMatch(/--success/);
+    expect(tone?.body).toMatch(/animation:\s*none/);
   });
 
   it("right-aligns the section header chrome and keeps the chevron alone", () => {

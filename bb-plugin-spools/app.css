@@ -1072,16 +1072,18 @@
 }
 
 /* Sections mode turns the count into a pip whose background matches the
-   inner spool/row panels. The live-status spinner overlays it — same size,
-   centered — in the section's high-contrast accent (see sectionColorVars). */
+   inner spool/row panels. The live-status spinner overlays it — hairline-
+   sized, centered behind the numeral — in success green, one grammar with
+   the spool-card pip (see spooler-tone-success). */
 .spooler-group-count-pip {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 17px;
-  padding: 0 6px;
+  /* A fixed square: the pip is a circle, never a stadium that stretches
+     with two digits. The numeral (10px) rides the full-widest chord. */
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   border-radius: 999px;
   background: color-mix(
@@ -1094,6 +1096,17 @@
   font-weight: 600;
 }
 
+/* Pip numerals paint above the overlay spinner: the numeral is positioned
+    and later in DOM order, so the spinner behind it never cuts the glyphs.
+    line-height 1 kills the font's half-leading so the digit rides the
+    geometric center of the circle. */
+.spooler-pip-numeral {
+  position: relative;
+  z-index: 1;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .spooler-group-count-pip .spooler-group-status {
   position: absolute;
   inset: 0;
@@ -1101,14 +1114,24 @@
   height: auto;
 }
 
+.spooler-spool-pip .spooler-spool-pip-status {
+  position: absolute;
+  inset: 0;
+}
+
 .spooler-group-count-pip .spooler-group-status [data-icon-root],
-.spooler-group-count-pip .spooler-spinner [data-icon-root] {
+.spooler-group-count-pip .spooler-spinner [data-icon-root],
+.spooler-spool-pip .spooler-spool-pip-status [data-icon-root] {
   width: 14px;
   height: 14px;
 }
 
+/* The pip spinner is success-green, same mix the WORKING badges read, in
+   both the section pip and the spool-card pip — one liveness grammar. No
+   pulse inside the pip: the numeral on top stays steady over the spin. */
 .spooler-group-count-pip .spooler-tone-running {
-  color: var(--spooler-sec-accent, var(--primary));
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+  animation: none;
 }
 
 .spooler-group-unread {
@@ -1802,26 +1825,6 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
-/* Working Thread Count: the badges line shares its budget with the
-   project/branch chips, and an overflow:hidden parent clips text midway
-   through a glyph. Make the status word a mini flex row so the trailing
-   word is a flex item the card can zero out completely (`spooler
-   -workcount-word-clip`, measured by SpoolCard), keeping the essential
-   signal — spinner + count — with the detail left in the badge tooltip. */
-.spooler-spool-workcount .spooler-status-word {
-  display: inline-flex;
-  align-items: baseline;
-  /* The count and word are flex children, so the word's literal leading
-     space trims at the line start — the badge renders "1WORKING" without
-     one. This 4px gap is the real separation, and it is the exact value the
-     measuring effect adds between num and word when computing the fit. */
-  gap: 4px;
-}
-
-.spooler-spool-workcount .spooler-workcount-word {
-  flex: 0 1 auto;
-  min-width: 0;
-}
 
 .spooler-row-status-badge .spooler-dot {
   margin-top: 0;
@@ -3477,18 +3480,32 @@ a.spooler-row-main:hover {
   height: 24px;
 }
 
-/* The pip: the gray count chip, doubled as the spool-actions button (the
-   old hover-swapped ellipsis never got clicks in the real app). */
+/* The pip is the count circle, doubled as the spool-actions button (the
+   old hover-swapped ellipsis never got clicks in the real app). Panel
+   recipe and metrics match the section count pip exactly. */
 .spooler-spool-pip {
   flex-shrink: 0;
 }
 
 .spooler-spool-pip .spooler-spool-count {
-  min-height: 22px;
-  min-width: 22px;
+  position: relative;
   display: grid;
   place-items: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  padding: 0;
   border: 0;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--card, var(--background)) 60%,
+    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -3575,43 +3592,12 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
-/* Liveness summary on the collapsed spool header. The Working Thread Count
-   reuses the per-thread WORKING badge classes (same spinner, same status
-   word) and flushes right; any other liveness parts stay in the muted
-   rollup string. Both vanish when the spool shows its members, EXCEPT for
-   the non-working parts (expanded threads carry their own working
-   badges — a summary count would be repetitive). */
-/* The Working Thread Count is the essential signal: never let the line
-   clip the spinner or cut the count mid-glyph. The word is what stands
-   down (`spooler-workcount-word-clip`), so the badge itself doesn't
-   shrink; it is also what the card's measuring effect decomposes by
-   hand (its overflow:hidden keeps descendant scrollables out of the
-   line's natural-width sum), which is why it stays unclipped here. */
-.spooler-spool-workcount {
-  margin-left: auto;
-  flex: none;
-}
-
-/* Same visual as margin-left, but padding lands inside scrollWidth — the
-   measuring effect sums natural widths and must not miss this space. */
-.spooler-spool-badges .spooler-spool-workcount + .spooler-spool-rollup {
-  padding-left: 6px;
-}
-
-/* The word that stands down when the badges line cannot fit it. Zero
-   flex-basis shrinks the box to nothing while `scrollWidth` still reports
-   the natural text width, so the measuring effect can hand the word back
-   whenever the line grows content or size again. */
-.spooler-spool-workcount .spooler-workcount-word-clip {
-  flex: 0 0 0px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Non-working liveness parts (needs you · unread · failed — and working
-   counts while expanded, which reduce to nothing): the quiet right edge of
-   the badge line — same language as the peek meta. In the one-line header
-   it shrinks like the chips do, so a squeezed line degrades to an ellipsis
+/* Liveness summary on the spool header. Working members no longer text
+   their count here: the green spinner rides behind the count pip numeral —
+   the same pip grammar the section headers use. The muted rollup keeps only
+   the non-working parts (needs you · unread · failed); expanded threads
+   carry their own working badges, so the pip spinner stays the one summary.
+   It shrinks like the chips do, so a squeezed line degrades to an ellipsis
    instead of a mid-letter cut at the container edge. */
 .spooler-spool-rollup {
   margin-left: auto;

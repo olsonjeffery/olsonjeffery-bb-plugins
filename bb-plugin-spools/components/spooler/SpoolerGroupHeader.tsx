@@ -250,8 +250,8 @@ export function GroupHeader({
               titleRight && "spooler-group-count-pip",
             )}
           >
-            {group.total}
             {titleRight ? <GroupStatus group={group} /> : null}
+            <span className="spooler-pip-numeral">{group.total}</span>
           </span>
         </span>
       </button>

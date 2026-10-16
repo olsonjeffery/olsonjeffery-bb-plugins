@@ -416,7 +416,7 @@ describe("SpoolCard", () => {
       expect(screen.getAllByText("feat/spool").length).toBeGreaterThan(0);
     });
 
-    it("shows the Working Thread Count (spinner + count + WORKING word) while collapsed", () => {
+    it("rides working liveness in the count pip while collapsed", () => {
       const running = (): PluginSidebarThread =>
         makeThread({ id: "tw1", title: "Member tw1", indicator: "runtime" });
       renderEl(
@@ -428,105 +428,26 @@ describe("SpoolCard", () => {
           },
         }),
       );
-      // Same badge anatomy the per-thread WORKING indicator uses: number and
-      // word are separate spans (the word is the part that stands down when
-      // the badges line is squeezed).
-      const badge = document.querySelector(
-        ".spooler-spool-badges .spooler-spool-workcount",
+      // The pip grammar the section headers use: the count numeral sits in
+      // the pip with a green spinner behind it — no separate text badge.
+      const pip = document.querySelector(
+        ".spooler-spool-pip .spooler-spool-count",
       ) as HTMLElement;
-      expect(badge).toBeTruthy();
-      expect(badge.textContent?.trim()).toBe("2 working");
+      expect(pip).toBeTruthy();
       expect(
-        badge.querySelector(".spooler-spinner.spooler-tone-success"),
+        pip.querySelector(
+          ".spooler-spool-pip-status.spooler-spinner.spooler-tone-success",
+        ),
       ).toBeTruthy();
-      const word = badge.querySelector(
-        ".spooler-status-word .spooler-workcount-word",
+      const numeral = pip.querySelector(
+        ".spooler-pip-numeral",
       ) as HTMLElement;
-      expect(word).toBeTruthy();
-      expect(word.className).not.toContain("spooler-workcount-word-clip");
-      // Without a measurable layout the word gets the benefit of the doubt.
-      expect(document.querySelector(".spooler-workcount-word-clip")).toBeNull();
+      expect(numeral).toBeTruthy();
+      expect(numeral.textContent?.trim()).toBe("3");
+      expect(document.querySelector(".spooler-spool-workcount")).toBeNull();
     });
 
-    it("stands the status word down when the badges line cannot fit it", () => {
-      // jsdom has no layout, so the measurement is driven by prototype
-      // getters: the line reads 200px of room while every box reports 100.
-      // The count word is the sacrificial part: hidden (flex-basis 0)
-      // whenever the line's natural content width exceeds its width, which
-      // keeps spinner + count intact instead of clipping the text mid-glyph.
-      let scrollWidth = 100;
-      let clientWidth = 200;
-      const offsets = Object.getOwnPropertyDescriptor(
-        HTMLElement.prototype,
-        "clientWidth",
-      );
-      const widths = Object.getOwnPropertyDescriptor(
-        HTMLElement.prototype,
-        "scrollWidth",
-      );
-      Object.defineProperty(HTMLElement.prototype, "clientWidth", {
-        configurable: true,
-        get: () => clientWidth,
-      });
-      Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
-        configurable: true,
-        get: () => scrollWidth,
-      });
-      try {
-        const running = (): PluginSidebarThread =>
-          makeThread({ id: "tw3", title: "Member tw3", indicator: "runtime" });
-        const { container, unmount } = renderEl(
-          makeProps({
-            collapsed: true,
-            data: {
-              ...makeProps().data,
-              members: [running(), running()],
-            },
-          }),
-        );
-        const word = container.querySelector(
-          ".spooler-status-word .spooler-workcount-word",
-        ) as HTMLElement;
-        expect(word).toBeTruthy();
-        expect(word.className).toContain("spooler-workcount-word-clip");
-        // The count stays legible behind the word.
-        expect(
-          container.querySelector(".spooler-spool-workcount")?.textContent,
-        ).toContain("2");
-        // Roomy again: the word comes back.
-        scrollWidth = 10;
-        clientWidth = 400;
-        unmount();
-        const rerender = renderEl(
-          makeProps({
-            collapsed: true,
-            data: {
-              ...makeProps().data,
-              members: [running(), running()],
-            },
-          }),
-        );
-        const wordBack = rerender.container.querySelector(
-          ".spooler-status-word .spooler-workcount-word",
-        ) as HTMLElement;
-        expect(wordBack.className).not.toContain("spooler-workcount-word-clip");
-      } finally {
-        if (offsets) {
-          Object.defineProperty(HTMLElement.prototype, "clientWidth", offsets);
-        } else {
-          delete (HTMLElement.prototype as { clientWidth?: unknown })
-            .clientWidth;
-        }
-        if (widths) {
-          Object.defineProperty(HTMLElement.prototype, "scrollWidth", widths);
-        } else {
-          delete (HTMLElement.prototype as { scrollWidth?: unknown })
-            .scrollWidth;
-        }
-      }
-    });
-
-    it("the Working Thread Count disappears when the spool is expanded", () => {
+    it("keeps the pip spinner while expanded (the section grammar shows it regardless)", () => {
       const running = (): PluginSidebarThread =>
         makeThread({ id: "tw2", title: "Member tw2", indicator: "runtime" });
       renderEl(
@@ -538,8 +459,18 @@ describe("SpoolCard", () => {
           },
         }),
       );
+      const pip = document.querySelector(
+        ".spooler-spool-pip .spooler-spool-count",
+      ) as HTMLElement;
+      expect(
+        pip.querySelector(
+          ".spooler-spool-pip-status.spooler-spinner.spooler-tone-success",
+        ),
+      ).toBeTruthy();
+      // No text badge in either state.
       expect(screen.queryByText(/working/)).toBeNull();
       expect(screen.queryByText("2 working")).toBeNull();
     });
+
   });
 });
