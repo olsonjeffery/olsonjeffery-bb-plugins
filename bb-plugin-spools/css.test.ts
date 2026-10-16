@@ -239,11 +239,31 @@ describe("app.css", () => {
     expect(fold?.body).toMatch(/padding-top:\s*3px/);
     // Sections breathe double the old 4px inset between containers.
     expect(fold?.body).toMatch(/padding-bottom:\s*8px/);
+    // A mangled merge once spliced a 999px radius in here, clipping whole
+    // sections into pills when expanded (0fr hid it while collapsed).
+    expect(fold?.body).not.toMatch(/border-radius|box-shadow/);
     const first = rules().find(
       (rule) =>
         rule.selector ===
         ".spooler-list-sections .spooler-fold-inner > :first-child",
     );
     expect(first?.body).toMatch(/margin-top:\s*0/);
+  });
+
+  it("keeps the stylesheet brace-balanced", () => {
+    // Unbalanced braces turn the following selector into a nested rule in
+    // browsers that support CSS nesting, silently firing its declarations
+    // at the previous rule's targets. Assert every open brace closes.
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect([...stripped].filter((ch) => ch === "{").length).toBe(
+      [...stripped].filter((ch) => ch === "}").length,
+    );
+  });
+
+  it("keeps the menu color swatch its own pill", () => {
+    // Restored after a merge ate its rule into the bucket fold-inner one.
+    const swatch = rules().find((rule) => rule.selector === ".spooler-menu-swatch");
+    expect(swatch?.body).toMatch(/border-radius:\s*999px/);
+    expect(swatch?.body).toMatch(/box-shadow:\s*inset/);
   });
 });

@@ -1022,14 +1022,6 @@
   padding: 4px 6px;
 }
 
-/* Section-bucket headers only paint the chevron on the left: glyph, title,
-   status pip all right-align in the meta, so the header is tighter on its
-   left edge and the click affordance reads around the chevron. */
-.spooler-group-header-right {
-  gap: 4px;
-  padding: 4px 6px;
-}
-
 .spooler-group-chevron {
   width: 14px;
   height: 14px;
@@ -4317,12 +4309,12 @@ a.spooler-row-main:hover {
 /* Between stacked section containers the bucket breathes like its own
    inner panels: the fold's bottom padding doubles the old 4px inset. */
 .spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner {
-/* Between stacked section containers the bucket breathes like its own
-   inner panels: the fold's bottom padding doubles the old 4px inset. */
-.spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner {
   padding-top: 3px;
   padding-bottom: 8px;
 }
+
+/* Color picker dots inside the context menu. */
+.spooler-menu-swatch {
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
 }
