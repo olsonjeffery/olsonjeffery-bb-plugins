@@ -230,18 +230,45 @@ describe("app.css", () => {
     expect(header?.body).toMatch(/padding:\s*\d+px\s+\d+px/);
   });
 
-  it("tightens the first entry to the bucket's edge insets", () => {
+  it("lays bucket boxes on one vertical rhythm, flush under the header", () => {
     const fold = rules().find(
       (rule) =>
         rule.selector ===
         ".spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner",
     );
-    expect(fold?.body).toMatch(/padding-top:\s*3px/);
-    // Sections breathe double the old 4px inset between containers.
+    // The fold is the spacing authority: one flex gap for every adjacency,
+    // no top inset (the first box rides right under the header).
+    expect(fold?.body).toMatch(/flex-direction:\s*column/);
+    expect(fold?.body).toMatch(/gap:\s*6px/);
+    expect(fold?.body).toMatch(/padding-top:\s*0/);
     expect(fold?.body).toMatch(/padding-bottom:\s*8px/);
     // A mangled merge once spliced a 999px radius in here, clipping whole
     // sections into pills when expanded (0fr hid it while collapsed).
     expect(fold?.body).not.toMatch(/border-radius|box-shadow/);
+    // Neither card kind carries its own vertical margin at the bucket's top
+    // level, so the rhythm can't drift between spool cards and thread cards.
+    const card = rules().find(
+      (rule) =>
+        rule.selector === ".spooler-group-bucket .spooler-spool-card",
+    );
+    expect(card?.body).toMatch(/margin-block:\s*0/);
+    const row = rules().find((rule) =>
+      rule.selector ===
+      ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster > .spooler-row",
+    );
+    expect(row?.body).toMatch(/margin-block:\s*0/);
+    // Boxed panels separate themselves: no hairline between top-level runs.
+    const sep = rules().find((rule) =>
+      rule.selector ===
+      ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster + .spooler-thread-cluster::before",
+    );
+    expect(sep?.body).toMatch(/content:\s*none/);
+    // Threads inside a spool beat in the same 6px time (5px pad + 1px rule).
+    const member = rules().find(
+      (rule) => rule.selector === ".spooler-spool-member + .spooler-spool-member",
+    );
+    expect(member?.body).toMatch(/border-top/);
+    expect(member?.body).toMatch(/padding-top:\s*5px/);
     const first = rules().find(
       (rule) =>
         rule.selector ===

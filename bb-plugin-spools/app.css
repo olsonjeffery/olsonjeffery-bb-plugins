@@ -4276,10 +4276,12 @@ a.spooler-row-main:hover {
 }
 
 /* Spool members: same rhythm as unspooled rows, no individual box — a subtle
-   separator between members is all they get inside their card. */
+   separator between members is all they get inside their card. The 5px pad
+   plus the 1px hairline adds to the bucket's 6px inter-box gap, so threads
+   inside a spool beat in time with the cards around it. */
 .spooler-spool-member + .spooler-spool-member {
   border-top: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
-  padding-top: 3px;
+  padding-top: 5px;
 }
 
 /* Buckets sit closer together than unfolded groups elsewhere: the card
@@ -4306,11 +4308,40 @@ a.spooler-row-main:hover {
   padding-inline: 3px;
 }
 
-/* Between stacked section containers the bucket breathes like its own
-   inner panels: the fold's bottom padding doubles the old 4px inset. */
+/* Section main body: the fold is the spacing authority. A flex column with
+   one gap lays every top-level box — spool card or thread card — with the
+   identical spacing in every adjacency (row↔row, card↔card, card↔row), the
+   first box sits flush against the header (zero padding, zero margins), and
+   the bottom inset is one shared value for both kinds. */
 .spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner {
-  padding-top: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 0;
   padding-bottom: 8px;
+}
+
+/* The gap above is the ONLY vertical space: neither kind brings its own
+   vertical margin at the bucket's top level, so the rhythm can't drift
+   between spool cards and thread cards. */
+.spooler-group-bucket .spooler-spool-card {
+  margin-block: 0;
+}
+
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster > .spooler-row {
+  margin-block: 0;
+}
+
+/* Only the panel boxes separate top-level threads now — the hairline in the
+   inter-box gap was redundant over boxed cards and would pin to the box edge
+   once the top clearance went to zero. */
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster + .spooler-thread-cluster {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster + .spooler-thread-cluster::before {
+  content: none;
 }
 
 /* Color picker dots inside the context menu. */
