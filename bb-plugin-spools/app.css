@@ -1072,18 +1072,22 @@
 }
 
 /* Sections mode turns the count into a pip whose background matches the
-   inner spool/row panels. The live-status spinner overlays it — hairline-
-   sized, centered behind the numeral — in success green, one grammar with
-   the spool-card pip (see spooler-tone-success). */
+   inner spool/row panels. The live-status spinner overlays it — tick-follow-
+   the-digit, centered behind a mono numeral — in success green, one grammar
+   with the spool-card pip (see spooler-tone-success). */
 .spooler-group-count-pip {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* A fixed square: the pip is a circle, never a stadium that stretches
-     with two digits. The numeral (10px) rides the full-widest chord. */
-  width: 18px;
+  box-sizing: border-box;
+  /* A circular 18px pill that only grows horizontally: one digit rides the
+     full-widest chord of the circle, a second digit widens the stadium a
+     beat (padding keeps the numeral off the caps). The overlaid spinner is
+     a fixed size either way — it never stretches with the pill. */
+  min-width: 18px;
   height: 18px;
+  padding-inline: 5px;
   flex-shrink: 0;
   border-radius: 999px;
   background: color-mix(
@@ -1098,13 +1102,19 @@
 
 /* Pip numerals paint above the overlay spinner: the numeral is positioned
     and later in DOM order, so the spinner behind it never cuts the glyphs.
-    line-height 1 kills the font's half-leading so the digit rides the
-    geometric center of the circle. */
+    Monospace so a count flip (3→12) nudges nothing but the pill's width,
+    and line-height 1 kills the font's half-leading. text-box-trim trims
+    the line box to the digit's cap band, so centering is the ink's
+    center of mass, not the metrics box (ignored by engines without it —
+    then line-height 1 still rides the geometric middle). */
 .spooler-pip-numeral {
   position: relative;
   z-index: 1;
   line-height: 1;
+  font-family: var(--font-mono, ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace);
   font-variant-numeric: tabular-nums;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
 }
 
 .spooler-group-count-pip .spooler-group-status {
@@ -1117,13 +1127,22 @@
 .spooler-spool-pip .spooler-spool-pip-status {
   position: absolute;
   inset: 0;
+  /* The overlay must center the spinner itself: bare flex content left to
+     definite-start parked the ticks up-left of the numeral by 2px. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* The pip spinner is pip-sized: its ticks start (inner radius) just past
+   the numeral's ink arc, so the digits never trade paint with a tick, and
+   the tick tips hold daylight to the pip ring. Fixed size — the spinner
+   doesn't stretch when a second digit widens the pill. */
 .spooler-group-count-pip .spooler-group-status [data-icon-root],
 .spooler-group-count-pip .spooler-spinner [data-icon-root],
 .spooler-spool-pip .spooler-spool-pip-status [data-icon-root] {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
 }
 
 /* The pip spinner is success-green, same mix the WORKING badges read, in
@@ -1856,6 +1875,13 @@ a.spooler-row-main:hover {
   width: 14px;
   height: 14px;
   animation: spooler-spin 1s linear infinite;
+  /* Spin about the icon's own axis: Chrome resolves a px transform-origin
+     against the CSS box, not the 24-unit viewBox (12px = two thirds of an
+     18px icon), so a px origin puts the rotation center off-center and the
+     ticks orbit instead of spinning in place. `view-box` + 50% 50% pins
+     the origin to the viewport center at any icon size. */
+  transform-box: view-box;
+  transform-origin: 50% 50%;
 }
 
 @keyframes spooler-spin {
@@ -3491,10 +3517,11 @@ a.spooler-row-main:hover {
   position: relative;
   display: grid;
   place-items: center;
-  width: 18px;
+  box-sizing: border-box;
+  min-width: 18px;
   height: 18px;
+  padding-inline: 5px;
   flex-shrink: 0;
-  padding: 0;
   border: 0;
   border-radius: 999px;
   background: color-mix(

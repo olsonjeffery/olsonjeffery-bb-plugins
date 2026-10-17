@@ -177,10 +177,11 @@ describe("app.css", () => {
     expect(duplicated.map(([selector]) => selector)).toEqual([]);
   });
 
-  it("presents one circular pip: numeral centered, spinner behind it", () => {
+  it("presents one pill pip: numeral center-massed, spinner behind it", () => {
     // Both pips — the section header's and the spool card's — share the
-    // same fixed-circle recipe: the pip is a circle, never a stadium that
-    // stretches with two digits.
+    // same recipe: a circular 18px pill (min-width, never a stretched
+    // width) that can only widen horizontally when a second digit needs
+    // the room.
     for (const selector of [
       ".spooler-group-count-pip",
       ".spooler-spool-pip .spooler-spool-count",
@@ -188,27 +189,58 @@ describe("app.css", () => {
       const rule = rules().find(
         (candidate) => candidate.selector === selector,
       );
-      expect(rule?.body).toMatch(/width:\s*18px/);
+      expect(rule?.body).toMatch(/min-width:\s*18px/);
       expect(rule?.body).toMatch(/height:\s*18px/);
+      expect(rule?.body).toMatch(/padding-inline:\s*5px/);
       expect(rule?.body).toMatch(/border-radius:\s*999px/);
+      expect(rule?.body).toMatch(/box-sizing:\s*border-box/);
+      expect(rule?.body).not.toMatch(/(?<![\w-])width:\s*18px/);
       expect(rule?.body).not.toMatch(/padding:\s*[1-9]/);
     }
     // The numeral paints above the overlay spinner (it is positioned and
-    // later in DOM), centered without the font's half-leading nudging it off
-    // the geometric middle.
+    // later in DOM), reads in the host's mono face so a count flip only
+    // widens the pill, and trims itself to the digit's cap band so
+    // centering is the ink's center of mass, not the metrics box.
     const numeral = rules().find(
       (rule) => rule.selector === ".spooler-pip-numeral",
     );
     expect(numeral?.body).toMatch(/position:\s*relative/);
     expect(numeral?.body).toMatch(/z-index:\s*1/);
     expect(numeral?.body).toMatch(/line-height:\s*1/);
-    // The spool pip's spinner spans its pip exactly like the section's.
+    expect(numeral?.body).toMatch(/font-family:\s*var\(--font-mono/);
+    expect(numeral?.body).toMatch(/text-box-trim:\s*trim-both/);
+    expect(numeral?.body).toMatch(/text-box-edge:\s*cap\s+alphabetic/);
+    // Spinning geometry: every spooler spinner rotates about its viewBox
+    // center — a px origin (e.g. 12px 12px) resolves against the CSS box
+    // rather than the 24-unit viewBox, so the rotation center lands off
+    // center and the ticks orbit instead of spinning in place. Percentages
+    // with transform-box: view-box hit the viewport center at any size.
+    const spin = rules().find(
+      (rule) => rule.selector === ".spooler-spinner [data-icon-root]",
+    );
+    expect(spin?.body).toMatch(/transform-box:\s*view-box/);
+    expect(spin?.body).toMatch(/transform-origin:\s*50%\s+50%/);
+    // The pip's spinner is pip-sized (ticks ring the numeral without
+    // trading paint) and constant: it must not stretch with the pill.
+    const pipIcon = rules().find(
+      (rule) =>
+        rule.selector.includes(
+          ".spooler-spool-pip .spooler-spool-pip-status [data-icon-root]",
+        ),
+    );
+    expect(pipIcon?.body).toMatch(/width:\s*18px/);
+    expect(pipIcon?.body).toMatch(/height:\s*18px/);
+    // The spool pip's spinner spans its pip exactly like the section's —
+    // and centers the svg itself: bare flex content parks it up-left.
     const status = rules().find(
       (rule) =>
         rule.selector === ".spooler-spool-pip .spooler-spool-pip-status",
     );
     expect(status?.body).toMatch(/position:\s*absolute/);
     expect(status?.body).toMatch(/inset:\s*0/);
+    expect(status?.body).toMatch(/display:\s*flex/);
+    expect(status?.body).toMatch(/align-items:\s*center/);
+    expect(status?.body).toMatch(/justify-content:\s*center/);
   });
 
   it("retired the stacked-deck layers under spool cards", () => {
