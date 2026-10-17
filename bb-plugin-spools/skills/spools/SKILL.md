@@ -174,14 +174,13 @@ list; disabling this plugin falls back to BB's list automatically.
   Threads flipping from live work to done get a one-time springy
   check-pop on their status badge.
 - Adaptive rows (`adaptiveCollapse`): quiet read-idle rows collapse to the
-  title line (title, project chip, time) and drop the subtitle, keeping
-  only the branch line (which always shows). Anything worth a glance
+  title line and fold the whole metadata grid away. Anything worth a glance
   (unread, working, needs-you, failed, drafts, plugin statuses, PRs needing
   attention, unknown states) keeps the full row. Editing never collapses.
 - Compact density compresses **vertically only** — inline padding and the
-  child indent stay identical to comfortable so tree guides keep lining up.
-  Titles stay on one line by default; **Two-line titles** also applies to
-  compact density and the forced-compact touch layout.
+  child indent stay identical to comfortable so tree guides keep lining up;
+  rows are title-only (the metadata grid folds). **Two-line titles** also
+  applies to compact density and the forced-compact touch layout.
   It uses `margin-block` rather than `margin`, since the shorthand also
   zeroes `margin-left` and wipes `.spooler-row-child` / `.spooler-row-deep`.
   `css.test.ts` guards both as static assertions (jsdom does not resolve the
@@ -197,44 +196,49 @@ list; disabling this plugin falls back to BB's list automatically.
   status + unread); status chips fold to glyph and count at 284px or less,
   keeping their accessible labels; compact touch viewports pin the ⋯ menu inline since
   hover doesn't exist there, and filters wrap.
-- Title line: title, then a project chip in the project's own muted hue
-  (stable per project id, readable light and dark — always shown, even on
-  collapsed rows and children, hidden only when it would echo the project
-  group header), then a muted tabular last-activity time that never
-  truncates.
-  Choose **Two-line titles** to wrap the whole title, including mention
-  chips, before truncating at two lines. Metadata stays beside short titles
-  when it fits, or wraps below aligned with the text after child/pin markers.
-  Groups, sorting, and timestamps all key off activity — live threads
-  (executing, background work, queued messages, waiting on you) count as
-  now, everything else keys off latest attention — so merely opening a
-  thread never floats it to Today.
-- Subtitle: model and thinking each in an outlined chip (bot icon +
-  semibold model name, brain icon + uppercase level), then a section chip
-  in the section's own muted hue (stable per section id) and host.
-  **Shown only while the thread is in flight** (`isLiveThread`):
-  `threads.defaultExecutionOptions` resolves *defaults*, so it answers with a
-  model and reasoning level for any thread at all — including idle and
-  never-started ones. Idle rows skip the fetch and render no chips. The provider name is not echoed in the row (the icon
-  says it) unless no icon is available; `Off` thinking and the home host
-  (whichever host runs the most threads) are omitted as noise — branches
-  live on line three, away-from-home hosts always show. Model names
-  resolve through each provider's catalog; a shimmer stub holds the place
-  while loading. The full text is always in the tooltip. Model info
-  refreshes when a thread starts a new run, records newer activity, or the
-  window regains focus; regrouping within the same run reuses cached values.
-- Threads on a branch grow a third line: icon + branch name (a git-folder
-  icon for worktrees, a branch icon for plain checkouts, with `(worktree)`
-  in the tooltip), plus a PR badge when the branch has one (`#123 · Open`,
-  coloured by attention: red for failed checks/conflicts, amber for changes
-  requested/blocked, blue for review pending, green for ready/merged).
-  Clicking the badge opens the PR. The branch never appears on line two.
+- Row layout: two columns. The LEFT column spans the row's full height and
+  centers its content — the provider icon (or the fold/grip chevron) — so
+  tall rows keep the icon mid-line instead of pinning it top-left.
+  The RIGHT column is the content: the title line (title + the right-edge
+  status cluster: WORKING/spinner/agent/etc, plugin row status, draft pip,
+  unread pip), then ONE wrapping metadata grid.
+- The metadata grid: time (leftmost, muted tabular), project chip in the
+  project's own muted hue (stable per project id, readable light and dark —
+  hidden only when it would echo the project group header), then model +
+  thinking (outlined chips, live threads only), section chip in the
+  section's own muted hue, host (away-from-home only), branch, and PR —
+  every kind an outlined chip with its own max-width (default 45%, branch
+  60%, folded summary 100%, time 90px, project 110px, model 130px). The
+  grid WRAPS onto further lines when values don't fit; kinds never stack
+  on disjointed lines. Groups, sorting, and timestamps all key off
+  activity — live threads (executing, background work, queued messages,
+  waiting on you) count as now, everything else keys off latest attention —
+  so merely opening a thread never floats it to Today.
+- Model + thinking: **shown only while the thread is in flight**
+  (`isLiveThread`): `threads.defaultExecutionOptions` resolves *defaults*,
+  so it answers with a model and reasoning level for any thread at all —
+  including idle and never-started ones. Idle rows skip the fetch and show
+  no chips. The provider name is not echoed (the icon says it) unless no
+  icon is available; `Off` thinking and the home host (whichever host runs
+  the most threads) are omitted as noise. Model names resolve through each
+  provider's catalog; a shimmer stub holds the place while loading. The
+  full text is always in the tooltip. Model info refreshes when a thread
+  starts a new run, records newer activity, or the window regains focus;
+  regrouping within the same run reuses cached values.
+- Branch + PR live in the grid: a branch chip (a git-folder icon for
+  worktrees, a branch icon for plain checkouts, click to copy, with
+  `(worktree)` in the tooltip) and a PR badge whenever the thread HAS one —
+  branch or not (`#123 · Open`, coloured by attention: red for failed
+  checks/conflicts, amber for changes requested/blocked, blue for review
+  pending, green for ready/merged). Clicking the badge opens the PR.
+- Folded families swap the live chips for an inline summary of who's hidden
+  (stacked people faces + remainder, names in the tooltip) — the summary
+  joins the grid as a full-width item beside section/host/branch/PR.
+
 - Hover actions: pin, rename (pencil), archive/unarchive, and a menu (⋯).
-  They never resize the row. In one-line mode they sit at its top right. In
-  two-line mode they sit on its last line of plain text (the subtitle, or
-  the chip and time where the subtitle is folded away), lifted clear of the
-  branch line so the PR badge stays clickable; only a row one line tall
-  still has them over the end of its title.
+  They never resize the row and sit at the row's top right in every layout
+  (over the title line's end, clear of the metadata grid so the PR badge
+  stays clickable).
   Right-click opens the fuller menu: open in split, pin, mark read/unread,
   mark family read (whole tree, for threads with parents or children —
   a child's completion lands as the parent's own notification turn, so

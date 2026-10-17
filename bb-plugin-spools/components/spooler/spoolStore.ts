@@ -56,7 +56,10 @@ export function newSpoolId(): string {
 export function spoolTitleFor(lead: ThreadTitleSource | null, custom: string | null): string {
   if (custom && custom.trim()) return custom.trim();
   const base = lead ? (lead.displayTitle ?? lead.title ?? "") : "";
-  return `Spool: ${base}`;
+  // A spool whose lead thread is unresolvable (filtered out, deleted, or
+  // renamed empty) must still name itself — an empty "Spool: " renders a
+  // title-less card.
+  return base.trim() ? `Spool: ${base}` : "Unnamed spool";
 }
 
 function readMembership(
@@ -113,16 +116,24 @@ export function deriveSpools(args: {
       return ja !== jb ? ja - jb : a.localeCompare(b);
     });
     if (!spool.leadThreadId && spool.members.length > 0) spool.leadThreadId = spool.members[0];
+    // The title derives from the lead when it is resolvable, else from the
+    // first member — a card whose lead row is filtered out (pinned into the
+    // Pinned group, archived, hidden) must still name itself.
     const lead = spool.leadThreadId
       ? args.threads.find((thread) => thread.id === spool.leadThreadId) ?? null
       : null;
+    const titleSource =
+      lead ??
+      (spool.members.length > 0
+        ? args.threads.find((thread) => thread.id === spool.members[0]) ?? null
+        : null);
     const leadMeta = spool.leadThreadId ? args.metadataByThreadId.get(spool.leadThreadId) : undefined;
     const customTitle =
       typeof leadMeta?.["spoolTitle"] === "string" && (leadMeta["spoolTitle"] as string).trim()
         ? (leadMeta["spoolTitle"] as string).trim()
         : null;
     spool.customTitle = customTitle;
-    spool.title = spoolTitleFor(lead, customTitle);
+    spool.title = spoolTitleFor(titleSource, customTitle);
   }
 
   // A spool with no members does not exist.

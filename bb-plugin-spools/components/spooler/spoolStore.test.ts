@@ -254,4 +254,33 @@ describe("misc", () => {
     );
     expect(spoolTitleFor(null, "Solo")).toBe("Solo");
   });
+
+  it("a spool whose lead thread is gone never renders an empty title", () => {
+    // A deleted (or otherwise unresolvable) lead leaves the derived base
+    // empty — the card used to render "Spool: " as a title-less button.
+    expect(spoolTitleFor(null, null)).toBe("Unnamed spool");
+    expect(
+      spoolTitleFor({ id: "t", displayTitle: "  ", title: null }, null),
+    ).toBe("Unnamed spool");
+  });
+
+  it("derives the title from the first member when the lead is unresolvable", () => {
+    // Membership metadata survives its lead thread being deleted; the
+    // remaining members still describe the spool.
+    const { spools } = deriveSpools({
+      threads: [
+        thread("m1", "Survivor"),
+        thread("m2", "Second"),
+      ],
+      metadataByThreadId: new Map([
+        ["m1", { spool: "spool_abc", spoolJoined: 10 }],
+        ["m2", { spool: "spool_abc", spoolJoined: 5 }],
+      ]),
+    });
+    expect(spools).toHaveLength(1);
+    // No member carries spoolLead, so the first-seen member (oldest join)
+    // is elected and titles the spool.
+    expect(spools[0]?.leadThreadId).toBe("m2");
+    expect(spools[0]?.title).toBe("Spool: Second");
+  });
 });

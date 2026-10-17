@@ -1591,23 +1591,17 @@
   padding: 2px 8px;
 }
 
-/* Single-line rows. The subtitle lives in a grid wrapper, so it collapses
-   the same way the adaptive fold does and still animates; the branch line is
-   a plain flex row outside that wrapper, so it needs display:none. */
+/* Single-line rows. The metadata grid lives in a grid wrapper, so it
+   collapses the same way the adaptive fold does and still animates. */
 .spooler-density-compact .spooler-row-extra,
 .spooler-row-compact .spooler-row-extra {
   grid-template-rows: 0fr;
   opacity: 0;
 }
 
-.spooler-density-compact .spooler-branch-line,
-.spooler-row-compact .spooler-branch-line {
-  display: none;
-}
-
 .spooler-density-compact .spooler-tree-gutter,
 .spooler-row-compact .spooler-tree-gutter {
-  padding-top: 4px;
+  padding-top: 0;
 }
 
 .spooler-select-checkbox {
@@ -1680,8 +1674,12 @@
 .spooler-tree-gutter {
   width: 18px;
   flex: none;
-  align-self: flex-start;
-  padding-top: 6px;
+  /* The chevron/grip centers over the row's full height, matching the
+     lead's icon column. */
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .spooler-tree-toggle {
@@ -1796,8 +1794,8 @@
   height: 9px;
 }
 
-.spooler-row-child .spooler-row-subtitle,
-.spooler-row-deep .spooler-row-subtitle {
+.spooler-row-child .spooler-row-grid,
+.spooler-row-deep .spooler-row-grid {
   margin-left: 16px;
 }
 
@@ -1809,7 +1807,10 @@
   display: flex;
   flex: 1;
   min-width: 0;
-  align-items: flex-start;
+  /* Vertical centering: the lead's icon column stretches the full row
+     height and centers its icon, badges center on the row, and the text
+     column (the tallest child) defines the height. */
+  align-items: center;
   gap: 8px;
   padding: 8px 8px;
   border-radius: 8px;
@@ -1823,11 +1824,14 @@ a.spooler-row-main:hover {
 }
 
 .spooler-row-lead {
+  /* The lead IS the left icon column: it stretches the row's full height
+     and centers its icon vertically, so a tall grid row keeps the provider
+     icon mid-line instead of pinning it to the top-left corner. */
   display: flex;
   flex: none;
-  align-items: flex-start;
+  align-self: stretch;
+  align-items: center;
   min-width: 14px;
-  padding-top: 2px;
 }
 
 .spooler-row-status-badge {
@@ -1913,18 +1917,47 @@ a.spooler-row-main:hover {
   gap: 3px;
 }
 
-/* Two-line comfortable layout: the project chip + time own a line under the
-   title (chip left, time right), so the title line keeps the status cluster
-   clear at the right edge. */
-.spooler-row-meta-line {
+/* The metadata grid: every fact the row shows — time, project, model +
+   thinking (live only), section, host, branch, PR, folded-family summary —
+   as chips on ONE wrapping row. Elements wrap onto further lines when they
+   don't fit instead of stacking kinds on disjointed lines, and each kind
+   keeps its own max-width so one long value can never eat the grid. */
+.spooler-row-grid {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 3px 6px;
   min-width: 0;
+  max-width: 100%;
+  font-size: 10px;
+  line-height: 1.6;
 }
 
-.spooler-row-meta-line .spooler-row-time {
-  margin-left: auto;
+.spooler-row-grid > * {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+}
+
+/* The branch yields the most room (names are long and matter), the folded
+   family summary may take the whole line, and the model-loading stub keeps
+   its intrinsic width. */
+.spooler-row-grid .spooler-branch-btn {
+  max-width: 60%;
+}
+
+.spooler-row-grid .spooler-kids-line {
+  max-width: 100%;
+}
+
+.spooler-row-grid .spooler-model-loading {
+  max-width: none;
+}
+
+.spooler-row-grid .spooler-pr-link > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Backstop for squeezed rows: once the chip and time have shrunk and the
@@ -2028,25 +2061,11 @@ a.spooler-row-main:hover {
   margin-top: 1px;
 }
 
-/* Chip and time wrap as one unit in two-line mode. */
-.spooler-row-meta {
-  display: contents;
-}
-
-.spooler-title-wrap .spooler-row-meta {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  margin-top: 1px;
-  max-width: 100%;
-}
-
-/* Height estimates for rows not yet rendered. Comfortable rows now sit on a
-   title + meta line (about 54px, 28px compact); two-line titles plus the
-   subtitle and branch stack taller (about 68px, 44px compact), so estimate
-   between the ends rather than at either. The auto form remembers each row's
-   real size once it has rendered. */
+/* Height estimates for rows not yet rendered. Comfortable rows sit on a
+   title + grid line (about 54px, 28px compact); two-line titles plus the
+   grid stack taller (about 68px, 44px compact), so estimate between the
+   ends rather than at either. The auto form remembers each row's real size
+   once it has rendered. */
 .spooler-title-wrap .spooler-row {
   contain-intrinsic-size: auto 68px;
 }
@@ -2054,52 +2073,6 @@ a.spooler-row-main:hover {
 .spooler-title-wrap.spooler-density-compact .spooler-row,
 .spooler-title-wrap .spooler-row-compact {
   contain-intrinsic-size: auto 44px;
-}
-
-/* Desktop hover actions sit on the row's last line of plain text: the
-   subtitle, or the chip and time where the subtitle is folded away. That
-   keeps them off a wrapped title and off the branch line, whose PR badge has
-   to stay clickable. Only a row one line tall still has them over the end of
-   its title, as in one-line mode. They stay out of flex sizing, so revealing
-   them never resizes a title or moves a row. Offsets are from the row's
-   bottom edge to that line; the lift clears the 18px branch line and its gap. */
-.spooler-title-wrap:not(.spooler-list-compact) .spooler-row {
-  --spooler-actions-bottom: 4px;
-  --spooler-actions-lift: 0px;
-}
-
-.spooler-title-wrap:not(.spooler-list-compact) .spooler-row-collapsed {
-  --spooler-actions-bottom: 9px;
-}
-
-.spooler-title-wrap:not(.spooler-list-compact) .spooler-row:has(.spooler-branch-line) {
-  --spooler-actions-lift: 21px;
-}
-
-/* Compact density hides the branch line, so nothing needs clearing. A row one
-   line tall is held at 28px with its text at the top, leaving that line 7px
-   above the bottom edge; taller rows end 3px below their last line. */
-.spooler-title-wrap.spooler-density-compact:not(.spooler-list-compact) .spooler-row,
-.spooler-title-wrap:not(.spooler-list-compact) .spooler-row.spooler-row-compact {
-  --spooler-actions-bottom: clamp(3px, calc(35px - 100%), 7px);
-  --spooler-actions-lift: 0px;
-}
-
-.spooler-title-wrap:not(.spooler-list-compact) .spooler-row-actions {
-  top: auto;
-  bottom: calc(var(--spooler-actions-bottom) + var(--spooler-actions-lift));
-  padding: 0;
-}
-
-.spooler-title-wrap:not(.spooler-list-compact) .spooler-action {
-  width: 20px;
-  height: 18px;
-}
-
-/* Should the offsets above ever drift, the PR badge still wins the click. */
-.spooler-title-wrap .spooler-branch-line {
-  position: relative;
-  z-index: 1;
 }
 
 /* The inline ⋯ on touch layouts holds still instead of sliding. */
@@ -2136,13 +2109,20 @@ a.spooler-row-main:hover {
   text-overflow: ellipsis;
 }
 
-/* The time yields last: it shrinks behind an ellipsis (never wraps) rather
-   than overflowing the text box. The full text stays on the title
-   attribute. */
+/* The time chip yields last: it shrinks behind an ellipsis (never wraps)
+   rather than overflowing the grid. The full text stays on the title
+   attribute. Outlined like every other grid chip so the kinds read
+   consistently. */
 .spooler-row-time {
+  display: inline-block;
   flex: 0 1 auto;
   min-width: 0;
-  font-size: 11px;
+  max-width: 90px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
   font-weight: 400;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
@@ -2179,15 +2159,6 @@ a.spooler-row-main:hover {
   height: 12px;
 }
 
-.spooler-row-subtitle {
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .spooler-draft-pip {
   width: 6px;
   height: 6px;
@@ -2196,41 +2167,39 @@ a.spooler-row-main:hover {
   flex: none;
 }
 
-.spooler-branch-line {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--muted-foreground);
-}
-
-.spooler-branch-line [data-icon-root] {
-  width: 12px;
-  height: 12px;
-  flex: none;
-}
-
 .spooler-branch-btn {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 4px;
-  margin-left: -4px;
-  border: 0;
+  padding: 0 5px;
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
-  color: inherit;
+  color: var(--muted-foreground);
   font: inherit;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 10px;
+  line-height: 1.6;
   cursor: pointer;
   min-width: 0;
-  max-width: calc(100% - 70px);
   transition:
     background 120ms ease,
     color 120ms ease;
+}
+
+.spooler-branch-btn [data-icon-root] {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+
+.spooler-branch-btn .spooler-branch-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 1.6;
 }
 
 .spooler-branch-btn:hover {
@@ -2371,6 +2340,25 @@ a.spooler-row-main:hover {
   color: var(--muted-foreground);
 }
 
+/* A neutral outlined chip for facts without a hue of their own: the host
+   name and a provider row that has no icon to show. */
+.spooler-host-chip {
+  display: inline-block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 120px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .spooler-model-chip [data-icon-root] {
   display: inline-block;
   width: 10px;
@@ -2435,7 +2423,6 @@ a.spooler-row-main:hover {
   flex: none;
   align-items: center;
   gap: 6px;
-  padding-top: 3px;
 }
 
 .spooler-row-badges > * {
@@ -3252,11 +3239,6 @@ a.spooler-row-main:hover {
   height: 12px;
 }
 
-.spooler-tree-gutter {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .spooler-group-drop-active {
   border-radius: 8px;
@@ -3451,8 +3433,12 @@ a.spooler-row-main:hover {
 
 .spooler-spool-title-btn {
   display: block;
-  flex: 1;
-  min-width: 0;
+  /* flex-grow with a CONTENT basis (not 0%): a squeezed header used to
+     hand the title zero width — the card rendered badges with no title.
+     basis auto puts the title in the shrink math like everything else,
+     and the floor keeps it present even at phone widths. */
+  flex: 1 1 auto;
+  min-width: 80px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -3479,6 +3465,15 @@ a.spooler-row-main:hover {
   flex-wrap: wrap;
   row-gap: 2px;
   align-items: flex-start;
+}
+
+/* In wrap mode the header grows taller than one line (badges drop below);
+   the grip and the 🧵 icon keep their column centered across the whole
+   header height instead of pinning to its top-left corner. */
+.spooler-title-wrap .spooler-spool-header .spooler-row-grip,
+.spooler-title-wrap .spooler-spool-header .spooler-spool-icon,
+.spooler-title-wrap .spooler-spool-header .spooler-spool-pip {
+  align-self: center;
 }
 
 .spooler-title-wrap .spooler-spool-title {

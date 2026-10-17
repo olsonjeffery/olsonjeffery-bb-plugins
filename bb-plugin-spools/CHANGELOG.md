@@ -4,7 +4,30 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.6.0 — 2026-10-17
+
+### Changed
+- **Thread rows redesigned as two columns.** Every row now has a left icon
+  column that spans the row's full height and centers its provider icon
+  (and the fold/grip chevron with it), beside a content column. The content
+  is a title line (title + the right-edge status cluster), then ONE wrapping
+  metadata grid: time, project, model + thinking (live threads only),
+  section, host, branch, and PR — each an outlined chip with its own
+  max-width (default 45%, branch 60%, folded-family summary 100%). Facts
+  wrap onto further grid lines instead of stacking different kinds on
+  disjointed ones; quiet rows fold the whole grid away (adaptive collapse),
+  and compact density rows are title-only.
+- **The PR badge shows on every thread that has one**, branch or not — it no
+  longer rides the branch line, so a running thread's open PR is on the
+  panel even before its environment resolves.
+
+### Fixed
+- A spool card whose lead thread is unresolvable (deleted, or filtered out
+  of the view) no longer renders a title-less card: the derived title falls
+  back to the first member, and an empty base reads "Unnamed spool". The
+  spool header's 🧵 icon and grip center across the header height when the
+  badges line wraps (two-line titles), and the title button keeps a floor
+  (80px, content basis) so crowded badges can never squeeze it to zero.
 
 ### Added
 - **Section colors.** Right-click a section header (Group By Section) and choose

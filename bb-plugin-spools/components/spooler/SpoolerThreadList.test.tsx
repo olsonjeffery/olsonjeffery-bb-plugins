@@ -1263,22 +1263,22 @@ describe("settings gates", () => {
     });
     const sections = [makeSection({ id: "s1", name: "Backlog" })];
 
-    // The subtitle line is what adaptive collapse folds away.
+    // The metadata grid is what adaptive collapse folds away.
     const expanded = renderThreads([quiet], {
       settings: { adaptiveCollapse: false },
       sections,
     });
-    expect(expanded.container.querySelector(".spooler-row-subtitle")).toBeTruthy();
+    expect(expanded.container.querySelector(".spooler-row-grid")).toBeTruthy();
     cleanup();
 
     const folded = renderThreads([quiet], {
       settings: { adaptiveCollapse: true },
       sections,
     });
-    const subtitle = folded.container.querySelector(".spooler-row-subtitle");
+    const grid = folded.container.querySelector(".spooler-row-grid");
     // Hidden rather than removed: the fold animates, so it stays mounted.
     expect(
-      subtitle?.closest(".spooler-row-extra-collapsed") ??
+      grid?.closest(".spooler-row-extra-collapsed") ??
         folded.container.querySelector(".spooler-row-collapsed"),
     ).toBeTruthy();
   });
@@ -1515,8 +1515,8 @@ describe("model and thinking display", () => {
     expect(slot.container.querySelectorAll(".spooler-model-chip")).toHaveLength(
       0,
     );
-    // The branch line is deliberate and stays.
-    expect(slot.container.querySelector(".spooler-branch-line")).toBeTruthy();
+    // The branch chip is deliberate and stays on the idle row's grid.
+    expect(slot.container.querySelector(".spooler-branch-btn")).toBeTruthy();
   });
 
   it("shows model and thinking while the thread is running", async () => {

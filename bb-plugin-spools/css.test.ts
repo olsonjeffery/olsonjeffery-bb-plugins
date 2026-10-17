@@ -59,11 +59,25 @@ describe("app.css", () => {
     expect(fold?.body).toMatch(/height var\(--spooler-swipe-fold,/);
   });
 
-  it("keeps metadata and the owned title transparent to one-line layout", () => {
-    for (const selector of [".spooler-row-meta", ".spooler-thread-title"]) {
-      expect(rules().find((rule) => rule.selector === selector)?.body)
-        .toMatch(/display:\s*contents/);
-    }
+  it("lays row metadata as one wrapping chip grid", () => {
+    // The grid is the whole metadata story: every kind (time, project,
+    // model, thinking, section, host, branch, PR, folded summary) is a chip
+    // on one wrapping row, capped per element so one long value can never
+    // eat the line, and the owned title stays transparent to the layout.
+    const grid = rules().find((rule) => rule.selector === ".spooler-row-grid");
+    expect(grid?.body).toMatch(/display:\s*flex/);
+    expect(grid?.body).toMatch(/flex-wrap:\s*wrap/);
+    expect(grid?.body).toMatch(/max-width:\s*100%/);
+    const item = rules().find(
+      (rule) => rule.selector === ".spooler-row-grid > *",
+    );
+    expect(item?.body).toMatch(/max-width:\s*45%/);
+    expect(rules().find((rule) => rule.selector === ".spooler-thread-title")?.body)
+      .toMatch(/display:\s*contents/);
+    // The old stacked-line layout is retired outright: no rule may declare
+    // .spooler-row-meta anywhere.
+    expect(rules().filter((rule) => /\.spooler-row-meta\b/.test(rule.selector)))
+      .toEqual([]);
   });
 
   it("clamps the whole title instead of the last SDK segment", () => {
@@ -81,28 +95,30 @@ describe("app.css", () => {
     ]);
   });
 
-  it("sizes wrapping titles from content and declares wrapping metadata once", () => {
+  it("sizes wrapping titles from content and keeps the grid out of two-line mode", () => {
     expect(rules().find((rule) => rule.selector === ".spooler-title-wrap .spooler-row-title-text")?.body)
       .toMatch(/flex:\s*1 1 auto/);
-    expect(rules().filter((rule) => rule.selector === ".spooler-title-wrap .spooler-row-meta"))
-      .toHaveLength(1);
+    // The metadata grid needs no two-line variant: it wraps itself.
+    expect(rules().filter((rule) => /\.spooler-title-wrap .*spooler-row-grid/.test(rule.selector)))
+      .toEqual([]);
   });
 
-  it("lifts two-line hover actions clear of the branch line and never hides them", () => {
-    // The bar sits at the row's bottom in two-line mode. Unlifted, it lands
-    // on the branch line and takes clicks meant for the PR badge. Hiding
-    // actions per row is out too: under project grouping no row has a chip,
-    // so that emptied the bar list-wide.
-    const wrap = rules().filter((rule) => /spooler-title-wrap/.test(rule.selector));
-    expect(wrap.find((rule) => /:has\(\.spooler-branch-line\)/.test(rule.selector))?.body)
-      .toMatch(/--spooler-actions-lift:\s*[1-9]\d*px/);
-    expect(wrap.find((rule) => /\.spooler-row-actions$/.test(rule.selector) && /bottom:/.test(rule.body))?.body)
-      .toMatch(/var\(--spooler-actions-lift\)/);
-    expect(wrap
-      .filter((rule) => /\.spooler-action\b/.test(rule.selector) && /display:\s*none/.test(rule.body))
+  it("keeps hover actions top-anchored and never hides them", () => {
+    // The actions bar overlays the title line's right end in every layout;
+    // per-row hiding is out: under project grouping no row has a chip, so
+    // that emptied the bar list-wide.
+    const actions = rules().find(
+      (rule) => rule.selector === ".spooler-row-actions",
+    );
+    expect(actions?.body).toMatch(/top:\s*\d+px/);
+    expect(rules()
+      .filter((rule) => /spooler-title-wrap/.test(rule.selector) && /\.spooler-action\b/.test(rule.selector) && /display:\s*none/.test(rule.body))
       .map((rule) => rule.selector)).toEqual([]);
     expect(rules().filter((rule) => /spooler-title-wrap.*:hover/.test(rule.selector)))
       .toEqual([]);
+    // The per-line lift machinery is retired: the title line is the only
+    // surface the bar ever overlays.
+    expect(css).not.toContain("--spooler-actions-lift");
   });
 
   it("estimates unrendered two-line rows taller than one-line rows", () => {

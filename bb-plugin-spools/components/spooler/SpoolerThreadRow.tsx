@@ -315,7 +315,6 @@ function SpoolerThreadRowImpl({
   sdk,
   modelEpoch,
   density = "comfortable",
-  twoLine = false,
   isSelected = false,
   selectionActive = false,
   selectedIds,
@@ -362,9 +361,6 @@ function SpoolerThreadRowImpl({
   primaryHostId: string | null;
   sdk: PluginBrowserBbSdk;
   modelEpoch: number;
-  /** Two-line comfortable layout: the project chip and time drop to their
-   *  own line under the title instead of riding beside it. */
-  twoLine?: boolean;
   density?: "comfortable" | "compact";
   isSelected?: boolean;
   selectionActive?: boolean;
@@ -669,35 +665,14 @@ function SpoolerThreadRowImpl({
 
   const branch = thread.environment?.branchName ?? null;
   const hostName = thread.host?.name ?? null;
-  const hasBranchLine = depth === 0 && !!branch;
+  const hasBranch = depth === 0 && !!branch;
   // The home host is noise on the row (it stays in the tooltip); branches
   // and away-from-home hosts are always shown.
   const showHost =
     hostName && (!primaryHostId || thread.host?.id !== primaryHostId);
-  // Branches live on their own third line; line two keeps everything else.
   const where = showHost ? hostName : null;
-  // The project lives on the title line as a chip; time does too so
-  // neither truncates away. Children inherit context: model • thinking.
-  const contextSegments: ReactNode[] =
-    depth === 0
-      ? [
-          ...(sectionName && sectionId
-            ? [
-                <span
-                  key="section"
-                  className="spooler-section-chip"
-                  style={{ "--spooler-section-hue": projectHue(`section:${sectionId}`) } as CSSProperties}
-                  title={sectionName}
-                >
-                  {sectionName}
-                </span>,
-              ]
-            : []),
-          ...(where ? [<span key="where">{where}</span>] : []),
-        ]
-      : [];
   // The provider icon identifies the provider, so its name isn't echoed in
-  // the subtitle — except when no icon is available, or in the tooltip.
+  // the grid — except when no icon is available, or in the tooltip.
   const needsProviderText = !providerIcon;
   const thinking =
     execution && execution.reasoningLevel !== "none"
@@ -715,63 +690,6 @@ function SpoolerThreadRowImpl({
   ]
     .filter((part): part is string => !!part)
     .join(" • ");
-  const subtitleSegments: ReactNode[] = [];
-  if (needsProviderText && execution) {
-    subtitleSegments.push(<span key="provider">{providerName}</span>);
-  }
-  if (execution && showExecution) {
-    subtitleSegments.push(
-      <span key="model">
-        <span className="spooler-model-chip" title={modelName ?? undefined}>
-          <Icon name="Bot" aria-hidden="true" />
-          {modelName}
-        </span>{" "}
-        {thinking ? (
-          <span
-            className="spooler-model-chip spooler-thinking-chip"
-            title={`Thinking: ${thinking}`}
-          >
-            <Icon name="Brain" aria-hidden="true" />
-            {thinking}
-          </span>
-        ) : null}
-      </span>,
-    );
-  }
-  subtitleSegments.push(...contextSegments);
-  const subtitleNode = (
-    <span className="spooler-row-subtitle" title={fullSubtitle}>
-      {showExecution && execution === undefined ? (
-        <>
-          {needsProviderText ? <>{providerName} • </> : null}
-          <span className="spooler-model-loading" aria-hidden="true" />
-          {contextSegments.length > 0 ? (
-            <>
-              {" • "}
-              {contextSegments.map((segment, index) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <span key={index}>
-                  {index > 0 ? " • " : null}
-                  {segment}
-                </span>
-              ))}
-            </>
-          ) : null}
-        </>
-      ) : (
-        subtitleSegments.map((segment, index) => (
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={index}>
-            {index > 0 ? " • " : null}
-            {segment}
-          </span>
-        ))
-      )}
-    </span>
-  );
-  const timeNode = (
-    <span className="spooler-row-time" title={timeText}>{timeText}</span>
-  );
   const isWorktree = thread.environment?.isWorktree === true;
   const handleCopyBranch = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -789,21 +707,127 @@ function SpoolerThreadRowImpl({
     });
   };
 
-  const branchNode = hasBranchLine ? (
-    <span
-      className="spooler-branch-line"
-      title={
-        branch && isWorktree ? `${branch} (worktree)` : (branch ?? undefined)
+  // A folded family swaps the live chips for an inline summary of who is
+  // hidden: stacked people faces + remainder, names in the tooltip.
+  const familyFolded = !!collapse?.collapsed && collapse.hiddenTotal > 0;
+  const faceKids = collapse?.hiddenKids.slice(0, 3) ?? [];
+  const faceRemainder =
+    (collapse?.hiddenTotal ?? 0) - faceKids.length;
+  const kidsNode = collapse && familyFolded ? (
+    <span className="spooler-kids-line" title={foldedKidsText(collapse)}>
+      <span className="spooler-face-stack" aria-hidden="true">
+        {faceKids.map((kid) => (
+          <span key={kid.id} className="spooler-face">
+            <Icon name="UserRound" aria-hidden="true" />
+          </span>
+        ))}
+      </span>
+      {faceRemainder > 0 ? (
+        <span className="spooler-kids-count">+{faceRemainder}</span>
+      ) : null}
+    </span>
+  ) : null;
+
+  // -- The metadata grid ------------------------------------------------------
+  //
+  // ONE wrapping chip row under the title carries every fact the row can
+  // show — time, project, model + thinking (live only), section, host,
+  // branch, PR, and a folded-family summary — each as a chip with its own
+  // max-width. The grid wraps onto further lines instead of stacking
+  // different kinds on disjointed ones, so every kind reads the same way
+  // everywhere it appears. Chips with interactive behavior (branch copy, PR
+  // open) keep their buttons; quiet rows fold the whole grid away.
+  const gridItems: ReactNode[] = [];
+  // Time first: it is the row's heartbeat and reads left-to-right first.
+  gridItems.push(
+    <span key="time" className="spooler-row-time" title={timeText}>
+      {timeText}
+    </span>,
+  );
+  if (projectTag) {
+    gridItems.push(
+      <span
+        key="project"
+        className="spooler-row-project"
+        title={projectTag}
+        style={{
+          "--spooler-project-hue": projectColorHue ?? projectHue(thread.projectId),
+        } as CSSProperties}
+      >
+        {projectTag}
+      </span>,
+    );
+  }
+  // Model + thinking only while the thread is in flight, and never while a
+  // folded family summary stands in for them (the old subtitle swap rule).
+  if (showExecution && !familyFolded) {
+    if (execution === undefined) {
+      gridItems.push(
+        <span
+          key="model-loading"
+          className="spooler-model-loading"
+          role="status"
+          aria-label="Loading model"
+        />,
+      );
+    } else if (execution) {
+      if (needsProviderText) {
+        gridItems.push(
+          <span key="provider" className="spooler-host-chip" title={providerName}>
+            {providerName}
+          </span>,
+        );
       }
-    >
+      gridItems.push(
+        <span key="model" className="spooler-model-chip" title={modelName ?? undefined}>
+          <Icon name="Bot" aria-hidden="true" />
+          {modelName}
+        </span>,
+      );
+      if (thinking) {
+        gridItems.push(
+          <span
+            key="thinking"
+            className="spooler-model-chip spooler-thinking-chip"
+            title={`Thinking: ${thinking}`}
+          >
+            <Icon name="Brain" aria-hidden="true" />
+            {thinking}
+          </span>,
+        );
+      }
+    }
+  }
+  if (depth === 0 && sectionName && sectionId) {
+    gridItems.push(
+      <span
+        key="section"
+        className="spooler-section-chip"
+        style={{ "--spooler-section-hue": projectHue(`section:${sectionId}`) } as CSSProperties}
+        title={sectionName}
+      >
+        {sectionName}
+      </span>,
+    );
+  }
+  if (where) {
+    gridItems.push(
+      <span key="host" className="spooler-host-chip" title={`Host: ${hostName}`}>
+        {hostName}
+      </span>,
+    );
+  }
+  if (hasBranch) {
+    gridItems.push(
       <button
+        key="branch"
         type="button"
         tabIndex={-1}
         className={cn(
           "spooler-branch-btn",
           copiedBranch && "spooler-branch-copied",
         )}
-        title={copiedBranch ? "Copied branch to clipboard!" : `Click to copy branch: ${branch}`}
+        title={copiedBranch ? "Copied branch to clipboard!" : branch && isWorktree ? `Click to copy branch: ${branch} (worktree)` : `Click to copy branch: ${branch}`}
         aria-label={`Copy branch name ${branch}`}
         onClick={handleCopyBranch}
       >
@@ -816,33 +840,48 @@ function SpoolerThreadRowImpl({
         {copiedBranch ? (
           <span className="spooler-branch-copied-badge">Copied</span>
         ) : null}
-      </button>
-      {pullRequest ? (
-        <button
-          type="button"
-          tabIndex={-1}
-          className={cn(
-            "spooler-pr-link",
-            prBadgeClass(pullRequest.state, pullRequest.attention),
-            prToneClass(pullRequest.attention),
-          )}
-          title={`${pullRequest.title} — open PR #${pullRequest.number} (${prLabel(pullRequest.state, pullRequest.attention)})`}
-          aria-label={`Open pull request ${pullRequest.number}: ${pullRequest.title}`}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            navigate.openUrl(pullRequest.url);
-          }}
-        >
-          <Icon name={prIconName(pullRequest.state, pullRequest.attention)} aria-hidden="true" />
-          <span>
-            #{pullRequest.number} ·{" "}
-            {prLabel(pullRequest.state, pullRequest.attention)}
-          </span>
-        </button>
-      ) : null}
+      </button>,
+    );
+  }
+  // The PR badge rides the grid whenever the thread has one — branch or
+  // not — so a running thread's PR is never left off the panel.
+  if (pullRequest) {
+    gridItems.push(
+      <button
+        key="pr"
+        type="button"
+        tabIndex={-1}
+        className={cn(
+          "spooler-pr-link",
+          prBadgeClass(pullRequest.state, pullRequest.attention),
+          prToneClass(pullRequest.attention),
+        )}
+        title={`${pullRequest.title} — open PR #${pullRequest.number} (${prLabel(pullRequest.state, pullRequest.attention)})`}
+        aria-label={`Open pull request ${pullRequest.number}: ${pullRequest.title}`}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          navigate.openUrl(pullRequest.url);
+        }}
+      >
+        <Icon name={prIconName(pullRequest.state, pullRequest.attention)} aria-hidden="true" />
+        <span>
+          #{pullRequest.number} ·{" "}
+          {prLabel(pullRequest.state, pullRequest.attention)}
+        </span>
+      </button>,
+    );
+  }
+  // A folded family always shows its summary, even on quiet rows — the
+  // faces line joins the grid as a full-width item.
+  if (familyFolded) {
+    gridItems.push(kidsNode);
+  }
+  const gridNode = (
+    <span className="spooler-row-grid" title={fullSubtitle}>
+      {gridItems}
     </span>
-  ) : null;
+  );
   const leadNode = (
     <span
       className="spooler-row-lead"
@@ -907,26 +946,8 @@ function SpoolerThreadRowImpl({
       ) : null}
     </span>
   );
-  const familyFolded = !!collapse?.collapsed && collapse.hiddenTotal > 0;
-  const faceKids = collapse?.hiddenKids.slice(0, 3) ?? [];
-  const faceRemainder =
-    (collapse?.hiddenTotal ?? 0) - faceKids.length;
-  const kidsNode = collapse && familyFolded ? (
-    <span className="spooler-kids-line" title={foldedKidsText(collapse)}>
-      <span className="spooler-face-stack" aria-hidden="true">
-        {faceKids.map((kid) => (
-          <span key={kid.id} className="spooler-face">
-            <Icon name="UserRound" aria-hidden="true" />
-          </span>
-        ))}
-      </span>
-      {faceRemainder > 0 ? (
-        <span className="spooler-kids-count">+{faceRemainder}</span>
-      ) : null}
-    </span>
-  ) : null;
   // A folded family always shows its summary, even on quiet rows.
-  const extraHidden = collapsed && !kidsNode;
+  const extraHidden = collapsed && !familyFolded;
   const statusBadge = visual || statusWord ? (
     <span
       className={cn(
@@ -992,8 +1013,9 @@ function SpoolerThreadRowImpl({
               maxLength={200}
               className="spooler-rename"
             />
-            {subtitleNode}
-            {branchNode}
+            <span className="spooler-row-grid" title={fullSubtitle}>
+              {gridItems}
+            </span>
           </span>
         </div>
       </div>
@@ -1147,36 +1169,13 @@ function SpoolerThreadRowImpl({
           </span>
           <span
             className={cn(
-              "spooler-row-meta",
-              twoLine && "spooler-row-meta-line",
-            )}
-          >
-            {projectTag ? (
-              <span
-                className="spooler-row-project"
-                title={projectTag}
-                style={{
-                  "--spooler-project-hue":
-                    projectColorHue ?? projectHue(thread.projectId),
-                } as CSSProperties}
-              >
-                {projectTag}
-              </span>
-            ) : null}
-            {timeNode}
-          </span>
-          <span
-            className={cn(
               "spooler-row-extra",
               extraHidden && "spooler-row-extra-collapsed",
             )}
             aria-hidden={extraHidden || undefined}
           >
-            <span className="spooler-row-extra-inner">
-              {kidsNode ?? subtitleNode}
-            </span>
+            <span className="spooler-row-extra-inner">{gridNode}</span>
           </span>
-          {branchNode}
         </span>
         <span className="spooler-row-badges">
           {statusBadge}
