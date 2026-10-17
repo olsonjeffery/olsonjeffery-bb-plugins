@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, waitFor, within } from "@testing-library/react";
 import type { ComposerMention, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
@@ -602,6 +603,40 @@ describe("personas nav panel", () => {
     await draft.findByTestId("bb-thread-chat");
     expect(draft.queryByText(/·/)).toBeNull();
     draft.lifecycle.unmount();
+  });
+
+  it("re-seeds the settings form when the rail selection moves to another persona — no stale mounted editor", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(
+      panel,
+      { subPath: "persona_6/edit" },
+      { rpc: RPC },
+    );
+
+    // Standup's form: name and Default User Message come from its own row.
+    expect(((await slot.findByLabelText("Name")) as HTMLInputElement).value).toBe(
+      "Standup",
+    );
+    expect(
+      ((await slot.findByLabelText("Default user message")) as HTMLTextAreaElement)
+        .value,
+    ).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
+
+    // The SAME mounted panel now points at Pirate (a rail navigation): the
+    // keyed editor remounts and re-seeds from Pirate's row. Regression pin
+    // for the stale-mount bug the fixed key removed — the old seeded state
+    // put Review-Changes-style labels over the next persona's data panes.
+    slot.rerender(createElement(panel.component, { subPath: "persona_1/edit" }));
+    await waitFor(() =>
+      expect(
+        (slot.getByLabelText("Name") as HTMLInputElement).value,
+      ).toBe("Pirate"),
+    );
+    expect(
+      (slot.getByLabelText("Default user message") as HTMLTextAreaElement).value,
+    ).toBe("");
+    await slot.findByText("Settings for Pirate");
+    slot.lifecycle.unmount();
   });
 
   it("confirms before deleting a draft from the editor", async () => {

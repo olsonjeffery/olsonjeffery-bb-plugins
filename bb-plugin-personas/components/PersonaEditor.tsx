@@ -212,10 +212,17 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef<Promise<void> | null>(null);
   const mountedRef = useRef(true);
+  // Navigating away (usually to another persona) unmounts this editor, and
+  // every field autosaves — so a debounced keystroke that hasn't fired yet
+  // must flush ON the way out, or the tail of the user's typing is lost.
+  // The save itself continues past the unmounted tree; only the status
+  // display goes quiet with it.
   useEffect(
     () => () => {
+      flushPendingSave();
       mountedRef.current = false;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -415,6 +422,14 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   }
 
   async function remove() {
+    // Deleting discards any pending edits: clearing the debounce and the
+    // save baseline so the unmount flush (installed above) arrives at a
+    // null baseline and no-ops instead of saving into a deleted persona.
+    if (debounceRef.current !== null) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    savedRef.current = null;
     setIsBusy(true);
     try {
       await rpc.call("deletePersona", { personaId });

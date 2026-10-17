@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { experimental_compareVersions } from "@get-bb/plugin-sdk/provider-bridge";
 import {
   __testing,
   getMakiInstallationRun,
@@ -6,15 +7,24 @@ import {
 } from "./maki-maintenance.js";
 
 describe("maki maintenance", () => {
-  it("marks an up-to-date installed maki with no action", { timeout: 20_000 }, async () => {
+  it("reports installation status consistent with the version comparison", { timeout: 20_000 }, async () => {
     __testing.resetLatestVersionCache();
     const status = await getMakiInstallationStatus(true);
-    if (status.currentVersion !== null && status.latestVersion !== null) {
-      expect(status.needsUpdate).toBe(status.latestVersion > status.currentVersion ? false : false);
-    }
     expect(status.installed).toBe(true);
-    expect(status.installAction).toBeNull();
     expect(status.npmPackageName).toBeNull();
+    if (status.currentVersion === null || status.latestVersion === null) {
+      // Update check unavailable (offline or unreadable version): no action can be decided.
+      expect(status.needsUpdate).toBe(false);
+      expect(status.installAction).toBeNull();
+      return;
+    }
+    const stale = experimental_compareVersions(status.latestVersion, status.currentVersion) > 0;
+    expect(status.needsUpdate).toBe(stale);
+    expect(status.installAction?.kind).toBe(stale ? "update" : null);
+    if (stale) {
+      expect(status.installAction?.label).toBe("Update");
+      expect(status.installAction?.command).toContain("update");
+    }
   });
 
   it("reports the update command for a stale version", async () => {

@@ -119,10 +119,18 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
     case "edit":
       // Every persona route lands in settings now: the rail's click, old
       // composer-page links (<personaId>, <personaId>/new), and direct
-      // settings links (.⟨personaId⟩/edit) all show the editor.
+      // settings links (<personaId>/edit) all show the editor.
+      //
+      // The record IS the identity: a key on personaId remounts the editor
+      // when the rail selection moves between two personas, so its seeded
+      // form state (name, emoji, providers, Default User Message) can never
+      // outlive the persona it was seeded from. Without the key, the same
+      // mounted editor would keep one persona's form while the data-driven
+      // panes (prompt pool, chats) reload the next persona's rows — the
+      // mismatch the rail navigation used to leave on screen.
       content = (
         <DocumentPane onBack={onBack}>
-          <PersonaEditor personaId={route.personaId} />
+          <PersonaEditor key={route.personaId} personaId={route.personaId} />
         </DocumentPane>
       );
       break;
@@ -130,9 +138,11 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
       // Deep-link surface only: opening a chat from the plugin now goes to
       // BB's real thread route (navigate.toThread), where the host's right
       // side panel connects. Anything landing at <personaId>/<threadId>
-      // (old bookmarks, history entries) still renders the embedded view.
+      // (old bookmarks, history entries) still renders the embedded view —
+      // keyed by both segments for the same reason as the editor.
       content = (
         <PersonaChatView
+          key={`${route.personaId}:${route.threadId}`}
           personaId={route.personaId}
           threadId={route.threadId}
           onBack={onBack}
