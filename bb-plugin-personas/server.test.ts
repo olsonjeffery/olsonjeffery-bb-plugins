@@ -106,22 +106,63 @@ const PATCH = {
 
 const PROMPT_TEXT = "Always answer in pirate speak.";
 
-// What `experimental_NewThreadComposer` hands back once every selection is
-// resolved. `projectId`/`environment` here stand in for "Don't work in a
-// project", which the real composer submits as the personal project id plus
-// a personal workspace, not null.
-function makeRequest(overrides: Record<string, unknown> = {}) {
-  return {
-    projectId: "proj_personal",
-    providerId: "codex",
-    model: "gpt-5.5",
-    reasoningLevel: "medium" as const,
-    permissionMode: "auto",
-    executionInputSources: { providerId: "explicit", model: "explicit" },
-    environment: { type: "host", workspace: { type: "personal" } },
-    input: [{ type: "text", text: "hi", mentions: [] }],
-    ...overrides,
-  };
+// -- Persona pill dispatch ---------------------------------------------------
+//
+// A persona chat now binds at its FIRST dispatch: the New Thread composer's
+// message carries the plugin's persona mention pill, and the message.dispatch
+// hook maps the (already-created) thread to the persona. The tests drive that
+// hook directly, the same way core runs it.
+
+/** The mention resource our picker inserts; wire ids belong to "personas". */
+function personaPillBlocks(personaId: string) {
+  return [
+    {
+      type: "text" as const,
+      text: `@Persona pill ${personaId} and the user's actual message`,
+      mentions: [
+        {
+          start: 0,
+          end: 14,
+          resource: {
+            kind: "plugin" as const,
+            pluginId: "personas",
+            itemId: personaId,
+            label: "Persona pill",
+          },
+        },
+      ],
+      visibility: "agent-only" as const,
+    },
+  ];
+}
+
+let nextHookThread = 0;
+
+/**
+ * Runs the plugin's message.dispatch hook against a thread whose input
+ * carries the persona pill, like core does on the first send of a New Thread
+ * composer submission. Returns the (caller-chosen or next fake) thread id.
+ */
+function dispatchThreadStart(
+  personaId: string,
+  args: { threadId?: string; attempt?: "start-turn" | "join-turn" } = {},
+): string {
+  nextHookThread += 1;
+  const threadId = args.threadId ?? `thr_pill${nextHookThread}`;
+  const handler = host.harness.registrations.hooks["message.dispatch"];
+  expect(handler).toBeTypeOf("function");
+  const decision = (handler as (context: unknown) => { action: string })(
+    {
+      thread: makeThreadResponse({ id: threadId }),
+      attempt: args.attempt ?? "start-turn",
+      input: {
+        blocks: personaPillBlocks(personaId),
+        text: `@Persona pill ${personaId}`,
+      },
+    },
+  );
+  expect(decision).toEqual({ action: "proceed" });
+  return threadId;
 }
 
 let host: ReturnType<typeof makeHost>;
@@ -283,10 +324,7 @@ describe("createPersona / savePersona / publishPersona", () => {
 describe("instruction routing", () => {
   it("contributes the persona only to that persona's own threads", async () => {
     const personaId = await createPublishedPersona();
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
 
     const provide = host.harness.registrations.instructionProvider;
     expect(provide).not.toBeNull();
@@ -301,10 +339,7 @@ describe("instruction routing", () => {
 
   it("stops contributing once the persona is deleted", async () => {
     const personaId = await createPublishedPersona();
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
     await host.harness.behavior.callRpc("deletePersona", { personaId });
 
     const provide = host.harness.registrations.instructionProvider!;
@@ -328,10 +363,7 @@ describe("instruction routing", () => {
       type: "note",
       noteId: "note_1",
     });
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
 
     const provide = host.harness.registrations.instructionProvider!;
     expect(provide({ threadId, projectId: "proj_personal" })).toContain(
@@ -356,10 +388,7 @@ describe("instruction routing", () => {
       type: "note",
       noteId: "note_missing",
     });
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
 
     const provide = host.harness.registrations.instructionProvider!;
     expect(provide({ threadId, projectId: "proj_personal" })).toContain(
@@ -671,94 +700,165 @@ describe("prompt-pool sources", () => {
   });
 });
 
-describe("startChat", () => {
-  it("rejects starting a chat on a draft persona", async () => {
-    const { personaId } = (await host.harness.behavior.callRpc(
-      "createPersona",
-      null,
-    )) as { personaId: string };
-    await expect(
-      host.harness.behavior.callRpc("startChat", {
-        personaId,
-        request: makeRequest(),
-      }),
-    ).rejects.toThrow("Publish this persona before starting a chat");
-  });
-
-  it("forwards an image-bearing input array to threads.spawn verbatim", async () => {
+describe("persona pills", () => {
+  // The pill was placed by the picker (a published persona), so this helper
+  // makes the draft's own honest state: a draft persona pill maps to nothing.
+  it("maps the new thread to the pill's persona on its first dispatch", async () => {
     const personaId = await createPublishedPersona();
-    const input = [
-      { type: "text" as const, text: "check this out", mentions: [] },
-      { type: "localImage" as const, path: "attachments/shot.png" },
-    ];
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest({ input }),
-    });
-
-    const [args] = host.harness.inspection.sdk.callsTo("threads.spawn");
-    expect(args?.[0]).toMatchObject({ input });
-  });
-
-  it("forwards the opaque environment and executionInputSources untouched", async () => {
-    const personaId = await createPublishedPersona();
-    const environment = { type: "project-default" };
-    const executionInputSources = {
-      providerId: "explicit" as const,
-      model: "client-preference" as const,
-    };
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest({
-        projectId: "proj_work",
-        environment,
-        executionInputSources,
-      }),
-    });
-
-    const [args] = host.harness.inspection.sdk.callsTo("threads.spawn");
-    expect(args?.[0]).toMatchObject({
-      projectId: "proj_work",
-      environment,
-      executionInputSources,
-    });
-  });
-
-  // Regression pin for the reported bug: `title` used to be hardcoded to
-  // persona.name, so every chat in the UI was literally named "Builder". BB
-  // auto-titles a thread from its first message when title is omitted.
-  it("passes no title to threads.spawn, letting BB auto-title the thread", async () => {
-    const personaId = await createPublishedPersona();
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
-
-    const [args] = host.harness.inspection.sdk.callsTo("threads.spawn");
-    expect(args?.[0]).not.toHaveProperty("title");
-  });
-
-  it("maps the new thread to the persona so contributeInstructions returns its persona", async () => {
-    const personaId = await createPublishedPersona();
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
 
     const provide = host.harness.registrations.instructionProvider!;
     const contributed = provide({ threadId, projectId: "proj_personal" });
     expect(contributed).toContain("Pirate");
     expect(contributed).toContain(PROMPT_TEXT);
+
+    // The chip's RPC answers from the same mapping.
+    const { persona } = (await host.harness.behavior.callRpc(
+      "getPersonaForThread",
+      { threadId },
+    )) as { persona: { id: string; name: string } | null };
+    expect(persona?.id).toBe(personaId);
+    expect(persona?.name).toBe("Pirate");
+  });
+
+  it("is idempotent: every later pass of the same thread leaves one mapping", async () => {
+    const personaId = await createPublishedPersona();
+    const threadId = dispatchThreadStart(personaId);
+    dispatchThreadStart(personaId, { threadId });
+
+    const rows = host.bb.storage
+      .database()
+      .prepare("SELECT COUNT(*) AS n FROM persona_threads WHERE thread_id = ?")
+      .get(threadId) as { n: number };
+    expect(rows.n).toBe(1);
+  });
+
+  it("skips a join-turn attempt (the thread was already decided about)", async () => {
+    const personaId = await createPublishedPersona();
+    expect(
+      dispatchThreadStart(personaId, { attempt: "join-turn" }),
+    ).not.toBe(personaId);
+
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(
+      provide({ threadId: "thr_pill1", projectId: "proj_personal" }),
+    ).toBeNull();
+
+    const { persona } = (await host.harness.behavior.callRpc(
+      "getPersonaForThread",
+      { threadId: "thr_pill1" },
+    )) as { persona: string | null };
+    expect(persona).toBeNull();
+  });
+
+  it("skips a pill naming a draft persona — publish first", async () => {
+    const { personaId } = (await host.harness.behavior.callRpc(
+      "createPersona",
+      null,
+    )) as { personaId: string };
+    dispatchThreadStart(personaId);
+
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(
+      provide({ threadId: "thr_pill1", projectId: "proj_personal" }),
+    ).toBeNull();
+  });
+
+  it("skips a pill whose persona no longer exists", async () => {
+    dispatchThreadStart("persona_gone");
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(
+      provide({ threadId: "thr_pill1", projectId: "proj_personal" }),
+    ).toBeNull();
+  });
+
+  it("ignores an ordinary dispatch with no persona pill in its input", async () => {
+    nextHookThread += 1;
+    const threadId = `thr_plain${nextHookThread}`;
+    const handler = host.harness.registrations.hooks["message.dispatch"];
+    const decision = (handler as (context: unknown) => { action: string })({
+      thread: makeThreadResponse({ id: threadId }),
+      attempt: "start-turn",
+      input: {
+        blocks: [{ type: "text", text: "plain message", mentions: [] }],
+        text: "plain message",
+      },
+    });
+    expect(decision).toEqual({ action: "proceed" });
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(provide({ threadId, projectId: "proj_personal" })).toBeNull();
+    const { persona } = (await host.harness.behavior.callRpc(
+      "getPersonaForThread",
+      { threadId },
+    )) as { persona: string | null };
+    expect(persona).toBeNull();
+  });
+
+  it("resolves this thread's persona (or null) for the Thread Info chip", async () => {
+    const personaId = await createPublishedPersona();
+    expect(
+      (
+        (await host.harness.behavior.callRpc("getPersonaForThread", {
+          threadId: "thr_unmapped",
+        })) as { persona: string | null }
+      ).persona,
+    ).toBeNull();
+
+    const threadId = dispatchThreadStart(personaId);
+    await host.harness.behavior.callRpc("deletePersona", { personaId });
+    const { persona } = (await host.harness.behavior.callRpc(
+      "getPersonaForThread",
+      { threadId },
+    )) as { persona: string | null };
+    expect(persona).toBeNull();
+  });
+
+  it("registers exactly one mention provider with published-persona search", async () => {
+    const personaId = await createPublishedPersona();
+    const [provider] = host.harness.registrations.mentionProviders;
+    expect(provider).toMatchObject({ id: "personas", label: "Personas" });
+
+    const rows = await provider.search({
+      trigger: "@",
+      query: "pir",
+      projectId: null,
+      threadId: null,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe(personaId);
+
+    // Drafts never answer the menu.
+    await host.harness.behavior.callRpc("createPersona", null);
+    const after = await provider.search({
+      trigger: "@",
+      query: "",
+      projectId: null,
+      threadId: null,
+    });
+    expect(after).toHaveLength(1);
+  });
+
+  it("resolve() never throws: a deleted persona resolves to a note, a live one to its identity line", async () => {
+    const personaId = await createPublishedPersona();
+    const [provider] = host.harness.registrations.mentionProviders;
+
+    const live = await provider.resolve(personaId);
+    expect(live.context).toContain("Pirate");
+    expect(live.context).toContain("Persona");
+    // The pool is NOT echoed per message: contributeInstructions injects it
+    // per turn, so a resolve() that repeated it would double it.
+    expect(live.context).not.toContain(PROMPT_TEXT);
+
+    await host.harness.behavior.callRpc("deletePersona", { personaId });
+    const gone = await provider.resolve("persona_deleted");
+    expect(gone.context).toContain("no longer exists");
   });
 });
 
 describe("persistence", () => {
   it("keeps personas, their thread mapping, and their prompt pool across a reload", async () => {
     const personaId = await createPublishedPersona();
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId, { threadId: "thr_keep" });
 
     await host.harness.lifecycle.reload(plugin);
 
@@ -933,10 +1033,19 @@ describe("persistence", () => {
     });
 
     // The injected block carries the carried-over prompt like a native one.
-    const { threadId } = (await reloaded.harness.behavior.callRpc("startChat", {
-      personaId: "persona_prepool",
-      request: makeRequest(),
-    })) as { threadId: string };
+    // The reload rewires the hook to the reloaded module state, so the new
+    // mapping flows into the reloaded instructionProvider below.
+    const handler = reloaded.harness.registrations.hooks["message.dispatch"];
+    expect(handler).toBeTypeOf("function");
+    const threadId = "thr_prepool";
+    (handler as unknown as (context: unknown) => { action: string })({
+      thread: makeThreadResponse({ id: threadId }),
+      attempt: "start-turn",
+      input: {
+        blocks: personaPillBlocks("persona_prepool"),
+        text: "@Persona pill",
+      },
+    });
     const provide = reloaded.harness.registrations.instructionProvider!;
     expect(provide({ threadId, projectId: "proj_personal" })).toContain(
       "Be legacy.",
@@ -1037,10 +1146,7 @@ describe("persistence", () => {
 describe("listChats", () => {
   it("returns only this persona's threads without a per-thread lookup", async () => {
     const personaId = await createPublishedPersona();
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
+    dispatchThreadStart(personaId, { threadId: "thr_1" });
 
     const { chats, archivedChats } = (await host.harness.behavior.callRpc(
       "listChats",
@@ -1063,17 +1169,12 @@ describe("listChats", () => {
 
   it("splits active vs archived threads and excludes threads that aren't this persona's own", async () => {
     const personaId = await createPublishedPersona();
-    // Three real threads get mapped to this persona via startChat (thr_1..thr_3);
-    // thr_999 stands in for some other plugin's thread that just happens to
-    // come back from threads.list — it must never leak into either bucket.
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
+    // Three real threads get mapped to this persona via the dispatch hook
+    // (thr_1..thr_3); thr_999 stands in for some other plugin's thread that
+    // just happens to come back from threads.list — it must never leak into
+    // either bucket.
+    dispatchThreadStart(personaId, { threadId: "thr_1" });
+    dispatchThreadStart(personaId, { threadId: "thr_2" });
 
     host.harness.inspection.sdk.stub(
       "threads.list",
@@ -1126,18 +1227,9 @@ describe("listChats", () => {
 
   it("sorts pinned chats ahead of unpinned ones, then by updatedAt descending", async () => {
     const personaId = await createPublishedPersona();
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
-    await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    });
+    dispatchThreadStart(personaId, { threadId: "thr_1" });
+    dispatchThreadStart(personaId, { threadId: "thr_2" });
+    dispatchThreadStart(personaId, { threadId: "thr_3" });
 
     host.harness.inspection.sdk.stub(
       "threads.list",
@@ -1201,10 +1293,7 @@ describe("unarchiveChat", () => {
 
   it("unarchives a chat that belongs to this persona and announces the change", async () => {
     const personaId = await createPublishedPersona();
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
 
     const result = (await host.harness.behavior.callRpc("unarchiveChat", {
       threadId,
@@ -1220,10 +1309,7 @@ describe("unarchiveChat", () => {
 describe("thread.archived event", () => {
   it("announces but keeps the persona_threads mapping intact for our own threads", async () => {
     const personaId = await createPublishedPersona();
-    const { threadId } = (await host.harness.behavior.callRpc("startChat", {
-      personaId,
-      request: makeRequest(),
-    })) as { threadId: string };
+    const threadId = dispatchThreadStart(personaId);
 
     const signalsBefore = host.harness.inspection.realtimeSignals.length;
     await host.harness.behavior.emitThreadEvent("thread.archived", {

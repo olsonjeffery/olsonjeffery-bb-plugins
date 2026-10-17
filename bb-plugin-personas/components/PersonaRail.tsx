@@ -185,7 +185,9 @@ export function PersonaRail({ selectedPersonaId }: { selectedPersonaId: string |
                     <button
                       type="button"
                       onClick={() =>
-                        navigate.toPluginPanel(PANEL_PATH, { subPath: persona.id })
+                        // Selecting a persona opens its settings directly —
+                        // there is no per-persona composer page anymore.
+                        navigate.toPluginPanel(PANEL_PATH, { subPath: `${persona.id}/edit` })
                       }
                       className={cn(
                         "flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left transition-colors hover:bg-accent",

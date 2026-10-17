@@ -1,20 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/react";
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { fireEvent, waitFor, within } from "@testing-library/react";
+import type { ComposerMention, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { EMOJIS } from "./personas";
-import {
-  DEFAULT_MESSAGE_FLASH_CLASS,
-  DEFAULT_MESSAGE_FLASH_MS,
-  flashPromptBox,
-  promptBoxForBridge,
-} from "./components/default-user-message";
-import {
-  composerShare,
-  resolveComposerOpen,
-  type ComposerHandoff,
-} from "./components/composer-share";
 
 const PERSONA_WITH_CHATS = {
   id: "persona_1",
@@ -421,14 +410,14 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("navigates to a persona when its rail row is clicked", async () => {
+  it("navigates to a persona's settings when its rail row is clicked — no composer page in between", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "" }, { rpc: RPC });
     (await slot.findByText("Builder")).click();
     expect(slot.inspection.navigateCalls).toContainEqual({
       method: "toPluginPanel",
       path: "personas",
-      options: { subPath: "persona_2" },
+      options: { subPath: "persona_2/edit" },
     });
     slot.lifecycle.unmount();
   });
@@ -486,42 +475,25 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("lands the persona detail view in the composer, not the editor", async () => {
+  it("lands a rail click directly in the editor — the persona page has no composer", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_1" }, { rpc: RPC });
 
-    await slot.findByTestId("bb-new-thread-composer");
+    await slot.findByText("Settings for Pirate");
     await slot.findByText("Chats (1)");
+    expect(slot.queryByTestId("bb-new-thread-composer")).toBeNull();
     expect(slot.inspection.navigateCalls).toEqual([]);
     slot.lifecycle.unmount();
   });
 
-  it("opens the settings screen from the composer header's gear button, and Done returns to the composer", async () => {
+  it("routes old composer-page links (<personaId>/new) into the editor too, with no Done to click", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
 
-    await slot.findByTestId("bb-new-thread-composer");
-    expect(slot.queryByLabelText("Edit persona settings")).not.toBeNull();
-    (await slot.findByLabelText("Edit persona settings")).click();
-
-    expect(slot.inspection.navigateCalls).toContainEqual({
-      method: "toPluginPanel",
-      path: "personas",
-      options: { subPath: "persona_2/edit" },
-    });
+    await slot.findByText("Settings for Builder");
+    expect(slot.queryByTestId("bb-new-thread-composer")).toBeNull();
+    expect(slot.queryByText("Done")).toBeNull();
     slot.lifecycle.unmount();
-
-    // Done in the editor hands back to the composer.
-    const editor = renderSlot(panel, { subPath: "persona_2/edit" }, { rpc: RPC });
-    (await editor.findByText("Done")).click();
-    await waitFor(() =>
-      expect(editor.inspection.navigateCalls).toContainEqual({
-        method: "toPluginPanel",
-        path: "personas",
-        options: { subPath: "persona_2/new", replace: true },
-      }),
-    );
-    editor.lifecycle.unmount();
   });
 
   it("shows no gear or delete button on a persona chat view", async () => {
@@ -538,11 +510,10 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("renders the composer and chat list on the persona's new-chat page", async () => {
+  it("lists the persona's chats on the settings screen", async () => {
     const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: RPC });
+    const slot = renderSlot(panel, { subPath: "persona_1/edit" }, { rpc: RPC });
 
-    await slot.findByTestId("bb-new-thread-composer");
     await slot.findByText("Chats (1)");
     // "Ahoy there" also appears as the rail row's newest-chat preview, so
     // pick out the one that lives inside the persona page's chat list.
@@ -603,44 +574,33 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("shows no delete affordance on the persona composer page — deletion lives in settings", async () => {
+  it("renders the header subtitle on a deep-link chat view only when the persona has provider, model, or reasoning to show", async () => {
     const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-
-    await slot.findByTestId("bb-new-thread-composer");
-    expect(slot.queryByLabelText("Delete persona")).toBeNull();
-    expect(slot.queryByText("Delete persona")).toBeNull();
-    expect(slot.queryByRole("menu")).toBeNull();
-    expect(slot.getByLabelText("Edit persona settings")).not.toBeNull();
-
-    slot.lifecycle.unmount();
-  });
-
-  it("clamps instructions with a working Show more / Show less toggle", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-
-    const showMore = await slot.findByRole("button", { name: "Show more" });
-    showMore.click();
-    await slot.findByRole("button", { name: "Show less" });
-    slot.lifecycle.unmount();
-  });
-
-  it("renders the header subtitle only when the persona has provider, model, or reasoning to show", async () => {
-    const panel = await loadPanel();
-    const configured = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-    const configuredHeader = (await configured.findByLabelText("Edit persona settings"))
-      .closest("div")!;
-    expect(configuredHeader.textContent).toContain("codex · gpt-5.5 · medium");
+    const configured = renderSlot(
+      panel,
+      { subPath: "persona_2/thr_chats" },
+      { rpc: RPC },
+    );
+    // The subtitle (built with the " · " separator) exists only in the chat
+    // view's header bar, never in the rail beside it.
+    expect(
+      (await configured.findByText("codex · gpt-5.5 · medium")).isConnected,
+    ).toBe(true);
     configured.lifecycle.unmount();
 
     // persona_3 is a draft with an empty providerId, an empty model, and a null
     // reasoningLevel, so the joined subtitle must collapse away entirely
-    // rather than rendering the separators around missing parts.
-    const draft = renderSlot(panel, { subPath: "persona_3/new" }, { rpc: RPC });
-    const draftHeader = (await draft.findByLabelText("Edit persona settings"))
-      .closest("div")!;
-    expect(draftHeader.textContent).not.toContain("·");
+    // rather than rendering the separators around missing parts. Matching on
+    // name texts would hit both the rail's row and the chat header, so the
+    // pending render and the absence of the separator (only the header ever
+    // prints "·") are what this asserts.
+    const draft = renderSlot(
+      panel,
+      { subPath: "persona_3/thr_chats" },
+      { rpc: RPC },
+    );
+    await draft.findByTestId("bb-thread-chat");
+    expect(draft.queryByText(/·/)).toBeNull();
     draft.lifecycle.unmount();
   });
 
@@ -977,86 +937,6 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("shows a setup callout instead of a composer for a draft persona", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_3/new" }, { rpc: RPC });
-
-    await slot.findByText("Finish setting up this persona");
-    await slot.findByText("Set up →");
-    expect(slot.queryByTestId("bb-new-thread-composer")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("seeds the host new-thread composer and starts a chat from PersonaHome", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_2/new" }, { rpc: RPC });
-
-    const composer = await slot.findByTestId("bb-new-thread-composer");
-    expect(composer.getAttribute("data-default-provider-id")).toBe("codex");
-    expect(composer.getAttribute("data-default-model")).toBe("gpt-5.5");
-    expect(composer.getAttribute("data-default-reasoning-level")).toBe(
-      "medium",
-    );
-    // No Default User Message on persona_2: the composer's text area starts empty.
-    const input = composer.querySelector<HTMLTextAreaElement>(
-      "textarea[data-testid='bb-new-thread-composer-input']",
-    );
-    expect(input?.value).toBe("");
-    expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
-
-    (await slot.findByTestId("bb-new-thread-composer-submit")).click();
-
-    await waitFor(() =>
-      expect(slot.inspection.navigateCalls).toContainEqual({
-        method: "toThread",
-        threadId: "thr_from_home",
-      }),
-    );
-    const startChatCall = slot.inspection.rpcCalls.find(
-      (call) => call.method === "startChat",
-    );
-    expect(startChatCall?.input).toMatchObject({
-      personaId: "persona_2",
-      request: { providerId: "codex", model: "gpt-5.5" },
-    });
-    slot.lifecycle.unmount();
-  });
-
-  it("announces the open to the shared-draft bridge and seeds the Default User Message", async () => {
-    const tokenBefore = composerShare.openToken;
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-
-    const composer = await slot.findByTestId("bb-new-thread-composer");
-    expect(composerShare.open).toBe(true);
-    expect(composerShare.flash).toBe(false);
-    expect(composerShare.openToken).toBe(tokenBefore + 1);
-    // The Default User Message rides the composer's own initialPrompt seed,
-    // which the harness paints into the textarea at mount.
-    const input = composer.querySelector<HTMLTextAreaElement>(
-      "textarea[data-testid='bb-new-thread-composer-input']",
-    );
-    expect(input?.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
-    expect(document.querySelectorAll(`.${DEFAULT_MESSAGE_FLASH_CLASS}`)).toHaveLength(0);
-
-    slot.lifecycle.unmount();
-    expect(composerShare.open).toBe(false);
-  });
-
-  it("announces a whitespace-only Default User Message as none-provided", async () => {
-    const panel = await loadPanel();
-    const slot = renderSlot(panel, { subPath: "persona_7" }, { rpc: RPC });
-
-    const composer = await slot.findByTestId("bb-new-thread-composer");
-    const input = composer.querySelector<HTMLTextAreaElement>(
-      "textarea[data-testid='bb-new-thread-composer-input']",
-    );
-    expect(input?.value).toBe("");
-    expect(composerShare.open).toBe(true);
-
-    slot.lifecycle.unmount();
-  });
-
   it("opens the emoji picker from the avatar and swaps the icon", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_1/edit" }, { rpc: RPC });
@@ -1275,10 +1155,17 @@ describe("personas nav panel", () => {
     await slot.findByText("Builder");
 
     // Builder chose rose; Pirate is auto — no rose tint on Pirate's avatar.
-    const builderAvatar = slot.getByText("Builder").closest("li, div")!.querySelector("span[aria-hidden]");
+    // Scope to the rail's list so other panes (editor headings, chat headers)
+    // can't contribute duplicate persona-name texts to the query.
+    const railList = slot.container.querySelector("ul")!;
+    const builderAvatar = Array.from(railList.querySelectorAll("li"))
+      .find((row) => row.textContent?.includes("Builder"))!
+      .querySelector("span[aria-hidden]");
     expect(builderAvatar).not.toBeNull();
     expect(builderAvatar!.className).toContain("bg-rose-500/15");
-    const pirateAvatar = slot.getByText("Pirate").closest("li, div")!.querySelector("span[aria-hidden]");
+    const pirateAvatar = Array.from(railList.querySelectorAll("li"))
+      .find((row) => row.textContent?.includes("Pirate"))!
+      .querySelector("span[aria-hidden]");
     expect(pirateAvatar!.className).not.toContain("bg-rose-500/15");
 
     slot.lifecycle.unmount();
@@ -1530,10 +1417,12 @@ describe("personas nav panel", () => {
     const slot = await renderChatRowMenuSlot(actionCalls, []);
 
     await slot.findByText("Chats (1)");
-    // The persona header no longer renders a "More actions" trigger, so the
-    // chat row's ⋯ menu is the page's only one.
-    const menuButtons = await slot.findAllByLabelText("More actions");
-    const menuButton = menuButtons[menuButtons.length - 1]!;
+    // Scope to the ACTIVE chat list: the archived rows below (inside the
+    // collapsed details) carry the same aria-label but a different menu.
+    const chatsSection = slot.getByText("Chats (1)").closest("div")!;
+    const menuButton = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     menuButton.focus();
     menuButton.click();
     const pinItem = await slot.findByText("Pin");
@@ -1556,8 +1445,12 @@ describe("personas nav panel", () => {
     const slot = await renderChatRowMenuSlot(actionCalls, renameCalls);
 
     await slot.findByText("Chats (1)");
-    const menuButtons = await slot.findAllByLabelText("More actions");
-    const menuButton = menuButtons[menuButtons.length - 1]!;
+    // The archived rows (inside the collapsed details) carry the same
+    // aria-label but render a different menu — pick the ACTIVE row's ⋯.
+    const chatsSection = slot.getByText("Chats (1)").closest("div")!;
+    const menuButton = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     menuButton.focus();
     menuButton.click();
     const renameItem = await slot.findByText("Rename");
@@ -1573,7 +1466,9 @@ describe("personas nav panel", () => {
     await slot.findByText("Chats (1)");
 
     // Reopen, clear the title, Enter — empty is a no-op cancel, not a rename.
-    const reopened = (await slot.findAllByLabelText("More actions")).at(-1)!;
+    const reopened = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     reopened.focus();
     reopened.click();
     const renameAgain = await slot.findByText("Rename");
@@ -1585,7 +1480,9 @@ describe("personas nav panel", () => {
     expect(renameCalls).toEqual([]);
 
     // Reopen, type an actual new title, Enter commits it, trimmed.
-    const reopened2 = (await slot.findAllByLabelText("More actions")).at(-1)!;
+    const reopened2 = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     reopened2.focus();
     reopened2.click();
     const renameThird = await slot.findByText("Rename");
@@ -1613,7 +1510,12 @@ describe("personas nav panel", () => {
     const slot = renderSlot(panel, { subPath: "persona_1/new" }, { rpc: CHAT_ROW_RPC });
 
     await slot.findByText("Chats (1)");
-    const menuButton = (await slot.findAllByLabelText("More actions")).at(-1)!;
+    // The archived rows (inside the collapsed details) carry the same
+    // aria-label but render a different menu — pick the ACTIVE row's ⋯.
+    const chatsSection = slot.getByText("Chats (1)").closest("div")!;
+    const menuButton = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     menuButton.focus();
     menuButton.click();
     const renameItem = await slot.findByText("Rename");
@@ -1637,7 +1539,12 @@ describe("personas nav panel", () => {
     const slot = await renderChatRowMenuSlot(actionCalls, []);
 
     await slot.findByText("Chats (1)");
-    const menuButton = (await slot.findAllByLabelText("More actions")).at(-1)!;
+    // The archived rows (inside the collapsed details) carry the same
+    // aria-label but render a different menu — pick the ACTIVE row's ⋯.
+    const chatsSection = slot.getByText("Chats (1)").closest("div")!;
+    const menuButton = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     menuButton.focus();
     menuButton.click();
     const archiveItem = await slot.findByText("Archive");
@@ -1656,7 +1563,12 @@ describe("personas nav panel", () => {
     const slot = await renderChatRowMenuSlot(actionCalls, []);
 
     await slot.findByText("Chats (1)");
-    const menuButton = (await slot.findAllByLabelText("More actions")).at(-1)!;
+    // The archived rows (inside the collapsed details) carry the same
+    // aria-label but render a different menu — pick the ACTIVE row's ⋯.
+    const chatsSection = slot.getByText("Chats (1)").closest("div")!;
+    const menuButton = (
+      await within(chatsSection).findAllByLabelText("More actions")
+    )[0]!;
     menuButton.focus();
     menuButton.click();
     const deleteItem = await slot.findByText("Delete");
@@ -1730,93 +1642,6 @@ describe("personas nav panel", () => {
   });
 });
 
-describe("persona launcher homepage section", () => {
-  afterEach(() => {
-    composerShare.reset();
-  });
-
-  async function loadSection() {
-    const app = await loadPluginApp(() => import("./app"));
-    const [section] = app.homepageSections;
-    expect(section).toBeDefined();
-    return section!;
-  }
-
-  it("registers one homepage section at the New Thread screen", async () => {
-    const section = await loadSection();
-    expect(section.id).toBe("persona-launcher");
-    expect(section.title).toBe("Personas");
-  });
-
-  it("lists the published personas; choosing one moves to its composer view", async () => {
-    const section = await loadSection();
-    const slot = renderSlot(section, { projectId: null }, { rpc: RPC });
-
-    await slot.findByText("Pirate");
-    await slot.findByText("Builder");
-    // Drafts can't chat yet, so they never appear in the launcher.
-    expect(slot.queryByText("DRAFT")).toBeNull();
-    expect(slot.queryByTestId("bb-new-thread-composer")).toBeNull();
-
-    (await slot.findByText("Builder")).click();
-    await waitFor(() =>
-      expect(slot.inspection.navigateCalls).toContainEqual({
-        method: "toPluginPanel",
-        path: "personas",
-        options: { subPath: "persona_2" },
-      }),
-    );
-    slot.lifecycle.unmount();
-  });
-
-  it("hands the homepage composer draft to the persona chosen at click time", async () => {
-    const section = await loadSection();
-    const slot = renderSlot(section, { projectId: null }, { rpc: RPC });
-
-    await slot.findByText("Builder");
-    await slot.behavior.setComposerText("From the landing page");
-
-    (await slot.findByText("Builder")).click();
-    await waitFor(() =>
-      expect(slot.inspection.navigateCalls).toContainEqual({
-        method: "toPluginPanel",
-        path: "personas",
-        options: { subPath: "persona_2" },
-      }),
-    );
-    expect(composerShare.takeCarry("persona_2")?.text).toBe("From the landing page");
-    slot.lifecycle.unmount();
-  });
-
-  it("hands a blank homepage draft as an empty carry — the persona page seeds nothing", async () => {
-    const section = await loadSection();
-    const slot = renderSlot(section, { projectId: null }, { rpc: RPC });
-
-    await slot.findByText("Pirate");
-    (await slot.findByText("Pirate")).click();
-    await waitFor(() =>
-      expect(slot.inspection.navigateCalls).toContainEqual({
-        method: "toPluginPanel",
-        path: "personas",
-        options: { subPath: "persona_1" },
-      }),
-    );
-    expect(composerShare.takeCarry("persona_1")?.text).toBe("");
-    slot.lifecycle.unmount();
-  });
-
-  it("shows a muted empty state when no personas exist", async () => {
-    const section = await loadSection();
-    const slot = renderSlot(
-      section,
-      { projectId: null },
-      { rpc: { ...RPC, listRail: () => ({ personas: [] }) } },
-    );
-
-    await slot.findByText("No personas yet.");
-    slot.lifecycle.unmount();
-  });
-});
 
 describe("plugin health settings section", () => {
   async function loadSection() {
@@ -1986,314 +1811,333 @@ describe("Default User Message editor field", () => {
   });
 });
 
-describe("Default User Message rejection flash", () => {
-  afterEach(() => {
-    document.body.textContent = "";
+
+
+
+
+describe("persona inline action & picker", () => {
+  // The wire the picker inserts: a plugin mention pill from the "personas"
+  // provider, serialized into the draft text like bb serializes mentions.
+  function ourPillMention(personaId: string, label: string) {
+    return { from: 0, to: label.length + 1, label, kind: "plugin" as const, pluginId: "personas", provider: "personas", id: personaId, icon: null };
+  }
+
+  function composerOptions(overrides: {
+    text?: string;
+    mentions?: ComposerMention[];
+  } = {}) {
+    return {
+      scope: { kind: "new-thread" as const, projectId: null },
+      text: overrides.text ?? "",
+      mentions: overrides.mentions ?? [],
+    };
+  }
+
+  // The picker's list: the rail's personas PLUS persona_6, which the
+  // Default-User-Message tests arm.
+  function listPersonasFactory() {
+    return () => ({
+      personas: [
+        ...RAIL_PERSONAS,
+        { ...PERSONA_WITH_MESSAGE, chats: [], lastActivityAt: PERSONA_WITH_MESSAGE.updatedAt },
+      ],
+    });
+  }
+
+  async function loadCustomization() {
+    const app = await loadPluginApp(() => import("./app"));
+    const [customization] = app.composerCustomizations;
+    expect(customization).toBeDefined();
+    return customization!;
+  }
+
+  it("registers one composer customization scoped to new-thread composers, with the action and the popup", async () => {
+    const customization = await loadCustomization();
+    expect(customization.id).toBe("persona-inline-action");
+    expect(customization.scopes).toEqual(["new-thread"]);
+    expect(customization.actions).toHaveLength(1);
+    expect(customization.actions![0]!.id).toBe("persona");
+    expect(customization.experimental_popups).toHaveLength(1);
+    expect(customization.experimental_popups![0]!.id).toBe("personas-picker");
+    expect(customization.experimental_popups![0]!.label).toBe(
+      "Select persona for this session",
+    );
   });
 
-  it("flashes the composer's shell prompt box found beside the bridge", () => {
-    vi.useFakeTimers();
-    try {
-      const container = document.createElement("div");
-      container.setAttribute("data-promptbox-shell", "");
-      const box = document.createElement("div");
-      box.setAttribute("data-promptbox", "");
-      const bridge = document.createElement("span");
-      container.appendChild(box);
-      container.appendChild(bridge);
-      document.body.appendChild(container);
-
-      expect(promptBoxForBridge(bridge)).toBe(box);
-      const cleanup = flashPromptBox(box);
-      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(true);
-
-      // The flash is momentary: it removes itself once the pulse ends.
-      vi.advanceTimersByTime(DEFAULT_MESSAGE_FLASH_MS);
-      expect(box.classList.contains(DEFAULT_MESSAGE_FLASH_CLASS)).toBe(false);
-      cleanup();
-    } finally {
-      vi.useRealTimers();
-    }
+  it("registers the robot icon so the button renders this plugin's glyph", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    expect(app.icons.map((icon) => icon.name)).toContain("personas/robot");
   });
 
-  it("leaves the flash alone when no prompt box exists", () => {
-    const bridge = document.createElement("span");
-    document.body.appendChild(bridge);
-    expect(promptBoxForBridge(bridge)).toBeNull();
-    bridge.remove();
+  it("renders the robot action, aria-pressed while a chip is in the draft", async () => {
+    const customization = await loadCustomization();
+    const action = customization.actions![0]!.component;
+
+    const bare = renderSlot(
+      { component: action },
+      {},
+      { composer: composerOptions(), pluginId: "personas" },
+    );
+    const trigger = await bare.findByTitle("Select persona for this session");
+    expect(trigger.getAttribute("aria-pressed")).toBe("false");
+    bare.lifecycle.unmount();
+
+    const pill = ourPillMention("persona_1", "🏴‍☠️ Pirate");
+    const armed = renderSlot(
+      { component: action },
+      {},
+      {
+        composer: composerOptions({
+          text: "@🏴‍☠️ Pirate and some text",
+          mentions: [{ ...pill, to: "@🏴‍☠️ Pirate".length }],
+        }),
+        pluginId: "personas",
+      },
+    );
+    const armedTrigger = await armed.findByTitle("Select persona for this session");
+    expect(armedTrigger.getAttribute("aria-pressed")).toBe("true");
+    armed.lifecycle.unmount();
+  });
+
+  it("lists only published personas in the popup — drafts never ship", async () => {
+    const customization = await loadCustomization();
+    const popup = customization.experimental_popups![0]!.component;
+    const slot = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions(),
+        pluginId: "personas",
+      },
+    );
+
+    await slot.findByText("Pirate");
+    await slot.findByText("Builder");
+    expect(slot.queryByText("Untitled persona")).toBeNull();
+    expect(slot.queryByText("No persona — remove the chip")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("arms a persona by inserting ONE pill at the end of the draft", async () => {
+    const customization = await loadCustomization();
+    const popup = customization.experimental_popups![0]!.component;
+    const slot = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions({ text: "Fix the login bug" }),
+        pluginId: "personas",
+      },
+    );
+    await slot.findByText("Pirate");
+    (await slot.findByText("Pirate")).click();
+
+    const draft = slot.composer.draft;
+    const pills = draft.mentions.filter(
+      (mention: { kind: string; provider?: string }) =>
+        mention.kind === "plugin" && mention.provider === "personas",
+    );
+    expect(pills).toHaveLength(1);
+    // The label carries the emoji so the pill reads at a glance in the draft
+    // and in the sent message.
+    expect((pills[0] as unknown as { label: string }).label).toBe("🏴‍☠️ Pirate");
+    expect(draft.text.startsWith("Fix the login bug")).toBe(true);
+    // The insert trails the user's text with the pill's mention text.
+    expect(
+      (pills[0] as unknown as { from: number }).from,
+    ).toBe(draft.text.indexOf("@🏴‍☠️ Pirate"));
+    slot.lifecycle.unmount();
+  });
+
+  it("enforces one persona at a time — a second pick replaces the first pill", async () => {
+    const customization = await loadCustomization();
+    const popup = customization.experimental_popups![0]!.component;
+    const pill = ourPillMention("persona_1", "🏴‍☠️ Pirate");
+    const slot = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions({
+          text: "Fix the login bug @🏴‍☠️ Pirate",
+          mentions: [{ ...pill, from: "Fix the login bug ".length, to: "Fix the login bug @🏴‍☠️ Pirate".length }],
+        }),
+        pluginId: "personas",
+      },
+    );
+    (await slot.findByText("Standup")).click();
+
+    const draft = slot.composer.draft;
+    const pills = draft.mentions.filter(
+      (mention: { kind: string; provider?: string }) =>
+        mention.kind === "plugin" && mention.provider === "personas",
+    );
+    expect(pills).toHaveLength(1);
+    expect((pills[0] as unknown as { id: string }).id).toBe("persona_6");
+    expect(draft.text).not.toContain("@🏴‍☠️ Pirate");
+    expect(draft.text).toContain("@🧭 Standup");
+    slot.lifecycle.unmount();
+  });
+
+  it("removing the pill leaves the user's own text — and seeds the Default User Message on an otherwise empty draft", async () => {
+    const customization = await loadCustomization();
+    const popup = customization.experimental_popups![0]!.component;
+
+    // The pill's own draft: text "Hello " then the pill span.
+    const pill = ourPillMention("persona_1", "🏴‍☠️ Pirate");
+    const slot = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions({
+          text: "Hello @🏴‍☠️ Pirate",
+          mentions: [{ ...pill, from: "Hello ".length, to: "Hello @🏴‍☠️ Pirate".length }],
+        }),
+        pluginId: "personas",
+      },
+    );
+    (await slot.findByText("No persona — remove the chip")).click();
+
+    const draft = slot.composer.draft;
+    expect(draft.mentions).toHaveLength(0);
+    expect(draft.text).toBe("Hello ");
+    slot.lifecycle.unmount();
+
+    // Arming an otherwise-empty draft seeds the persona's Default User
+    // Message after the chip, like the old persona composer page did.
+    const fresh = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions(),
+        pluginId: "personas",
+      },
+    );
+    (await fresh.findByText("Standup")).click();
+    const freshDraft = fresh.composer.draft;
+    expect(freshDraft.text).toContain("@🧭 Standup");
+    expect(freshDraft.text).toContain(
+      "Summarize yesterday's commits, then list today's plan.",
+    );
+    fresh.lifecycle.unmount();
+  });
+
+  it("does not seed the Default User Message once the draft already carries words", async () => {
+    const customization = await loadCustomization();
+    const popup = customization.experimental_popups![0]!.component;
+    const slot = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions({ text: "Fix the login bug" }),
+        pluginId: "personas",
+      },
+    );
+    (await slot.findByText("Standup")).click();
+    expect(slot.composer.draft.text).not.toContain(
+      "Summarize yesterday's commits",
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("links out to the plugin page for managing the list", async () => {
+    const customization = await loadCustomization();
+    const popup = customization.experimental_popups![0]!.component;
+    const slot = renderSlot(
+      { component: popup },
+      {},
+      {
+        rpc: { listPersonas: listPersonasFactory() },
+        composer: composerOptions(),
+        pluginId: "personas",
+      },
+    );
+    (await slot.findByText("Manage personas…")).click();
+    expect(slot.navigateCalls).toContainEqual({
+      method: "toPluginPanel",
+      path: "personas",
+      options: { subPath: "" },
+    });
+    slot.lifecycle.unmount();
   });
 });
 
-describe("composer handoff", () => {
-  afterEach(() => {
-    composerShare.reset();
-  });
-
-  describe("resolveComposerOpen — what a persona page seeds at open", () => {
-    const msg = "Summarize yesterday's commits, then list today's plan.";
-
-    it("seeds the Default User Message when nothing was carried", () => {
-      expect(resolveComposerOpen({ carry: null, msg })).toEqual({
-        seedText: msg,
-        flash: false,
-      });
-      expect(resolveComposerOpen({ carry: null, msg: "" })).toEqual({
-        seedText: "",
-        flash: false,
-      });
-    });
-
-    it("reads a blank carried text as no carry — nothing of the homepage leaks", () => {
-      expect(resolveComposerOpen({ carry: "   ", msg })).toEqual({
-        seedText: msg,
-        flash: false,
-      });
-    });
-
-    it("a carried homepage draft wins over the message, which flashes unapplied", () => {
-      expect(
-        resolveComposerOpen({ carry: "From the landing page", msg }),
-      ).toEqual({ seedText: "From the landing page", flash: true });
-    });
-
-    it("does not flash when the carried draft IS the message itself", () => {
-      expect(resolveComposerOpen({ carry: msg, msg })).toEqual({
-        seedText: msg,
-        flash: false,
-      });
-    });
-
-    it("a carried draft over no message just wins — nothing to reject", () => {
-      expect(
-        resolveComposerOpen({ carry: "From the landing page", msg: "" }),
-      ).toEqual({ seedText: "From the landing page", flash: false });
+describe("persona thread chip", () => {
+  it("registers one thread header action (and nothing else has a persona title)", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    expect(app.threadHeaderActions).toHaveLength(1);
+    expect(app.threadHeaderActions[0]).toMatchObject({
+      id: "persona-chip",
+      title: "Persona",
     });
   });
 
-  describe("the one-shot homepage handoff store", () => {
-    const handoff = (overrides: Partial<ComposerHandoff> = {}): ComposerHandoff => ({
-      text: "From the landing page",
-      projectId: null,
-      environment: undefined,
-      ...overrides,
+  it("shows the mapped persona's avatar and name; clicking opens its settings", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const chip = app.threadHeaderActions[0]!.component;
+    const slot = renderSlot(
+      { component: chip },
+      { threadId: "thr_1", projectId: "proj_work", isCompactViewport: false },
+      {
+        rpc: {
+          getPersonaForThread: () => ({
+            persona: {
+              id: "persona_1",
+              name: "Pirate",
+              emoji: "🏴‍☠️",
+              color: "blue" as const,
+            },
+          }),
+        },
+      },
+    );
+    await slot.findByText("Pirate");
+    (await slot.findByTitle("Chatting as Pirate — open persona settings")).click();
+    expect(slot.navigateCalls).toContainEqual({
+      method: "toPluginPanel",
+      path: "personas",
+      options: { subPath: "persona_1/edit" },
     });
-
-    it("hands the carried handoff to the matching persona exactly once", () => {
-      composerShare.setHomepageCarry(
-        "persona_2",
-        handoff({ projectId: "proj_work" }),
-      );
-      expect(composerShare.carryFor("persona_2")?.text).toBe("From the landing page");
-      expect(composerShare.carryFor("persona_2")?.projectId).toBe("proj_work");
-      expect(composerShare.takeCarry("persona_2")?.projectId).toBe("proj_work");
-      expect(composerShare.carryFor("persona_2")).toBeNull();
-      // Consumed: no later open of the same persona re-seeds old values.
-      expect(composerShare.takeCarry("persona_2")).toBeNull();
-    });
-
-    it("a different persona opening first invalidates the handoff", () => {
-      composerShare.setHomepageCarry("persona_2", handoff());
-      expect(composerShare.takeCarry("persona_6")).toBeNull();
-      expect(composerShare.carryFor("persona_2")).toBeNull();
-    });
-
-    it("a fresh homepage selection replaces an older carry", () => {
-      composerShare.setHomepageCarry("persona_2", handoff());
-      composerShare.setHomepageCarry("persona_2", handoff({ text: "" }));
-      expect(composerShare.takeCarry("persona_2")?.text).toBe("");
-      expect(composerShare.takeCarry("persona_2")).toBeNull();
-    });
+    slot.lifecycle.unmount();
   });
 
-  describe("on the persona page", () => {
-    it("seeds the persona composer with the carried homepage draft over a fresh draft slot", async () => {
-      composerShare.setHomepageCarry("persona_2", {
-        text: "From the landing page",
-        projectId: "proj_work",
-        environment: undefined,
-      });
-      const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
+  it("renders nothing for an unmapped thread and no name on compact viewports", async () => {
+    const app = await loadPluginApp(() => import("./app"));
+    const chip = app.threadHeaderActions[0]!.component;
 
-      const composer = await slot.findByTestId("bb-new-thread-composer");
-      const input = composer.querySelector<HTMLTextAreaElement>(
-        "textarea[data-testid='bb-new-thread-composer-input']",
-      );
-      expect(input?.value).toBe("From the landing page");
-      // Every open claims its own slot — no draft from an earlier visit can
-      // resurface, so the composer reads empty-or-Default at all times.
-      expect(composer.getAttribute("data-draft-key")).toMatch(
-        /^personas:start:persona_2#/,
-      );
-      // The carry was used by this open: one shot.
-      expect(composerShare.carryFor("persona_2")).toBeNull();
+    const unmapped = renderSlot(
+      { component: chip },
+      { threadId: "thr_other", projectId: "proj_work", isCompactViewport: false },
+      { rpc: { getPersonaForThread: () => ({ persona: null }) } },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(unmapped.container.textContent).toBe("");
+    unmapped.lifecycle.unmount();
 
-      slot.lifecycle.unmount();
-    });
-
-    it("flows the homepage composer's picked project down — the carried project wins over the persona's", async () => {
-      const panel = await loadPanel();
-
-      // persona_6 has no project of its own, so without a carry the composer
-      // falls back to the personal project.
-      const plain = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-      expect(
-        (await plain.findByTestId("bb-new-thread-composer")).getAttribute(
-          "data-default-project-id",
-        ),
-      ).toBe("proj_personal");
-      plain.lifecycle.unmount();
-
-      // A homepage handoff with a picked project overrides that, even with
-      // no draft text to carry: the picker state flows on its own.
-      composerShare.setHomepageCarry("persona_6", {
-        text: "",
-        projectId: "proj_work",
-        environment: undefined,
-      });
-      const carried = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-      const composer = await carried.findByTestId("bb-new-thread-composer");
-      expect(composer.getAttribute("data-default-project-id")).toBe("proj_work");
-      // The carried text is blank, so the Default User Message still applies.
-      const input = composer.querySelector<HTMLTextAreaElement>(
-        "textarea[data-testid='bb-new-thread-composer-input']",
-      );
-      expect(input?.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
-      try {
-        carried.lifecycle.unmount();
-      } finally {
-        composerShare.reset();
-      }
-    });
-
-    it("flows the homepage composer's picked environment down, and lets a projectless homepage yield to the persona's project", async () => {
-      const panel = await loadPanel();
-
-      // A picked repo source / HEAD travels as the persona composer's
-      // environment seed, with the homepage project it belongs to.
-      composerShare.setHomepageCarry("persona_2", {
-        text: "",
-        projectId: "proj_work",
-        environment: { type: "reuse", environmentId: "env_checkout" },
-      });
-      const carried = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
-      const composer = await carried.findByTestId("bb-new-thread-composer");
-      expect(composer.getAttribute("data-default-environment")).toBe(
-        JSON.stringify({ type: "reuse", environmentId: "env_checkout" }),
-      );
-      carried.lifecycle.unmount();
-
-      // A projectless homepage (projectId null) does not override the
-      // persona's own project; only picked values flow.
-      composerShare.setHomepageCarry("persona_6", {
-        text: "",
-        projectId: null,
-        environment: undefined,
-      });
-      const projectless = renderSlot(
-        panel,
-        { subPath: "persona_6" },
-        { rpc: RPC },
-      );
-      expect(
-        (await projectless.findByTestId("bb-new-thread-composer")).getAttribute(
-          "data-default-project-id",
-        ),
-      ).toBe("proj_personal");
-      expect(
-        projectless
-          .getByTestId("bb-new-thread-composer")
-          .getAttribute("data-default-environment"),
-      ).toBe("");
-      projectless.lifecycle.unmount();
-    });
-
-    it("keeps the homepage draft untouched by a seeded Default User Message — no mirroring", async () => {
-      const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-
-      // A homepage draft exists before the open. It must not appear in the
-      // persona composer, and the Default User Message must not flow back.
-      await slot.behavior.setComposerText("Working on something else");
-      const composer = await slot.findByTestId("bb-new-thread-composer");
-      const input = composer.querySelector<HTMLTextAreaElement>(
-        "textarea[data-testid='bb-new-thread-composer-input']",
-      );
-      expect(input?.value).toBe(PERSONA_WITH_MESSAGE.defaultUserMessage);
-
-      // What the user types in the persona composer stays there: the
-      // homepage draft is a different, independent input.
-      fireEvent.change(input!, {
-        target: { value: "Owned by the persona composer" },
-      });
-      expect(slot.composer.text).toBe("Working on something else");
-
-      slot.lifecycle.unmount();
-    });
-
-    it("claims a fresh draft slot per persona — clicking around resets the composer", async () => {
-      const panel = await loadPanel();
-      const slotA = renderSlot(panel, { subPath: "persona_2" }, { rpc: RPC });
-      const composerA = await slotA.findByTestId("bb-new-thread-composer");
-      const keyA = composerA.getAttribute("data-draft-key")!;
-      slotA.lifecycle.unmount();
-
-      const slotB = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-      const composerB = await slotB.findByTestId("bb-new-thread-composer");
-      const keyB = composerB.getAttribute("data-draft-key")!;
-      expect(keyB).not.toBe(keyA);
-      expect(keyB).toMatch(/^personas:start:persona_6#/);
-      slotB.lifecycle.unmount();
-    });
-
-    it("never seeds the previous persona's Default User Message across a navigation", async () => {
-      const panel = await loadPanel();
-      const Panel = panel.component;
-      const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-      const composer = await slot.findByTestId("bb-new-thread-composer");
-      const reviewerKey = composer.getAttribute("data-draft-key")!;
-      expect(reviewerKey).toMatch(/^personas:start:persona_6#/);
-
-      // Navigate to persona_2 (no Default User Message) on the same mounted
-      // panel. Until persona_2's row lands, the panel still shows persona_6's
-      // data — that transit frame must seed nothing: no transient rebind to
-      // the plugin's default draft slot, no foreign message in the textarea.
-      slot.lifecycle.rerender(<Panel subPath="persona_2" />);
-      const composerNow = document.querySelector(
-        "[data-testid='bb-new-thread-composer']",
-      )!;
-      expect(composerNow.getAttribute("data-draft-key")).toBe(reviewerKey);
-
-      await waitFor(() =>
-        expect(
-          document
-            .querySelector("[data-testid='bb-new-thread-composer']")!
-            .getAttribute("data-draft-key"),
-        ).toMatch(/^personas:start:persona_2#/),
-      );
-
-      slot.lifecycle.unmount();
-    });
-
-    it("announces a rejected Default User Message as a flash flag on the open", async () => {
-      composerShare.setHomepageCarry("persona_6", {
-        text: "Carried instead of the message",
-        projectId: null,
-        environment: undefined,
-      });
-      const panel = await loadPanel();
-      const slot = renderSlot(panel, { subPath: "persona_6" }, { rpc: RPC });
-
-      await slot.findByTestId("bb-new-thread-composer");
-      expect(composerShare.flash).toBe(true);
-      // The seeded text is the carry, not the message.
-      const input = slot.queryAllByText(
-        PERSONA_WITH_MESSAGE.defaultUserMessage,
-      );
-      expect(input).toHaveLength(0);
-
-      slot.lifecycle.unmount();
-    });
+    const compact = renderSlot(
+      { component: chip },
+      { threadId: "thr_1", projectId: "proj_work", isCompactViewport: true },
+      {
+        rpc: {
+          getPersonaForThread: () => ({
+            persona: {
+              id: "persona_1",
+              name: "Pirate",
+              emoji: "🏴‍☠️",
+              color: null,
+            },
+          }),
+        },
+      },
+    );
+    await compact.findByTitle("Chatting as Pirate — open persona settings");
+    expect(compact.queryByText("Pirate")).toBeNull();
+    compact.lifecycle.unmount();
   });
 });
 

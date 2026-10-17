@@ -1,7 +1,7 @@
 import { ThreadChat, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { Icon } from "@/components/ui/icon";
-import { PersonaHeader } from "@/components/PersonaHome";
+import { PersonaHeader } from "@/components/PersonaHeader";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 import { PANEL_PATH } from "@/components/panel-path";
 
@@ -34,7 +34,7 @@ export function PersonaChatView({
               type="button"
               aria-label="Back"
               onClick={onBack}
-              className={`${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} inline-flex items-center justify-center hover:bg-accent`}
+              className={`${COARSE_POINTER_HEADER_ICON_BUTTON_CLASS} inline-flex shrink-0 items-center justify-center hover:bg-accent`}
             >
               <Icon name="ChevronLeft" aria-hidden />
             </button>
@@ -50,7 +50,7 @@ export function PersonaChatView({
           persona={persona}
           onBack={onBack}
           onGoToPersonaPage={() =>
-            navigate.toPluginPanel(PANEL_PATH, { subPath: personaId })
+            navigate.toPluginPanel(PANEL_PATH, { subPath: `${personaId}/edit` })
           }
         />
       )}

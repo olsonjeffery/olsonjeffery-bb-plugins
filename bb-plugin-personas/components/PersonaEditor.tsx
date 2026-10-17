@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
+import { ChatRow } from "@/components/ChatRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,13 +128,15 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
 
   // One round trip for everything the form needs, so the pickers and the
   // existing values arrive together instead of in a waterfall. Plugin health
-  // rides along so the + Add split button knows which source pickers exist.
+  // rides along so the + Add split button knows which source pickers exist,
+  // and the persona's chat list rides along for the Chats section.
   const { data, error, reload } = useQuery(
     () =>
       Promise.all([
         rpc.call("listOptions", null),
         rpc.call("getPersona", { personaId }),
         rpc.call("getPluginHealth", null),
+        rpc.call("listChats", { personaId }),
       ]),
     `editor:${personaId}`,
   );
@@ -152,6 +155,10 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
+  // Archived chat rows stay collapsed until expanded; their content mounts
+  // only then (a closed <details> keeps its children in the DOM, which tests
+  // and screen readers would both see).
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
   // Prompt-pool form state. `editingPromptId` is non-null while the textarea
   // holds an existing prompt being edited rather than a fresh one.
   const [promptDraft, setPromptDraft] = useState("");
@@ -168,6 +175,8 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   const options = data?.[0] ?? null;
   const persona = data?.[1].persona ?? null;
   const health = data?.[2] ?? null;
+  const chats = data?.[3]?.chats ?? [];
+  const archivedChats = data?.[3]?.archivedChats ?? [];
 
   // Same one-plugin rule the server-side source RPCs gate on; the menu only
   // offers a picker whose plugin is actually there. Floating Notes missing
@@ -416,22 +425,10 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
     }
   }
 
-  // The detail view is a live edit: "Done" just flushes any pending autosave
-  // and hands over to the persona's home page (composer + chats). The save
-  // itself already happened on every keystroke.
-  async function saveAndClose() {
-    setIsBusy(true);
-    try {
-      flushPendingSave();
-      await runSave();
-      navigate.toPluginPanel(PANEL_PATH, {
-        subPath: `${personaId}/new`,
-        replace: true,
-      });
-    } finally {
-      setIsBusy(false);
-    }
-  }
+  // Everything here autosaves on change (debounced field patches plus
+  // immediate prompt-pool writes); there is no Done button to flush on the
+  // way out. The only state transition left is Publish, a draft row's one
+  // deliberate step that ISN'T a field edit.
 
   // -- Prompt pool -----------------------------------------------------------
 
@@ -863,9 +860,6 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
           </>
         ) : (
           <>
-            <Button disabled={isBusy} onClick={() => void saveAndClose()}>
-              Done
-            </Button>
             <Button
               variant="ghost"
               className="text-destructive"
@@ -877,6 +871,59 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
           </>
         )}
       </div>
+
+      {/* The persona's chats live here now: with no per-persona composer page,
+          the settings screen is the persona's home — fields above, history
+          below, and every row opens on BB's real thread route. */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">Chats ({chats.length})</h3>
+        {chats.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No chats yet — start one from BB's New Thread screen using the
+            persona button.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {chats.map((chat) => (
+              <li key={chat.threadId}>
+                <ChatRow
+                  chat={chat}
+                  archived={false}
+                  onOpen={() => navigate.toThread(chat.threadId)}
+                  reload={reload}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {archivedChats.length === 0 ? null : (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setArchivedExpanded((expanded) => !expanded)}
+            aria-expanded={archivedExpanded}
+            className="flex items-center gap-1 text-sm font-medium text-foreground/70 hover:text-foreground"
+          >
+            Archived ({archivedChats.length})
+          </button>
+          {archivedExpanded ? (
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {archivedChats.map((chat) => (
+                <li key={chat.threadId}>
+                  <ChatRow
+                    chat={chat}
+                    archived
+                    onOpen={() => navigate.toThread(chat.threadId)}
+                    reload={reload}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      )}
 
       {/* Deleting is irreversible, so it always goes through this
           confirmation rather than firing straight off the click. */}

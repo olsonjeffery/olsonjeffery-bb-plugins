@@ -9,16 +9,20 @@ import {
   clampDefaultUserMessage,
   clampPromptText,
   decodeNotePromptRef,
+  displayName,
   draftBlockers,
   encodeNotePromptRef,
   MAX_DEFAULT_USER_MESSAGE,
   MAX_NAME,
   MAX_PROMPT_TEXT,
+  MENTION_PROVIDER_ID,
   newPersonaId,
   newPromptId,
   NOTE_UNAVAILABLE_TEXT,
   PERSONA_COLORS,
+  personaIdFromDispatchBlocks,
   personaToExport,
+  pillLabel,
   pickEmoji,
   resolvePromptTexts,
   renderPersonaInstructions,
@@ -151,57 +155,6 @@ const FloatingNoteSchema = z.object({
   updatedAt: z.number(),
 });
 
-// Mirrors the host's `promptInputSchema` (bb-plugin-sdk-app.d.ts) exactly.
-// This is the part that carries images, so it's spelled out rather than
-// left opaque like `environment`/`executionInputSources` below.
-const PromptInputSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("text"),
-    text: z.string(),
-    mentions: z.array(z.unknown()).default([]),
-    visibility: z.literal("agent-only").optional(),
-  }),
-  z.object({
-    type: z.literal("image"),
-    url: z.string(),
-    visibility: z.literal("agent-only").optional(),
-  }),
-  z.object({
-    type: z.literal("localImage"),
-    path: z.string(),
-    visibility: z.literal("agent-only").optional(),
-  }),
-  z.object({
-    type: z.literal("localFile"),
-    path: z.string(),
-    name: z.string().optional(),
-    mimeType: z.string().optional(),
-    sizeBytes: z.number().optional(),
-    visibility: z.literal("agent-only").optional(),
-  }),
-]);
-
-// The fully-resolved request `experimental_NewThreadComposer` submits.
-// `executionInputSources` and `environment` are host-owned opaque shapes —
-// mirroring them here would just rot, so they stay unknown and get cast at
-// the `threads.spawn` boundary instead.
-const NewThreadRequestSchema = z.object({
-  projectId: z.string().min(1),
-  providerId: z.string().min(1),
-  model: z.string().min(1),
-  // Deliberately `string` here: the SDK loosened NewThreadRequest's
-  // reasoningLevel to a plain string (the domain no longer fixes a literal
-  // set at the wire), so a narrowed zod enum would reject valid requests at
-  // the RPC boundary. Server-side validation happens where it matters —
-  // persona seed storage still uses its own ReasoningLevel enum.
-  reasoningLevel: z.string(),
-  permissionMode: z.string(),
-  serviceTier: z.string().optional(),
-  executionInputSources: z.record(z.string(), z.unknown()),
-  environment: z.unknown(),
-  input: z.array(PromptInputSchema).min(1),
-});
-
 // Active Floating Notes for prompt re-linking at import time: the prompt
 // shape carries the export snapshot plus the durable note id, and the import
 // checks this list to see which of them still exist here.
@@ -324,11 +277,20 @@ export const rpcContract = defineRpcContract({
       ),
     }),
   },
-  startChat: {
-    input: z
-      .object({ personaId: z.string(), request: NewThreadRequestSchema })
-      .strict(),
-    output: z.object({ threadId: z.string() }),
+  // The Thread Info chip's lookup: the persona one thread belongs to (the
+  // persona-pill mapping below), or null for an ordinary thread.
+  getPersonaForThread: {
+    input: z.object({ threadId: z.string() }).strict(),
+    output: z.object({
+      persona: z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          emoji: z.string(),
+          color: PersonaColor.nullable(),
+        })
+        .nullable(),
+    }),
   },
   // Pin/rename/archive/delete all come from the host's own
   // experimental_useThreadActions() entries on the frontend; unarchive is
@@ -641,6 +603,93 @@ export default async function plugin(bb: BbPluginApi) {
       ...persona,
       prompts: resolvePromptTexts(persona.prompts, noteBodiesById),
     });
+  });
+
+  // -- Persona pills: how a New Thread composer send binds its thread -------
+  //
+  // The persona inline action on a new-thread composer inserts ONE @-mention
+  // pill owned by the "personas" provider below. The pill IS the persona
+  // selection: it survives reloads, the user can delete it to disarm, and it
+  // travels with the submitted message. Two server pieces read it:
+  //
+  // 1. resolve() runs per message at send time and returns a short identity
+  //    line the agent sees. The heavy lifting stays with
+  //    contributeInstructions — the pool is injected per TURN for the mapped
+  //    thread, never per message, so a resolve() that echoed the pool would
+  //    double it.
+  // 2. The message.dispatch hook below maps the NEW thread to the polled
+  //    persona exactly once, on its first dispatch. From then on the thread
+  //    is an ordinary persona chat: every turn gets the pool injected.
+
+  bb.ui.registerMentionProvider({
+    id: MENTION_PROVIDER_ID,
+    label: "Personas",
+    // The user can pick a persona the ordinary @-menu way too; the picker
+    // popup that inserts the pill is a faster path for the same pill.
+    search({ query }) {
+      const needle = query.toLowerCase();
+      return [...personasById.values()]
+        .filter(
+          (persona) =>
+            persona.status === "published" &&
+            displayName(persona).toLowerCase().includes(needle),
+        )
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .map((persona) => ({
+          id: persona.id,
+          title: displayName(persona),
+          subtitle: [persona.providerId, persona.model]
+            .filter((part) => part !== "")
+            .join(" · ") || undefined,
+        }));
+    },
+    // Never throws: throwing BLOCKS the send. A persona deleted after the
+    // pill was placed resolves to an apologetic one-liner instead.
+    resolve(itemId) {
+      const persona = personasById.get(itemId);
+      if (persona === undefined) {
+        return { context: `The persona (id ${itemId}) no longer exists.` };
+      }
+      const label = displayName(persona);
+      return {
+        context:
+          "This message carries a Persona pill. " +
+          `The thread belongs to persona "${label}"; its standing instructions ` +
+          "are contributed on every turn by the Personas plugin, so do not ask the user to repeat them.",
+      };
+    },
+  });
+
+  // THE pill-to-thread binding. Runs on every dispatch attempt; the mapping
+  // is written once per thread and every later pass finds it already there.
+  // Fail-closed: the handler stays synchronous (an in-memory map write), so
+  // the 10-second decision box is never at risk.
+  bb.experimental_hooks.on("message.dispatch", (context) => {
+    if (context.attempt !== "start-turn") return { action: "proceed" };
+    if (personaIdByThreadId.has(context.thread.id)) {
+      return { action: "proceed" };
+    }
+    const personaId = personaIdFromDispatchBlocks(
+      context.input.blocks,
+      bb.pluginId,
+    );
+    if (personaId === undefined) return { action: "proceed" };
+    const persona = personasById.get(personaId);
+    // Drafts can't chat, and a deleted persona maps to nothing.
+    if (persona === undefined || persona.status === "draft") {
+      return { action: "proceed" };
+    }
+    db.prepare(
+      "INSERT INTO persona_threads (thread_id, persona_id, created_at) VALUES (?, ?, ?)",
+    ).run(context.thread.id, persona.id, Date.now());
+    personaIdByThreadId.set(context.thread.id, persona.id);
+    bb.log.info(
+      `bound thread ${context.thread.id} to persona ${persona.id} via mention pill`,
+    );
+    // The rail learns the new chat on the next refresh; the same channel the
+    // start/unarchive/delete paths ping.
+    announce();
+    return { action: "proceed" };
   });
 
   function readPersona(personaId: string): Persona {
@@ -1021,54 +1070,23 @@ export default async function plugin(bb: BbPluginApi) {
       return { personas };
     },
 
-    // The composer already resolved a concrete projectId and environment
-    // (including "Don't work in a project", which submits the personal
-    // project id, not null), so there's nothing left to resolve here. Note
-    // this makes the persona's stored provider/model/project/reasoning SEEDS for
-    // the composer, not enforcement — a chat can be started on a different
-    // model or project than the persona was configured with, and the persona
-    // still applies because contributeInstructions maps per-thread, not
-    // per-model.
-    startChat: async ({ personaId, request }) => {
-      const persona = readPersona(personaId);
-      if (persona.status === "draft") {
-        throw new Error("Publish this persona before starting a chat");
-      }
-      // Thread start is when the persona's instructions begin injecting, so
-      // the note bodies behind its note prompts must be fresh here.
-      await refreshNoteBodies();
-
-      // The composer already validated these against the host's literal
-      // unions (permission mode, mention structure, environment /
-      // executionInputSources internals). Re-typing them from our
-      // deliberately-loose zod schema would just rot, so cast once at the
-      // spawn boundary instead of mirroring the host's internal types here.
-      const spawnArgs = {
-        projectId: request.projectId,
-        providerId: request.providerId,
-        model: request.model,
-        reasoningLevel: request.reasoningLevel,
-        permissionMode: request.permissionMode,
-        ...(request.serviceTier === undefined
-          ? {}
-          : { serviceTier: request.serviceTier }),
-        executionInputSources: request.executionInputSources,
-        environment: request.environment,
-        input: request.input,
-        // Deliberately omitted: title is optional in CreateThreadRequest and
-        // BB auto-titles the thread from its first message. Passing persona.name
-        // here used to make every chat literally named after the persona.
+    // The Thread Info chip (PersonaThreadChip) asks which persona one thread
+    // belongs to. The mapping is the same one contributeInstructions reads,
+    // written by the dispatch hook when a message carrying this plugin's
+    // persona-pill mention first dispatches.
+    getPersonaForThread: async ({ threadId }) => {
+      const personaId = personaIdByThreadId.get(threadId);
+      if (personaId === undefined) return { persona: null };
+      const persona = personasById.get(personaId);
+      if (persona === undefined) return { persona: null };
+      return {
+        persona: {
+          id: persona.id,
+          name: persona.name,
+          emoji: persona.emoji,
+          color: persona.color,
+        },
       };
-      const thread = await bb.sdk.threads.spawn(
-        spawnArgs as Parameters<typeof bb.sdk.threads.spawn>[0],
-      );
-
-      db.prepare(
-        "INSERT INTO persona_threads (thread_id, persona_id, created_at) VALUES (?, ?, ?)",
-      ).run(thread.id, persona.id, Date.now());
-      personaIdByThreadId.set(thread.id, persona.id);
-      bb.log.info(`started chat ${thread.id} for persona ${persona.id}`);
-      return { threadId: thread.id };
     },
 
     // The frontend's experimental_useSidebarThreadActions() hook covers
@@ -1079,7 +1097,7 @@ export default async function plugin(bb: BbPluginApi) {
     // with this plugin's personas.
     unarchiveChat: async ({ threadId }) => {
       // personaIdByThreadId is the in-memory mirror of persona_threads kept in sync
-      // by startChat/deletePersona/thread.deleted, so checking it here is the
+      // by the dispatch hook/deletePersona/thread.deleted, so checking it here is the
       // same "is this ours" test contributeInstructions already relies on —
       // no need for a separate SELECT against the table it mirrors.
       if (personaIdByThreadId.get(threadId) === undefined) {

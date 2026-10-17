@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-personas",
-  "version": "1.13.6",
+  "version": "1.14.0",
   "type": "module",
   "engines": {
     "bb": ">=0.39.0",
@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Personas",
-    "description": "Build a reusable fleet of AI personas: each with its own prompt pool, provider, model, and reasoning level, chatting in ordinary BB threads. Attach a Floating Note and the chat always sees its current text. Pick a persona from BB's New Thread screen and its draft, project, and repo selection travel with you. Export every persona to a JSON file and import it into another BB instance; the Floating Notes plugin is needed only for note prompts.",
+    "description": "Build a reusable fleet of AI personas: each with its own prompt pool, provider, model, and reasoning level, chatting in ordinary BB threads. Attach a Floating Note and the chat always sees its current text. Pick a persona from the New Thread composer's persona button — a persona chip rides with your message and the thread belongs to that persona. Every thread header shows who it is chatting as. Export every persona to a JSON file and import it into another BB instance; the Floating Notes plugin is needed only for note prompts.",
     "branding": {
       "icon": "./assets/icon.svg",
       "experimental_icons": {

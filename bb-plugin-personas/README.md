@@ -24,8 +24,10 @@ works best for code.
 - A provider, model, and reasoning level chosen per persona, used as the defaults for its chats — you can still change them before sending the first message
 - A Floating Note straight into a prompt pool when the Floating Notes plugin is installed and enabled — the entry shows the note's current content, and editing the note later updates every chat that receives it
 - A project connection when a persona needs repository context, and projectless personas for everyday conversations
-- A launcher section on BB's New Thread screen: pick a published persona and jump straight into its composer, with whatever was set at pick time — the draft text, the selected project, the picked repo source/HEAD — travelling in with you
-- A Default User Message per persona (max 500 characters) that seeds a freshly opened composer, so every selection starts empty-or-Default instead of resurfacing a stale draft
+- A persona button on the New Thread composer: pick a persona for this session from a popup of your published fleet — a persona chip rides along in the draft, and the message you send starts a thread owned by that persona
+- A persona chip in every thread header showing who the conversation is chatting as, with a click-through into that persona's settings
+- A Default User Message per persona (max 500 characters) that seeds the New Thread composer when you arm a persona against an empty draft
+- A settings-first persona page: selecting a persona in the rail opens its settings directly (everything autosaves); its chat history lives at the bottom of the same page
 - A draft-before-publish workflow: set up the prompt pool, provider, and model, then click **Publish** to make the persona available
 - A persona rail with each persona's own emoji, name, and avatar color (Auto, or one of six curated colors), plus running-state spinners
 - Export to a `personas.json` file and import into another BB: prompts verbatim (note prompts carry their note's body at export time), emoji and color included, and same-named personas import as "Name (NEW-IMPORT)" instead of overwriting anything
@@ -56,9 +58,10 @@ bb plugin install git:https://github.com/olsonjeffery/bb-plugin-personas.git
 3. Give the persona a name, pick its icon and color, and add prompts to its prompt pool.
 4. Choose its provider, model, and reasoning level.
 5. Optionally select a project if the persona should work with a repository.
-6. Click **Publish** — Done returns you to the persona's composer.
-7. Start a chat. You can reopen the settings screen any time from the gear
-   button in the persona's composer header.
+6. Click **Publish persona** — published personas are chat-ready.
+7. Start a chat from any New Thread composer: press the **robot persona
+   button**, pick the persona, type your message, and send. Its settings
+   stay open in the Personas panel any time.
 
 <img alt="The Set up persona form: name, emoji, prompt pool, provider, model, reasoning level and project, with Publish persona disabled until the required fields are filled." src="assets/screenshots/persona-creation-light.png">
 
@@ -120,35 +123,36 @@ Add-note affordance) disappears entirely and **+ Add** stays a plain typed-text
 button. Personas already holding note entries keep working: their text falls
 back to "[Floating note is unavailable]" until the plugin returns.
 
-### Composer drafts and the homepage handoff
+### The persona chip and its settings-first page
 
-The persona's composer and the generic New Thread screen's composer are
-**independent inputs**. Nothing you type on one side trickles into the other,
-and seeds on one side never rewrite the other side's draft.
+The persona chat flow lives on the **New Thread composer's persona button**
+(robot icon; hover: "Select persona for this session"). Choosing a persona
+from the popup inserts or replaces **one persona chip** — an @-mention pill
+wearing the persona's emoji and name — into the draft; choosing **No persona**
+(or deleting the chip) disarms. The chip is the whole state: it
+survives reloads, it replaces a previous choice, and your text is never
+rewritten. Arming a persona on an otherwise-empty draft seeds its Default
+User Message after the chip.
 
-At every selection the persona composer starts clean: **empty, or the
-persona's Default User Message if you set one** — never a leftover draft from
-an earlier visit. The homepage handoff is the single deliberate exception:
-whatever the New Thread screen held **when you picked a persona from its
-launcher section** — a non-empty draft, the selected project, or a picked
-repo source/HEAD — flows into the persona's composer, where those values win
-over the persona's saved project (a picked-but-projectless homepage does not;
-only what you actually picked flows). The handoff happens once (only from
-the homepage) and is consumed by that one open; picking the same persona
-again from the persona list starts clean. On the persona screen itself the
-homepage never trickles through.
+Send like always. The chip rides with the message; on its first dispatch, the
+server binds the new thread to the chip's persona (the same mapping the
+prompt-pool injection was always written from) and the thread becomes an
+ordinary persona chat — every turn gets the pool injected, exactly as
+composer-started chats always did. The persona picker also answers the
+ordinary @-mention menu, so typing can reach the same chips.
+
+Choosing a persona in the **Personas rail** opens its **settings** directly —
+name, icon, color, pool, provider, model, reasoning level, project, and the
+Default User Message, all autosaving as typed. There is no Done button; the
+persona's chat history is listed at the bottom of the same page.
 
 ### The Default User Message
 
 Each persona also has a **Default user message** (max 500 characters, noted
-right on the field) — the seed a freshly opened composer shows. Two rules
-keep it from ever stepping on you:
-
-- **Empty or whitespace-only means none provided** — nothing is injected.
-- **Your own text always wins.** A carried homepage draft keeps the message
-  from seeding; if the message differs from that carried text, the
-  composer's border flashes red for a moment — the same treatment the Enter
-  Guard plugin uses — and nothing else changes.
+right on the field) — the seed the New Thread composer receives when you arm
+a persona against an empty draft. **Empty or whitespace-only means none
+provided** — nothing is injected. Your typed text always wins: seeding
+happens only when the draft holds nothing but the chip.
 
 New personas start as drafts. This gives you space to set up their prompt pool,
 provider, and model before using them.

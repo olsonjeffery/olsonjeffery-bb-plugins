@@ -469,6 +469,87 @@ export function previewInstructions(instructions: string): string {
   return collapsed.length > 0 ? collapsed : "No prompts yet.";
 }
 
+// -- Persona pills -----------------------------------------------------------
+//
+// A persona inline action on a new-thread composer inserts ONE @-mention pill
+// owned by this plugin. The pill IS the persona selection: it travels with the
+// submitted message, the server's message.dispatch hook maps the new thread to
+// the pill's persona on its first dispatch, and the user removes it (disarms)
+// by deleting it like any mention.
+
+/** The mention provider id the frontend inserts pills under. */
+export const MENTION_PROVIDER_ID = "personas";
+
+/** The pill label the composer renders: emoji + name, no more. */
+export function pillLabel(persona: Persona): string {
+  return `${persona.emoji} ${displayName(persona)}`;
+}
+
+/**
+ * A wire mention resource, as one text block's `mentions[i].resource` reads.
+ * Deliberately duck-typed: the dispatch hook receives core-owned shapes, so
+ * this helper trusts as little as it can and returns undefined otherwise.
+ */
+export interface WireMentionResource {
+  kind: unknown;
+  pluginId: unknown;
+  itemId: unknown;
+}
+
+/**
+ * True for one mention resource that names a persona pill of THIS plugin
+ * (`pluginId === bb-plugin-personas`). Every other kind (thread, project,
+ * other plugins) reads as false.
+ */
+export function isPersonaPillResource(
+  resource: unknown,
+  pluginId: string,
+): resource is { kind: "plugin"; pluginId: string; itemId: string } {
+  if (typeof resource !== "object" || resource === null) return false;
+  const candidate = resource as WireMentionResource;
+  return (
+    candidate.kind === "plugin" &&
+    candidate.pluginId === pluginId &&
+    typeof candidate.itemId === "string" &&
+    candidate.itemId.length > 0
+  );
+}
+
+/**
+ * One text block's list of wire mentions, duck-typed for the same reason as
+ * WireMentionResource — the hook's blocks are core-owned runtime values.
+ */
+export interface WireTextBlock {
+  type: unknown;
+  mentions?: readonly { resource?: unknown }[] | undefined;
+}
+
+/**
+ * The FIRST persona pill found in a dispatch's input blocks, else undefined.
+ * The first wins: the UI enforces one pill per draft, so an order beyond
+ * first only matters for a pill someone typed in through the @-menu.
+ */
+export function personaIdFromDispatchBlocks(
+  blocks: readonly unknown[],
+  pluginId: string,
+): string | undefined {
+  for (const block of blocks) {
+    if (
+      typeof block !== "object" ||
+      block === null ||
+      (block as WireTextBlock).type !== "text"
+    ) {
+      continue;
+    }
+    for (const mention of (block as WireTextBlock).mentions ?? []) {
+      if (typeof mention !== "object" || mention === null) continue;
+      const resource = (mention as { resource?: unknown }).resource;
+      if (isPersonaPillResource(resource, pluginId)) return resource.itemId;
+    }
+  }
+  return undefined;
+}
+
 /** The editor autosaves drafts with a blank name, so list cards need a fallback. */
 export function displayName(persona: Persona): string {
   return persona.name.trim() || "Untitled persona";

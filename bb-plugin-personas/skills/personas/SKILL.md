@@ -67,99 +67,89 @@ on every turn.
   removable — `updatePersonaPrompt` rejects them server-side; remove and
   re-attach instead.
 
-## Default User Message
+## The persona chip (R5 flow)
 
-- An optional per-persona message (500 characters max, `MAX_DEFAULT_USER_MESSAGE` /
-  `clampDefaultUserMessage` in `personas.ts`; the `default_user_message` column,
-  backfilled '' by its migration) stored with the persona and edited in the
-  settings screen's textarea, whose label states the limit and which autosaves
-  like every other field.
-- Seeded by the host composer's own `initialPrompt` — "only while the draft
-  is still empty" — which a freshly claimed per-visit slot always is, so
-  every open of a persona composer page reads empty-or-Default
-  (`resolveComposerOpen` in `components/composer-share.ts` computes the
-  seed). Whitespace-only stored messages read as "" — none provided, nothing
-  injected.
-- When the message can't apply because a carried homepage draft took the
-  empty slot instead, one momentary red flash on the prompt box border
-  (`flashPromptBox` / `promptBoxForBridge` in
-  `components/default-user-message.ts`; `app.css` — the same destructive glow
-  styling and pulse shape as the Enter Guard plugin) is the only signal, and
-  nothing else changes.
+Chatting as a persona starts from the **New Thread composer's persona
+button**, not from any persona page:
 
-## Composer drafts
+- `app.composer.customize` registers ONE customization id
+  `persona-inline-action`, scoped `["new-thread"]`, with one action
+  (`PersonaInlineAction` in `components/PersonaComposerPicker.tsx`: the robot
+  icon button — always the robot; the chip IS the state, so `aria-pressed` is
+  the only reflection) and one popup (`personas-picker`,
+  `PersonaPickerPopup`). The robot glyph also registers app-wide as
+  `personas/robot` via `app.experimental_icons.register` — the panel's
+  branding icon and the action share it.
+- Picking a persona from the popup inserts or replaces THE persona
+  @-mention pill in the draft:
+  `{provider: "personas" (MENTION_PROVIDER_ID), id: <personaId>, label: pillLabel(persona)}`
+  — emoji + name, trailing the typed text (never a paragraph of its own).
+  One at a time (`stripPersonaPills` from `components/persona-pill.ts` runs
+  before every insert), removable (the popup's "No persona — remove the
+  chip" row, or deleting the mention like any editor token), and the user's
+  typed text is never rewritten.
+- Arming an otherwise-empty draft (`pillAddedText` blank) inserts the
+  Default User Message as text after the chip — the settings-first
+  replacement of the old composer-view seed.
+- The pill travels with the submitted message. On the SERVER:
+  `bb.ui.registerMentionProvider("personas")` answers the ordinary @-menu too
+  (published personas, `displayName` needle search) and resolves the pill's
+  agent context at send time — a short identity line, never the pool
+  (`contributeInstructions` still injects the pool per turn, so a resolve()
+  that echoed it would double it); a deleted persona resolves to a benign
+  one-liner instead of throwing (which would block the send).
+- `bb.experimental_hooks.on("message.dispatch")` binds the thread: the first
+  `start-turn` whose input blocks carry one of this plugin's pills
+  (`personaIdFromDispatchBlocks` in `personas.ts` — duck-typed so core-owned
+  shapes are trusted minimally) writes the persona_threads row + in-memory
+  map once and announces, exactly like the old startChat did. Draft or
+  deleted personas map to nothing; every pass of the same thread is
+  idempotent. `startChat` and its composer-request schema are GONE — the
+  binding moved into the hook, and it now works from ANY message carrying a
+  pill, whenever it was typed from.
 
-The persona composer and BB's generic New Thread composer are independent
-inputs: the plugin never writes either draft's live text, so nothing trickles
-between them. What couples them lives in `components/composer-share.ts`:
+## The Thread Info chip (R6)
 
-- Every open of a persona composer page claims a FRESH draft slot
-  (`personas:start:<personaId>#<session-visit-id>`), so no draft from an
-  earlier visit can resurface — each selection starts empty-or-Default. The
-  claim is derived from the (persona, Default User Message) pair during
-  render: identity-only reloads of the same pair keep the composer and its
-  typed text untouched. The homepage composer draft is simply left alone.
-- The one-shot homepage handoff: PersonaHomepageSection reads the homepage
-  composer (section hooks bind to the root composer host inside BB's New
-  Thread screen) at launcher-click time — `setSelection({})`
-  resolves its CURRENT picked project and environment (the only sanctioned
-  read; no synchronous one exists) — and stores the full handoff
-  (`setHomepageCarry`: text, projectId, environment). The matching persona
-  page reads it reactively (`useComposerCarryShare`) and seeds it: the draft
-  over an empty Default, the project/environment as the composer's
-  `defaultProjectId` / `defaultEnvironment` seeds over the persona's saved
-  ones. A blank text still seeds the Default; a null (projectless) homepage
-  projectId does NOT override the persona's own project. A non-matching
-  persona opening first invalidates the carry; the matched one consumes it
-  exactly once.
-- PersonaHome announces each open once (`announce`, gated on the persona row
-  being loaded and matching the route — a navigation renders the previous
-  row until the new one lands, and that frame doesn't announce).
-- The bridge banner (`ComposerShareBridge` in `app.tsx`, registered via
-  `app.composer.customize`, scoped to new-thread composers, chrome "bare")
-  only turns the announced flash into the prompt-box pulse — characteristically
-  no banner ever writes text. In a split view, the root compose surface's own
-  banner may pulse its (homepage) box too; the flash is cosmetic and brief.
+`app.slots.experimental_threadHeaderAction` (`"persona-chip"`,
+`PersonaThreadChip` in `components/PersonaThreadChip.tsx`) renders a chip in
+the thread header's action row on EVERY thread: the mapped persona's avatar
+(emoji + color tint) and name (name hidden at compact viewports — the row is
+short, per the slot's contract), `title` "Chatting as <name> — open persona
+settings", one click into that persona's settings page. Unmapped threads
+render nothing. The lookup is the `getPersonaForThread` RPC (the same
+mapping contributeInstructions reads) run through `useQuery`, so the
+plugin's "personas" announce refreshes renames/colors without a remount.
+The chat's own text is untouched: bb's agent-visible prompt inputs parse
+agent-only blocks away, so the chip stays display-only.
 
-## Detail view and settings
+## Settings-first persona page
 
-Clicking a persona in the rail (or choosing one from the launcher section on
-BB's New Thread screen) lands in its **composer view** — PersonaHome: the
-persona's composer above its chat list. The header carries a gear button
-("Edit persona settings") that opens the settings screen; "Done" in the editor
-flushes the pending save and returns to the composer view. Every editor field
-(name, icon, color, prompt pool, provider, model, reasoning, project)
-autosaves on change (`savePersona`'s field-diffing patch); while a save is in
-flight the header shows a spinner plus "Saving…", then "Saved ✓". The composer
-header has no delete affordance — deletion lives only in the settings screen,
-whose footer shows "Delete draft" for a draft and "Delete persona" for a
-published persona, both behind the same confirmation dialog.
+Clicking a persona in the rail lands in its **settings** (`PersonaEditor`,
+route `<personaId>/edit`; legacy routes `<personaId>` and `<personaId>/new`
+parse to the same editor). There is NO per-persona composer page anymore:
+the pane carries a back affordance on compact viewports and renders the
+whole editor — name, icon, color, prompt pool, provider, model, reasoning,
+project, Default User Message — every field autosaving as changed
+(`savePersona`'s field-diffing patch; spinner + "Saving…" then "Saved ✓"
+while in flight). The old "Done" button is GONE (R1): flushing is unmount
+timing like any other autosave field. The persona's chat history lives at
+the BOTTOM of the same pane ("Chats (n)" plus a collapsible "Archived (n)",
+same `ChatRow` menus as before; the empty state points at the New Thread
+composer's persona button). Publish (draft-only) and Delete (both behind
+the same confirmation dialog) are the pane's only status buttons.
 
-The composer view routes live at `<personaId>` and the equivalent
-`<personaId>/new` (both parse to the same PersonaHome); the editor is
-`<personaId>/edit`. Wherever a chat is working — a chat-list row and its
-persona's rail row alike — a green spinning glyph (`RunningSpinner`:
-BB's Spinner icon in `text-emerald-600 dark:text-emerald-400`) replaces the
-relative timestamp (`isThreadRunning`: execution status "starting", "active",
-or "stopping"; unknown status reads idle; a missing sidebar thread and
-archived rows never spin).
+Wherever a chat is working — a chat-list row and its persona's rail row
+alike — a green spinning glyph (`RunningSpinner`: BB's Spinner icon in
+`text-emerald-600 dark:text-emerald-400`) replaces the relative timestamp
+(`isThreadRunning`: execution status "starting", "active", or "stopping";
+unknown status reads idle; a missing sidebar thread and archived rows never
+spin).
 
-Opening a chat (row click, or submitting the composer) navigates to BB's
-real thread route (`navigate.toThread`) — the host's right side panel only
-attaches to the main thread view, never to a `ThreadChat` embedded in a
-plugin panel. `<personaId>/<threadId>` still renders the embedded
-`PersonaChatView` for old deep links.
-
-## Homepage launcher
-
-Personas registers a `homepageSection` slot ("persona-launcher") rendered on
-BB's generic New Thread screen: a compact list of the published personas
-(drafts excluded) with their prompt-pool preview. Choosing a persona
-navigates into the Personas panel's composer view for that persona instead
-of starting an unpersonad thread; with no personas the section shows a muted
-"No personas yet." The click also performs the one-shot homepage handoff:
-the homepage composer draft as it reads at click time travels with the
-selection (see Composer drafts).
+Opening a chat (row click) navigates to BB's real thread route
+(`navigate.toThread`) — the host's right side panel only attaches to the
+main thread view, never to a `ThreadChat` embedded in a plugin panel.
+`<personaId>/<threadId>` still renders the embedded `PersonaChatView` for
+old deep links.
 
 ## Settings
 

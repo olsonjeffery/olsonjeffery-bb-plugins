@@ -1,9 +1,9 @@
 // bb-plugin-personas — frontend entry.
 //
-// A persistent left rail of personas (PersonaRail) beside a content pane. The chat
-// pane is BB's own ThreadChat component, so this plugin never reimplements a
-// composer or a timeline.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+// A persistent left rail of personas (PersonaRail) beside a settings pane.
+// Selecting a persona opens its settings directly; all new-thread starts with
+// a persona go through the persona inline action on BB's New Thread composer.
+import { useEffect, useState, type ReactNode } from "react";
 import {
   definePluginApp,
   useBbNavigate,
@@ -12,16 +12,16 @@ import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import "./app.css";
 import { parseRoute } from "@/personas";
-import { composerShare } from "@/components/composer-share";
-import {
-  flashPromptBox,
-  promptBoxForBridge,
-} from "@/components/default-user-message";
 import { PersonaChatView } from "@/components/PersonaChatView";
 import { DataSection } from "@/components/DataSection";
 import { PersonaEditor } from "@/components/PersonaEditor";
-import { PersonaHomepageSection } from "@/components/PersonaHomepageSection";
-import { PersonaHome } from "@/components/PersonaHome";
+import {
+  PersonaInlineAction,
+  PersonaPickerPopup,
+  PersonaRobotGlyph,
+  PERSONA_PICKER_POPUP_ID,
+} from "@/components/PersonaComposerPicker";
+import { PersonaThreadChip } from "@/components/PersonaThreadChip";
 import { PersonaRail } from "@/components/PersonaRail";
 import { PluginHealthSection } from "@/components/PluginHealthSection";
 import { PANEL_PATH } from "@/components/panel-path";
@@ -99,7 +99,8 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
       content = (
         <DocumentPane>
           <p className="p-6 text-center text-sm text-muted-foreground">
-            Pick a persona to get started.
+            Pick a persona to edit, or start a chat with one from BB's New
+            Thread screen via the persona button.
           </p>
         </DocumentPane>
       );
@@ -115,12 +116,10 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
       break;
     case "persona":
     case "newChat":
-      // Clicking a persona in the rail lands in its composer view: the
-      // persona's NewThreadComposer above its chat list. The editor is a
-      // separate settings screen the header's gear button opens.
-      content = <PersonaHome personaId={route.personaId} onBack={onBack} />;
-      break;
     case "edit":
+      // Every persona route lands in settings now: the rail's click, old
+      // composer-page links (<personaId>, <personaId>/new), and direct
+      // settings links (.⟨personaId⟩/edit) all show the editor.
       content = (
         <DocumentPane onBack={onBack}>
           <PersonaEditor personaId={route.personaId} />
@@ -166,34 +165,6 @@ function PersonasPanel({ subPath }: PluginNavPanelProps) {
   );
 }
 
-/**
- * The rejection-flash half of the composer bridge: mounted inside every
- * new-thread composer the host renders, it turns PersonaHome's announced
- * open — the one-shot homepage handoff winning over a differing Default
- * User Message — into the momentary red pulse on that composer's own prompt
- * box. It performs no writes; there is no live mirroring to bridge.
- * Renders nothing visible.
- */
-function ComposerShareBridge() {
-  const appliedTokenRef = useRef(-1);
-  const selfRef = useRef<HTMLSpanElement | null>(null);
-
-  useEffect(() => {
-    return composerShare.subscribe(() => {
-      if (!composerShare.open) return;
-      if (appliedTokenRef.current === composerShare.openToken) return;
-      appliedTokenRef.current = composerShare.openToken;
-      if (!composerShare.flash) return;
-      const self = selfRef.current;
-      if (self === null) return;
-      const box = promptBoxForBridge(self);
-      if (box !== null) flashPromptBox(box);
-    });
-  }, []);
-
-  return <span ref={selfRef} aria-hidden style={{ display: "none" }} />;
-}
-
 export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "personas",
@@ -203,30 +174,38 @@ export default definePluginApp((app) => {
     component: PersonasPanel,
   });
 
-  // The rejection-flash bridge: inside every new-thread composer bb renders
-  // for this plugin (including the root compose surface), a bare banner that
-  // pulses the prompt box when PersonaHome announces an open whose carried
-  // homepage draft won over a differing Default User Message. It never
-  // writes draft text — the composers keep their own drafts by construction.
+  // The robot glyph as an app-wide icon name: the inline action and any other
+  // surface that draws `personas/robot` renders this component. It is the
+  // same drawing the branding asset carries, recolored to currentColor.
+  app.experimental_icons.register({
+    name: "personas/robot",
+    component: PersonaRobotGlyph,
+  });
+
+  // The persona inline action on the New Thread composer: the robot button
+  // opens the persona picker popup; choosing a persona inserts THE persona
+  // mention pill into the draft (one at a time, removable), and the send
+  // carries the persona to the server's dispatch hook.
   app.composer.customize({
-    id: "composer-share",
+    id: "persona-inline-action",
     scopes: ["new-thread"],
-    banners: [
+    actions: [{ id: "persona", component: PersonaInlineAction }],
+    experimental_popups: [
       {
-        id: "composer-share",
-        chrome: "bare",
-        component: ComposerShareBridge,
+        id: PERSONA_PICKER_POPUP_ID,
+        label: "Select persona for this session",
+        component: PersonaPickerPopup,
       },
     ],
   });
 
-  // The Personas section on BB's generic New Thread screen: choosing a
-  // published persona there moves to that persona's composer view inside
-  // the Personas panel instead of starting an unpersonad thread.
-  app.slots.homepageSection({
-    id: "persona-launcher",
-    title: "Personas",
-    component: PersonaHomepageSection,
+  // The Thread Info chip: an always-visible control in the thread header's
+  // action row showing which persona is active for this session (the mapped
+  // one), with a click-through into the persona's settings page.
+  app.slots.experimental_threadHeaderAction({
+    id: "persona-chip",
+    title: "Persona",
+    component: PersonaThreadChip,
   });
 
   // The Personas settings page: an install-source row (local in-progress
