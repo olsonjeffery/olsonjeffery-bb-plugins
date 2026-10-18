@@ -1580,7 +1580,8 @@
    and wipe .spooler-row-child / .spooler-row-deep's indent. */
 .spooler-density-compact .spooler-row,
 .spooler-row-compact {
-  contain-intrinsic-size: auto 28px;
+  /* Title line + one unwrapped grid line (time, project, PR). */
+  contain-intrinsic-size: auto 44px;
   margin-block: 0;
   min-height: 28px;
 }
@@ -1591,12 +1592,20 @@
   padding: 2px 8px;
 }
 
-/* Single-line rows. The metadata grid lives in a grid wrapper, so it
-   collapses the same way the adaptive fold does and still animates. */
-.spooler-density-compact .spooler-row-extra,
-.spooler-row-compact .spooler-row-extra {
-  grid-template-rows: 0fr;
-  opacity: 0;
+/* Compact rows keep the grid to ONE unwrapped line: time + project (+ PR
+   when present). The secondary chips and the branch yield; a squeezed line
+   clips at the row edge instead of growing taller. */
+.spooler-density-compact .spooler-row-grid,
+.spooler-row-compact .spooler-row-grid {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.spooler-density-compact .spooler-grid-secondary,
+.spooler-row-compact .spooler-grid-secondary,
+.spooler-density-compact .spooler-branch-btn,
+.spooler-row-compact .spooler-branch-btn {
+  display: none;
 }
 
 .spooler-density-compact .spooler-tree-gutter,
@@ -2072,7 +2081,7 @@ a.spooler-row-main:hover {
 
 .spooler-title-wrap.spooler-density-compact .spooler-row,
 .spooler-title-wrap .spooler-row-compact {
-  contain-intrinsic-size: auto 44px;
+  contain-intrinsic-size: auto 58px;
 }
 
 /* The inline ⋯ on touch layouts holds still instead of sliding. */
@@ -2719,6 +2728,13 @@ a.spooler-row-main:hover {
 
 .spooler-action-active {
   color: var(--primary);
+}
+
+/* Quiet rows fold only the secondary chips (model, thinking, section,
+   host); time, project, branch, PR, and a folded-family summary stay —
+   the metadata grid never reads as empty. */
+.spooler-row-collapsed .spooler-grid-secondary {
+  display: none;
 }
 
 .spooler-row-collapsed .spooler-row-actions {

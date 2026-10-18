@@ -78,6 +78,21 @@ describe("app.css", () => {
     // .spooler-row-meta anywhere.
     expect(rules().filter((rule) => /\.spooler-row-meta\b/.test(rule.selector)))
       .toEqual([]);
+    // Quiet rows fold only the SECONDARY chips; time/project/branch/PR and
+    // a folded-family summary stay, so the grid never reads as empty.
+    const secondary = rules().find(
+      (rule) => rule.selector === ".spooler-row-collapsed .spooler-grid-secondary",
+    );
+    expect(secondary?.body).toMatch(/display:\s*none/);
+    // Compact keeps the grid to one unwrapped line instead of hiding it.
+    const compactGrid = rules().find(
+      (rule) => rule.selector === ".spooler-density-compact .spooler-row-grid,\n.spooler-row-compact .spooler-row-grid",
+    );
+    expect(compactGrid?.body).toMatch(/flex-wrap:\s*nowrap/);
+    expect(compactGrid?.body).toMatch(/overflow:\s*hidden/);
+    expect(rules()
+      .filter((rule) => /\.spooler-row-extra\b/.test(rule.selector) && /grid-template-rows:\s*0fr/.test(rule.body) && /compact/.test(rule.selector)))
+      .toEqual([]);
   });
 
   it("clamps the whole title instead of the last SDK segment", () => {

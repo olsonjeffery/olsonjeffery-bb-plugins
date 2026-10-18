@@ -1255,7 +1255,7 @@ describe("settings gates", () => {
     expect(slot.container.querySelector(".spooler-title-wrap")).toBeNull();
   });
 
-  it("keeps quiet rows expanded when adaptive collapse is off", () => {
+  it("quiet rows fold the secondary chips but keep the grid's permanent facts", () => {
     const quiet = makeThread({
       id: "quiet",
       title: "Idle read thread",
@@ -1263,24 +1263,30 @@ describe("settings gates", () => {
     });
     const sections = [makeSection({ id: "s1", name: "Backlog" })];
 
-    // The metadata grid is what adaptive collapse folds away.
+    // Adaptive collapse off: the full grid renders.
     const expanded = renderThreads([quiet], {
       settings: { adaptiveCollapse: false },
       sections,
     });
     expect(expanded.container.querySelector(".spooler-row-grid")).toBeTruthy();
+    expect(
+      expanded.container.querySelector(".spooler-row-collapsed"),
+    ).toBeNull();
     cleanup();
 
     const folded = renderThreads([quiet], {
       settings: { adaptiveCollapse: true },
       sections,
     });
-    const grid = folded.container.querySelector(".spooler-row-grid");
-    // Hidden rather than removed: the fold animates, so it stays mounted.
+    // The row marks itself collapsed, and the metadata grid STAYS — it
+    // never reads as empty: time (always) and the section's facts remain,
+    // only the secondary chips fold (guarded statically in css.test.ts).
     expect(
-      grid?.closest(".spooler-row-extra-collapsed") ??
-        folded.container.querySelector(".spooler-row-collapsed"),
+      folded.container.querySelector(".spooler-row-collapsed"),
     ).toBeTruthy();
+    const grid = folded.container.querySelector(".spooler-row-grid");
+    expect(grid).toBeTruthy();
+    expect(grid?.querySelector(".spooler-row-time")).toBeTruthy();
   });
 });
 

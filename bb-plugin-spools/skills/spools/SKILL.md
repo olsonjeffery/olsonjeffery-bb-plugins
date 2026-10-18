@@ -173,14 +173,17 @@ list; disabling this plugin falls back to BB's list automatically.
   all off under prefers-reduced-motion).
   Threads flipping from live work to done get a one-time springy
   check-pop on their status badge.
-- Adaptive rows (`adaptiveCollapse`): quiet read-idle rows collapse to the
-  title line and fold the whole metadata grid away. Anything worth a glance
-  (unread, working, needs-you, failed, drafts, plugin statuses, PRs needing
-  attention, unknown states) keeps the full row. Editing never collapses.
+- Adaptive rows (`adaptiveCollapse`): quiet read-idle rows fold only the
+  SECONDARY chips (model, thinking, section, host) — time, project, branch,
+  PR, and a folded-family summary always stay, so the metadata grid never
+  reads as empty. Anything worth a glance (unread, working, needs-you,
+  failed, drafts, plugin statuses, PRs needing attention, unknown states)
+  keeps the full row. Editing never collapses.
 - Compact density compresses **vertically only** — inline padding and the
   child indent stay identical to comfortable so tree guides keep lining up;
-  rows are title-only (the metadata grid folds). **Two-line titles** also
-  applies to compact density and the forced-compact touch layout.
+  the grid holds one unwrapped line (time + project + PR; the secondary
+  chips and the branch yield). **Two-line titles** also applies to compact
+  density and the forced-compact touch layout.
   It uses `margin-block` rather than `margin`, since the shorthand also
   zeroes `margin-left` and wipes `.spooler-row-child` / `.spooler-row-deep`.
   `css.test.ts` guards both as static assertions (jsdom does not resolve the

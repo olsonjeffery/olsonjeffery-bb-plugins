@@ -15,8 +15,9 @@ All notable changes to Spools are documented here. The format follows
   section, host, branch, and PR — each an outlined chip with its own
   max-width (default 45%, branch 60%, folded-family summary 100%). Facts
   wrap onto further grid lines instead of stacking different kinds on
-  disjointed ones; quiet rows fold the whole grid away (adaptive collapse),
-  and compact density rows are title-only.
+  disjointed ones; quiet rows fold only the secondary chips (adaptive
+  collapse — time, project, branch, PR stay), and compact density keeps one
+  unwrapped grid line.
 - **The PR badge shows on every thread that has one**, branch or not — it no
   longer rides the branch line, so a running thread's open PR is on the
   panel even before its environment resolves.

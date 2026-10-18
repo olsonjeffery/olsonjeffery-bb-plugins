@@ -765,7 +765,7 @@ function SpoolerThreadRowImpl({
       gridItems.push(
         <span
           key="model-loading"
-          className="spooler-model-loading"
+          className="spooler-model-loading spooler-grid-secondary"
           role="status"
           aria-label="Loading model"
         />,
@@ -773,13 +773,13 @@ function SpoolerThreadRowImpl({
     } else if (execution) {
       if (needsProviderText) {
         gridItems.push(
-          <span key="provider" className="spooler-host-chip" title={providerName}>
+          <span key="provider" className="spooler-host-chip spooler-grid-secondary" title={providerName}>
             {providerName}
           </span>,
         );
       }
       gridItems.push(
-        <span key="model" className="spooler-model-chip" title={modelName ?? undefined}>
+        <span key="model" className="spooler-model-chip spooler-grid-secondary" title={modelName ?? undefined}>
           <Icon name="Bot" aria-hidden="true" />
           {modelName}
         </span>,
@@ -788,7 +788,7 @@ function SpoolerThreadRowImpl({
         gridItems.push(
           <span
             key="thinking"
-            className="spooler-model-chip spooler-thinking-chip"
+            className="spooler-model-chip spooler-thinking-chip spooler-grid-secondary"
             title={`Thinking: ${thinking}`}
           >
             <Icon name="Brain" aria-hidden="true" />
@@ -802,7 +802,7 @@ function SpoolerThreadRowImpl({
     gridItems.push(
       <span
         key="section"
-        className="spooler-section-chip"
+        className="spooler-section-chip spooler-grid-secondary"
         style={{ "--spooler-section-hue": projectHue(`section:${sectionId}`) } as CSSProperties}
         title={sectionName}
       >
@@ -812,7 +812,7 @@ function SpoolerThreadRowImpl({
   }
   if (where) {
     gridItems.push(
-      <span key="host" className="spooler-host-chip" title={`Host: ${hostName}`}>
+      <span key="host" className="spooler-host-chip spooler-grid-secondary" title={`Host: ${hostName}`}>
         {hostName}
       </span>,
     );
@@ -946,8 +946,12 @@ function SpoolerThreadRowImpl({
       ) : null}
     </span>
   );
-  // A folded family always shows its summary, even on quiet rows.
-  const extraHidden = collapsed && !familyFolded;
+  // A folded family always shows its summary, even on quiet rows. The fold
+  // (0fr) applies only when the grid would be GENUINELY empty without it:
+  // time and project always render, and branch/PR/folded-summary stay on
+  // quiet rows — only the secondary chips (model, thinking, section, host)
+  // fold away with them.
+  const extraHidden = collapsed && !familyFolded && !hasBranch && !pullRequest;
   const statusBadge = visual || statusWord ? (
     <span
       className={cn(
