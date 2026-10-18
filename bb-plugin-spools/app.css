@@ -2306,25 +2306,19 @@ a.spooler-row-main:hover {
   border-color: rgba(248, 81, 73, 0.35);
 }
 
+/* The metadata grid's wrapper. It no longer folds: time and project (and
+   branch/PR/folded-summary when present) always render — the adaptive fold
+   works on the secondary chips inside the grid instead. */
 .spooler-row-extra {
   display: grid;
   grid-template-rows: 1fr;
   margin-top: 2px;
-  transition:
-    grid-template-rows 280ms ease,
-    opacity 220ms ease;
-}
-
-.spooler-row-extra-collapsed {
-  grid-template-rows: 0fr;
-  opacity: 0;
 }
 
 .spooler-row-extra-inner {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  overflow: hidden;
   min-height: 0;
 }
 

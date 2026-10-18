@@ -946,12 +946,6 @@ function SpoolerThreadRowImpl({
       ) : null}
     </span>
   );
-  // A folded family always shows its summary, even on quiet rows. The fold
-  // (0fr) applies only when the grid would be GENUINELY empty without it:
-  // time and project always render, and branch/PR/folded-summary stay on
-  // quiet rows — only the secondary chips (model, thinking, section, host)
-  // fold away with them.
-  const extraHidden = collapsed && !familyFolded && !hasBranch && !pullRequest;
   const statusBadge = visual || statusWord ? (
     <span
       className={cn(
@@ -1171,13 +1165,7 @@ function SpoolerThreadRowImpl({
               );
             })()}
           </span>
-          <span
-            className={cn(
-              "spooler-row-extra",
-              extraHidden && "spooler-row-extra-collapsed",
-            )}
-            aria-hidden={extraHidden || undefined}
-          >
+          <span className="spooler-row-extra">
             <span className="spooler-row-extra-inner">{gridNode}</span>
           </span>
         </span>
