@@ -19,12 +19,13 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@get-bb/plugin-sdk": "0.6.75",
     "@hugeicons/core-free-icons": "^4.3.4",
     "@hugeicons/react": "^1.1.6",
-    "@radix-ui/react-slot": "^1.3.0"
+    "@radix-ui/react-slot": "^1.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.75",
     "@pierre/diffs": "^1.2.9",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-context-menu": "^2.3.3",
@@ -54,8 +55,7 @@
     "tailwind-merge": "^3.4.0",
     "typescript": "^5.7.0",
     "vaul": "^1.1.2",
-    "vitest": "^4.1.11",
-    "zod": "^4.6.5"
+    "vitest": "^4.1.11"
   },
   "scripts": {
     "build": "bb plugin build",
