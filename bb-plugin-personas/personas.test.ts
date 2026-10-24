@@ -24,6 +24,7 @@ import {
   personaColorTint,
   personaToExport,
   PERSONA_COLORS,
+  personaIdFromDispatchItemId,
   pickEmoji,
   PROMPT_PREVIEW_LIMIT,
   promptPreview,
@@ -795,5 +796,25 @@ describe("uniqueImportName", () => {
     expect(uniqueImportName("Pirate", (n) => taken.has(n))).toBe(
       "Pirate (NEW-IMPORT)",
     );
+  });
+});
+
+describe("personaIdFromDispatchItemId", () => {
+  it("strips the namespaced provider prefix bb wires on plugin mention item ids", () => {
+    expect(personaIdFromDispatchItemId("personas:persona_abc")).toBe(
+      "persona_abc",
+    );
+  });
+
+  it("accepts a bare item id from before the namespacing", () => {
+    expect(personaIdFromDispatchItemId("persona_abc")).toBe("persona_abc");
+  });
+
+  it("refuses a colon-prefixed id under another provider", () => {
+    expect(personaIdFromDispatchItemId("other:persona_abc")).toBeUndefined();
+  });
+
+  it("refuses an empty bare half", () => {
+    expect(personaIdFromDispatchItemId("personas:")).toBeUndefined();
   });
 });

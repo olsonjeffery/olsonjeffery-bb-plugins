@@ -126,7 +126,9 @@ function personaPillBlocks(personaId: string) {
           resource: {
             kind: "plugin" as const,
             pluginId: "personas",
-            itemId: personaId,
+            // bb namespaces plugin mention item ids on the wire:
+            // "${providerId}:${itemId}" — what a real dispatch now carries.
+            itemId: `personas:${personaId}`,
             label: "Persona pill",
           },
         },
@@ -134,6 +136,17 @@ function personaPillBlocks(personaId: string) {
       visibility: "agent-only" as const,
     },
   ];
+}
+
+/** The same pill as the pre-namespacing wire carried: a bare item id. */
+function legacyBarePillBlocks(personaId: string) {
+  return personaPillBlocks(personaId).map((block) => ({
+    ...block,
+    mentions: block.mentions.map((mention) => ({
+      ...mention,
+      resource: { ...mention.resource, itemId: personaId },
+    })),
+  }));
 }
 
 let nextHookThread = 0;
@@ -335,6 +348,46 @@ describe("instruction routing", () => {
 
     // The guard that keeps personas out of every other thread in BB.
     expect(provide!({ threadId: "thr_unrelated", projectId: "p" })).toBeNull();
+  });
+
+  it("binds a dispatch whose pill id carries the pre-namespacing bare shape", async () => {
+    // bb serializes plugin mention item ids as "${providerId}:${itemId}" since
+    // 0.47; older queued rows and core versions still dispatch bare ids.
+    const personaId = await createPublishedPersona();
+    const threadId = "thr_bare_pill";
+    const handler = host.harness.registrations.hooks["message.dispatch"];
+    (handler as unknown as (context: unknown) => { action: string })({
+      thread: makeThreadResponse({ id: threadId }),
+      attempt: "start-turn",
+      input: { blocks: legacyBarePillBlocks(personaId), text: "@Persona pill" },
+    });
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(provide({ threadId, projectId: "proj_personal" })).toContain(
+      PROMPT_TEXT,
+    );
+  });
+
+  it("never binds a pill whose item id carries another provider's prefix", async () => {
+    // A foreign "providerId:" prefix is not ours even when the plugin id is:
+    // the lookup must fail closed rather than strip blindly.
+    const personaId = await createPublishedPersona();
+    const blocks = personaPillBlocks(personaId).map((block) => ({
+      ...block,
+      mentions: block.mentions.map((mention) => ({
+        ...mention,
+        resource: { ...mention.resource, itemId: `other:${personaId}` },
+      })),
+    }));
+    const handler = host.harness.registrations.hooks["message.dispatch"];
+    (handler as unknown as (context: unknown) => { action: string })({
+      thread: makeThreadResponse({ id: "thr_foreign_pill" }),
+      attempt: "start-turn",
+      input: { blocks, text: "@Persona pill" },
+    });
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(
+      provide({ threadId: "thr_foreign_pill", projectId: "proj_personal" }),
+    ).toBeNull();
   });
 
   it("stops contributing once the persona is deleted", async () => {

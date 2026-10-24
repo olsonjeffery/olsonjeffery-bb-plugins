@@ -525,6 +525,27 @@ export interface WireTextBlock {
 }
 
 /**
+ * The persona id a wire mention resource's `itemId` names.
+ *
+ * bb serializes plugin mention item ids NAMESPACE-SCOPED on the wire —
+ * `"${providerId}:${itemId}"` (e.g. `"personas:persona_abc…"`) — and strips the
+ * prefix only where it calls the mention provider back (`resolve()`). The
+ * `message.dispatch` hook's blocks carry the raw prefixed id, so the persona
+ * id is whatever sits after the provider-id prefix. A bare id (no prefix) is
+ * still accepted for older queued rows and dispatches that predate the
+ * namespacing; persona ids never contain a colon, so a colon-prefixed id with
+ * any other prefix is not ours and reads as missing.
+ */
+export function personaIdFromDispatchItemId(itemId: string): string | undefined {
+  const separatorIndex = itemId.indexOf(":");
+  if (separatorIndex < 0) return itemId;
+  const providerId = itemId.slice(0, separatorIndex);
+  if (providerId !== MENTION_PROVIDER_ID) return undefined;
+  const bare = itemId.slice(separatorIndex + 1);
+  return bare.length > 0 ? bare : undefined;
+}
+
+/**
  * The FIRST persona pill found in a dispatch's input blocks, else undefined.
  * The first wins: the UI enforces one pill per draft, so an order beyond
  * first only matters for a pill someone typed in through the @-menu.
@@ -544,7 +565,9 @@ export function personaIdFromDispatchBlocks(
     for (const mention of (block as WireTextBlock).mentions ?? []) {
       if (typeof mention !== "object" || mention === null) continue;
       const resource = (mention as { resource?: unknown }).resource;
-      if (isPersonaPillResource(resource, pluginId)) return resource.itemId;
+      if (!isPersonaPillResource(resource, pluginId)) continue;
+      const personaId = personaIdFromDispatchItemId(resource.itemId);
+      if (personaId !== undefined) return personaId;
     }
   }
   return undefined;
