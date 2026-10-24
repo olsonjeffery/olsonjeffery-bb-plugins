@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
-  experimental_useSidebarThreadPullRequest,
   useBbNavigate,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
@@ -24,6 +23,7 @@ import {
   projectHue,
 } from "./SpoolerThreadRow";
 import { type SpoolGroupData } from "./useThreadGroups";
+import { useEnvironmentPullRequest } from "./usePullRequest";
 
 /** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
 const FOLD_UNMOUNT_MS = 320;
@@ -182,9 +182,8 @@ export function SpoolCardImpl({
   // common context must be summarized on the header. Lead thread only —
   // members share a branch, so one PR stands for the spool.
   const navigate = useBbNavigate();
-  const { pullRequest } = experimental_useSidebarThreadPullRequest(
-    data.leadThreadId,
-  );
+  const leadEnvironmentId = data.members[0]?.environment?.id ?? null;
+  const pullRequest = useEnvironmentPullRequest(leadEnvironmentId);
   const lead = data.members[0] ?? null;
   const projectIds = new Set(
     data.members.map((member) => member.projectId),

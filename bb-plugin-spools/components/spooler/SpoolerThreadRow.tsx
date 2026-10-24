@@ -11,7 +11,6 @@ import {
   ThreadTitle,
   experimental_Icon as HostIcon,
   experimental_ProviderIcon as ProviderIcon,
-  experimental_useSidebarThreadPullRequest,
   experimental_useSidebarThreadSplit,
   useBbNavigate,
   useSidebarThreadDraft,
@@ -32,6 +31,7 @@ import {
   useThreadExecution,
 } from "./useThreadExecution";
 import { SpoolerHoverCard, type ContextUsage } from "./SpoolerHoverCard";
+import { useEnvironmentPullRequest } from "./usePullRequest";
 import { useRowSwipe } from "./useRowSwipe";
 import {
   swipeActionView,
@@ -387,7 +387,7 @@ function SpoolerThreadRowImpl({
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const rowStatus = useSidebarThreadRowStatus(thread.id);
   const shortcut = useSidebarThreadShortcut(thread.id);
-  const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const pullRequest = useEnvironmentPullRequest(thread.environment?.id);
   const navigate = useBbNavigate();
   const { splitProps, layout: splitLayout } =
     experimental_useSidebarThreadSplit(thread.id);

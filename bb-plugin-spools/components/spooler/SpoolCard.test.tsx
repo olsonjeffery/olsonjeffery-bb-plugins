@@ -19,14 +19,13 @@ const sdkStub = vi.hoisted(() => ({
   },
   openUrl: vi.fn(),
 }));
+vi.mock("./usePullRequest", () => ({
+  useEnvironmentPullRequest: () => sdkStub.pullRequest,
+}));
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    experimental_useSidebarThreadPullRequest: () => ({
-      isLoading: false,
-      pullRequest: sdkStub.pullRequest,
-    }),
     useBbNavigate: () => ({ openUrl: sdkStub.openUrl }),
   };
 });

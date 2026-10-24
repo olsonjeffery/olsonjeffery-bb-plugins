@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { experimental_ProviderIcon as ProviderIcon } from "@get-bb/plugin-sdk/app";
 import type {
-  PluginSidebarPullRequest,
   PluginSidebarThread,
 } from "@get-bb/plugin-sdk";
+import type { SpoolPullRequest } from "./usePullRequest";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -81,7 +81,7 @@ export function SpoolerHoverCard({
   anchor: { top: number; bottom: number; left: number; right: number };
   branch: string | null;
   isWorktree: boolean;
-  pullRequest: PluginSidebarPullRequest | null;
+  pullRequest: SpoolPullRequest | null;
   facts: HoverCardFacts;
   onOpen: () => void;
   onOpenSplit: () => void;
