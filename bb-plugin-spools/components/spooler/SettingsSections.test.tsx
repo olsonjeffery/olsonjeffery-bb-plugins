@@ -66,7 +66,7 @@ describe("SpoolsSettingsSection — section editor", () => {
     expect(screen.queryByTestId("spooler-settings-no-spools")).toBeNull();
   });
 
-  it("pins Unfiled read-only above every server section, with counts", async () => {
+  it("pins Inbox read-only above every server section, with counts", async () => {
     fakeSectionsList.mockResolvedValue([
       { id: "sec-a", name: "Alpha", createdAt: 1, updatedAt: 1 },
       { id: "sec-b", name: "Beta", createdAt: 2, updatedAt: 2 },
@@ -84,7 +84,7 @@ describe("SpoolsSettingsSection — section editor", () => {
     render(<SpoolsSettingsSection />);
     await waitFor(() => expect(screen.getByTestId("spooler-settings-section-name:sec-a")).toBeTruthy());
     const unfiled = screen.getByTestId("spooler-settings-section:unfiled");
-    expect(unfiled.textContent).toContain("Unfiled");
+    expect(unfiled.textContent).toContain("Inbox");
     expect(unfiled.textContent).toContain("read-only");
     expect(unfiled.querySelectorAll("button").length).toBe(0);
     expect(screen.queryByTestId("spooler-settings-delete:sec-b")).toBeTruthy();

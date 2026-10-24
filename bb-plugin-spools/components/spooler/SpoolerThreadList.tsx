@@ -868,7 +868,7 @@ export function SpoolerThreadList({
       if (ids.length === 0) return;
       const label = sectionId
         ? (sectionById.get(sectionId)?.name ?? "section")
-        : "Unfiled";
+        : "Inbox";
       void Promise.allSettled(
         ids.map((id) => sdk.threads.update({ threadId: id, sectionId })),
       ).then((results) =>
@@ -902,7 +902,7 @@ export function SpoolerThreadList({
       const intent = paletteIntent;
       setPaletteIntent(null);
       if (!intent) return;
-      const destination = section ? section.name : "Unfiled";
+      const destination = section ? section.name : "Inbox";
       const spoolId = spoolIdByThreadId.get(intent.threadId);
       const spool = spoolId ? (spoolById.get(spoolId) ?? null) : null;
       const destinationId = section?.id ?? null;

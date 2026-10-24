@@ -120,14 +120,16 @@ describe("spool groups (section view only)", () => {
     ));
     const groups = hook.result.current.groups;
     // No standalone spool entry anymore: the card rides inside its section.
-    expect(groups.map((g) => g.id)).toEqual(["section:sec_1", "section:__unfiled__"]);
-    expect(groups[0].spools).toHaveLength(1);
-    expect(groups[0].spools?.[0]).toMatchObject({
+    // The fixed Inbox bucket leads the section list.
+    expect(groups.map((g) => g.id)).toEqual(["section:__unfiled__", "section:sec_1"]);
+    const workGroup = groups.find((g) => g.id === "section:sec_1")!;
+    expect(workGroup.spools).toHaveLength(1);
+    expect(workGroup.spools?.[0]).toMatchObject({
       id: "spool_a", label: "Spool: Top", leadThreadId: "l",
       members: [expect.objectContaining({ id: "l" }), expect.objectContaining({ id: "m" })],
     });
     // Members left the section bucket.
-    expect(groups[0].roots.map((r) => r.id)).toEqual(["x"]);
+    expect(workGroup.roots.map((r) => r.id)).toEqual(["x"]);
   });
 
   it("counts members only and drops their filtered-out kin from the card", () => {
@@ -157,7 +159,7 @@ describe("spool groups (section view only)", () => {
       }),
     ));
     expect(hook.result.current.groups.map((g) => g.id)).toEqual(
-      ["section:sec_1", "section:__unfiled__"],
+      ["section:__unfiled__", "section:sec_1"],
     );
     expect(hook.result.current.shownChildren.get("l")?.map((t) => t.id)).toEqual(["m"]);
   });
@@ -223,8 +225,8 @@ describe("Settled threads shelf", () => {
       ),
     );
     expect(hook.result.current.groups.map((g) => g.id)).toEqual([
-      "section:sec_1",
       "section:__unfiled__",
+      "section:sec_1",
       "settled",
     ]);
 

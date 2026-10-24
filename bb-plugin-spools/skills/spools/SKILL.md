@@ -48,7 +48,8 @@ both.
   the name for retry. BB's realtime sidebar state supplies the new section;
   empty sections stay visible even with no threads or no filter matches.
 - **Drag to file**: in section grouping, hover a root thread to reveal its
-  grip, then drag it onto a section header (or **Unfiled**) to set its
+  grip, then drag it onto a section header (or the **Inbox** bucket — the
+  unfiled pseudo-section that leads the section list) to set its
   `sectionId` through BB's own thread update — the drop target highlights,
   the thread's own section is marked as a no-op, and a toast confirms.
   Dragging a selected thread files the whole selection. For keyboard filing,
@@ -119,7 +120,7 @@ by the spool's *lead* thread). Details:
   successive top adds get ever more negative stamps so each new arrival stays above
   the last (ties fall back to thread id). No sorting code knows the setting exists.
 - Settings → Installed plugins → **Spools** gains a *Sections & spools* card: the section
-  editor (rename / delete with inline confirm, create; **Unfiled pinned read-only**;
+  editor (rename / delete with inline confirm, create; **Inbox pinned read-only**;
   counts refresh from the server) plus a spools accordion with member lists and an
   Unspool… (always with confirm dialog) action.
 

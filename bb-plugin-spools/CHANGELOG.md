@@ -4,6 +4,15 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.3 — 2026-10-24
+
+### Changed
+- **The fixed unfiled bucket is now the Inbox and leads the section list.**
+  In section grouping the pseudo-section renders FIRST — above every server
+  section, where freshly sent threads land — renamed from "Unfiled" to
+  "Inbox" with its own inbox glyph; its group id, drop targets, the `unfiled`
+  CLI keyword, and every other behavior are unchanged.
+
 ## 0.6.0 — 2026-10-17
 
 ### Changed

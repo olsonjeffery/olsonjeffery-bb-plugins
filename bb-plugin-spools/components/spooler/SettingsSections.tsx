@@ -3,9 +3,9 @@
 // Everything the sidebar exposes piecemeal lives together here with the ops
 // the sidebar does not expose at all (rename/delete a section) — plus the
 // section color picker, mirroring the sidebar's per-section palette (the
-// colors live in the same localStorage map, so both stay in sync). Unfiled is
-// pinned read-only, like the sidebar. Spool management itself is fully
-// covered by the sidebar's spool cards, so there is no spool list here.
+// colors live in the same localStorage map, so both stay in sync). Inbox (the
+// unfiled bucket) is pinned read-only, like the sidebar. Spool management is
+// fully covered by the sidebar's spool cards, so there is no spool list here.
 //
 // Controls reuse the sidebar's shadcn Button/Input and the exact
 // SpoolerNewSection flow: hand-rolled bare <input>/<button> markup on this
@@ -153,7 +153,7 @@ export function SpoolsSettingsSection() {
             if (row === "unfiled") {
               return (
                 <li key="unfiled" className="spooler-settings-row" data-testid="spooler-settings-section:unfiled">
-                  <span>Unfiled</span>
+                  <span>Inbox</span>
                   <span className="spooler-settings-muted">default — read-only</span>
                 </li>
               );

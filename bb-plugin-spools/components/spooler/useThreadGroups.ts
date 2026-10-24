@@ -620,10 +620,11 @@ export function useThreadGroups(args: {
         ? rest.filter((root) => !spoolIdByThreadId.has(root.id))
         : rest;
       const promotedSpoolChildren = spoolSectionData.extraRoots;
-      // Server section order first, then an Unfiled bucket; empty sections
-      // still render so there is always somewhere to drop a thread.
+      // The fixed Inbox bucket rides FIRST — above every server section — so
+      // freshly sent threads are the first thing the eye lands on. Empty
+      // sections still render so there is always somewhere to drop a thread.
       // Spool cards render inside their anchor section (the Top thread's
-      // section, or Unfiled when it has none).
+      // section, or Inbox when it has none).
       const bySection = new Map<string, PluginSidebarThread[]>();
       const unfiled: PluginSidebarThread[] = [];
       for (const root of [...sectionRest, ...promotedSpoolChildren]) {
@@ -654,6 +655,18 @@ export function useThreadGroups(args: {
         }
         ordered.push(group);
       };
+      // The fixed Inbox (unfiled threads) leads the section list.
+      intoSection(
+        assembleGroup(
+          UNFILED_GROUP_ID,
+          "Inbox",
+          "Inbox",
+          unfiled,
+          null,
+          null,
+        ),
+        UNFILED_GROUP_ID,
+      );
       for (const section of sections) {
         intoSection(
           assembleGroup(
@@ -682,17 +695,6 @@ export function useThreadGroups(args: {
           `section:${sectionId}`,
         );
       }
-      intoSection(
-        assembleGroup(
-          UNFILED_GROUP_ID,
-          "Unfiled",
-          "FolderUnknown",
-          unfiled,
-          null,
-          null,
-        ),
-        UNFILED_GROUP_ID,
-      );
       // The Settled shelf rides last, past every section.
       if (shelfGroup) ordered.push(shelfGroup);
       return ordered;

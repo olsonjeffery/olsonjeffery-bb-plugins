@@ -10,7 +10,7 @@ import type { Spool } from "./spoolStore";
 import type { PaletteIntent } from "./paletteBus";
 
 function sectionLabel(section: PluginSidebarSection | null): string {
-  return section?.name ?? "Unfiled";
+  return section?.name ?? "Inbox";
 }
 
 function PickerRow(args: {

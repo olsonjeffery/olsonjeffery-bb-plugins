@@ -1971,10 +1971,10 @@ describe("section-centered defaults and buckets", () => {
     expect(screen.getByRole("menuitem", { name: "Change color…" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Expand all folders" })).toBeTruthy();
 
-    // The Unfiled pseudo-section has no server record to rename or paint.
+    // The Inbox pseudo-section has no server record to rename or paint.
     fireEvent.contextMenu(document.querySelector(".spooler-menu")!);
     fireEvent.pointerDown(document.body);
-    const unfiled = sectionHeader("Unfiled");
+    const unfiled = sectionHeader("Inbox");
     expect(unfiled).toBeTruthy();
     fireEvent.contextMenu(unfiled!);
     expect(screen.queryByRole("menuitem", { name: "Rename section…" })).toBeNull();
