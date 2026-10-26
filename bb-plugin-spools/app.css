@@ -1803,11 +1803,6 @@
   height: 9px;
 }
 
-.spooler-row-child .spooler-row-grid,
-.spooler-row-deep .spooler-row-grid {
-  margin-left: 16px;
-}
-
 .spooler-row-split {
   box-shadow: inset 2px 0 0 var(--primary);
 }
@@ -1817,8 +1812,8 @@
   flex: 1;
   min-width: 0;
   /* Vertical centering: the lead's icon column stretches the full row
-     height and centers its icon, badges center on the row, and the text
-     column (the tallest child) defines the height. */
+     height and centers its icon, and the text column (the tallest child)
+     defines the height. */
   align-items: center;
   gap: 8px;
   padding: 8px 8px;
@@ -1924,6 +1919,21 @@ a.spooler-row-main:hover {
   min-width: 0;
   flex-direction: column;
   gap: 3px;
+}
+
+/* The title line: the title and the status cluster (WORKING, spinner, pips)
+   share one row, so the cluster rides the title and never lands on the
+   metadata grid beneath it. Items align on their first baseline, which keeps
+   the cluster on line one when a two-line title wraps. */
+.spooler-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.spooler-row-head > .spooler-row-title {
+  flex: 1 1 auto;
 }
 
 /* The metadata grid: every fact the row shows — time, project, model +
@@ -2044,26 +2054,16 @@ a.spooler-row-main:hover {
   text-overflow: clip;
 }
 
-/* Keep wrapped metadata beneath the text, rather than beneath its markers.
-   Removing the markers from flex sizing also keeps their indent on line two. */
-.spooler-title-wrap .spooler-row-title:has(.spooler-child-glyph),
+/* Keep wrapped metadata beneath the text, rather than beneath the pin. Taking
+   the marker out of flex sizing also keeps its indent on line two. */
 .spooler-title-wrap .spooler-row-title:has(.spooler-pin-marker) {
   --spooler-title-indent: 16px;
 }
 
-.spooler-title-wrap .spooler-row-title:has(.spooler-child-glyph):has(.spooler-pin-marker) {
-  --spooler-title-indent: 32px;
-}
-
-.spooler-title-wrap .spooler-child-glyph,
 .spooler-title-wrap .spooler-pin-marker {
   position: absolute;
   inset-inline-start: 0;
   top: 3px;
-}
-
-.spooler-title-wrap .spooler-row-title:has(.spooler-child-glyph) .spooler-pin-marker {
-  inset-inline-start: 16px;
 }
 
 .spooler-title-wrap .spooler-kids-pill {
@@ -2144,12 +2144,6 @@ a.spooler-row-main:hover {
   font-weight: 600;
 }
 
-.spooler-child-glyph {
-  flex: none;
-  align-self: center;
-  color: var(--muted-foreground);
-}
-
 .spooler-pin-marker {
   display: inline-flex;
   flex: none;
@@ -2162,7 +2156,6 @@ a.spooler-row-main:hover {
   height: 12px;
 }
 
-.spooler-child-glyph[data-icon-root],
 .spooler-row-title [data-icon-root] {
   width: 12px;
   height: 12px;
@@ -2312,6 +2305,9 @@ a.spooler-row-main:hover {
 .spooler-row-extra {
   display: grid;
   grid-template-rows: 1fr;
+  /* Pin the track to the text column: an auto track grows to a chip's
+     min-content (a long PR label) and the grid would spill past the row. */
+  grid-template-columns: minmax(0, 1fr);
   margin-top: 2px;
 }
 
@@ -2319,6 +2315,7 @@ a.spooler-row-main:hover {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -3650,8 +3647,9 @@ a.spooler-row-main:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  /* Half the old inset (18px): member rows sit closer to the card edge. */
-  padding: 2px 10px 8px 9px;
+  /* No left inset: member rows share the card's left edge, the same column
+     as ordinary thread rows, so the roster reads flat rather than indented. */
+  padding: 2px 10px 8px 0;
   /* The 5px runway above this rule matches the 5px pad below the member
      separators (5px + 1px hairline = the same 6px beat): the header keeps
      daylight before the divide instead of sitting on it. The space lives
@@ -3669,9 +3667,15 @@ a.spooler-row-main:hover {
   min-width: 0;
 }
 
-/* Member rows render at depth 1; halve the ordinary child indent (16px). */
+/* Members render at depth 1 for their row logic, but a spool roster is flat:
+   no child indent and no tree guides. */
 .spooler-spool-member .spooler-row-child {
-  margin-left: 8px;
+  margin-left: 0;
+}
+
+.spooler-spool-member .spooler-row-child::before,
+.spooler-spool-member .spooler-row-child::after {
+  display: none;
 }
 
 .spooler-spool-member .spooler-row {

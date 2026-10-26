@@ -96,6 +96,9 @@ by the spool's *lead* thread). Details:
   peek lists members with coloured status
   pips (gray idle / blue needs-you / amber question / red failed / green success; working
   pips breathe unless `prefers-reduced-motion`).
+- Member rows are flat: they sit flush with the roster's left edge, in the same column
+  as ordinary thread rows, with no child indent, tree guides, or person glyph. Every
+  member still renders at depth 1 for its row logic (no branch or section chip).
 - Spools behave like families for sorting and navigation: open the lead via the card's
   Layers icon, jump to members, and the header layer dropdown lists every spool and
   its members for one-click navigation.
@@ -205,7 +208,9 @@ list; disabling this plugin falls back to BB's list automatically.
   tall rows keep the icon mid-line instead of pinning it top-left.
   The RIGHT column is the content: the title line (title + the right-edge
   status cluster: WORKING/spinner/agent/etc, plugin row status, draft pip,
-  unread pip), then ONE wrapping metadata grid.
+  unread pip), then ONE wrapping metadata grid. The cluster shares the title's
+  row (aligned on its first baseline, so a wrapped title keeps it on line one)
+  and never sits beside the grid, which spans the full text column beneath.
 - The metadata grid: time (leftmost, muted tabular), project chip in the
   project's own muted hue (stable per project id, readable light and dark —
   hidden only when it would echo the project group header), then model +
@@ -249,9 +254,9 @@ list; disabling this plugin falls back to BB's list automatically.
   clearing one often means clearing both), rename, move to section,
   archive/unarchive, copy link, delete (host confirmation).
 - Double-click a row to rename inline; Enter commits, Escape cancels.
-- Child threads nest directly under their parent (indented, person icon,
-  deeper indent past one level, VS Code-style indent guides with stubs on
-  last children), and child activity bubbles up: a family
+- Child threads nest directly under their parent (indented, deeper indent past
+  one level, VS Code-style indent guides with stubs on last children), and child
+  activity bubbles up: a family
   groups/sorts by its freshest activity, so an active child floats its
   parent. Children show model • thinking + time only — no branch line, no
   echoed context (the tooltip keeps everything). Placement follows the

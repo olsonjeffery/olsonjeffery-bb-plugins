@@ -4,6 +4,27 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.5 — 2026-10-26
+
+### Changed
+- **Spool members sit flush with the roster.** Member rows lose the indent
+  that set them apart from the card's own threads: the 8px row margin, the
+  9px roster inset, the 16px metadata inset, and the tree guides that drew a
+  family under a parent. The provider icon now starts in the same column as
+  ordinary thread rows, so the threads and their metadata get the width the
+  indent was eating. Family children keep their indent and guides.
+- **No person glyph on threads.** The little person icon that marked a child
+  thread repeated what its indent and guide already said, so it is gone
+  everywhere, child rows included.
+
+### Fixed
+- **The status cluster no longer overlaps the metadata grid.** WORKING, the
+  spinner, and the pips were centered on the whole row, so they landed beside
+  the metadata grid's first line and could paint over a chip on it; a long PR
+  chip could also spill under them. The cluster now shares the title line
+  (aligned on the title's first baseline, so a wrapped title keeps it on line
+  one), and the grid is pinned to the text column beneath it.
+
 ## 0.6.4 — 2026-10-24
 
 ### Fixed

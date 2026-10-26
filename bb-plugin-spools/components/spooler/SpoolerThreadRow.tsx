@@ -1111,94 +1111,89 @@ function SpoolerThreadRowImpl({
       >
         {leadNode}
         <span className="spooler-row-text">
-          <span className="spooler-row-title">
-            <span className="spooler-row-title-text">
-              {depth > 0 ? (
-                <Icon
-                  name="UserRound"
-                  aria-hidden="true"
-                  className="spooler-child-glyph"
+          <span className="spooler-row-head">
+            <span className="spooler-row-title">
+              <span className="spooler-row-title-text">
+                {thread.isPinned ? (
+                  <span
+                    className="spooler-pin-marker"
+                    title="Pinned"
+                    role="img"
+                    aria-label="Pinned"
+                  >
+                    <Icon name="Pin" aria-hidden="true" />
+                  </span>
+                ) : null}
+                <span className="spooler-thread-title">
+                  <ThreadTitle threadId={thread.id} />
+                </span>
+              </span>
+              {(() => {
+                if (!collapse?.collapsed || collapse.hiddenTotal === 0) {
+                  return null;
+                }
+                const dot = hiddenRollupDotClass(collapse);
+                if (collapse.hiddenUnread === 0 && !dot) return null;
+                return (
+                  <span
+                    className={cn(
+                      "spooler-kids-pill",
+                      collapse.hiddenUnread > 0 && "spooler-kids-pill-unread",
+                    )}
+                    title={hiddenSummary(collapse)}
+                    aria-label={hiddenSummary(collapse)}
+                  >
+                    {collapse.hiddenUnread > 0 ? (
+                      <>
+                        <span className="spooler-unread" aria-hidden="true" />
+                        {collapse.hiddenUnread}
+                      </>
+                    ) : null}
+                    {dot ? (
+                      <span
+                        className={cn("spooler-dot", dot)}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </span>
+                );
+              })()}
+            </span>
+            <span className="spooler-row-badges">
+              {statusBadge}
+              {shortcut ? (
+                <kbd className="spooler-kbd">{shortcut.label}</kbd>
+              ) : null}
+              {rowStatus ? (
+                <span
+                  className={cn("spooler-badge-icon", rowStatusToneClass(rowStatus.tone))}
+                  title={rowStatus.label}
+                  role="img"
+                  aria-label={rowStatus.label}
+                >
+                  <HostIcon name={rowStatus.icon} aria-hidden="true" />
+                </span>
+              ) : hasUnsubmittedDraft ? (
+                <span
+                  className="spooler-draft-pip"
+                  title="Unsent draft"
+                  role="img"
+                  aria-label="Unsent draft"
                 />
               ) : null}
-              {thread.isPinned ? (
+              {thread.isUnread ? (
                 <span
-                  className="spooler-pin-marker"
-                  title="Pinned"
+                  className="spooler-unread"
                   role="img"
-                  aria-label="Pinned"
-                >
-                  <Icon name="Pin" aria-hidden="true" />
-                </span>
+                  aria-label="Unread"
+                  title="Unread"
+                />
               ) : null}
-              <span className="spooler-thread-title">
-                <ThreadTitle threadId={thread.id} />
-              </span>
             </span>
-            {(() => {
-              if (!collapse?.collapsed || collapse.hiddenTotal === 0) {
-                return null;
-              }
-              const dot = hiddenRollupDotClass(collapse);
-              if (collapse.hiddenUnread === 0 && !dot) return null;
-              return (
-                <span
-                  className={cn(
-                    "spooler-kids-pill",
-                    collapse.hiddenUnread > 0 && "spooler-kids-pill-unread",
-                  )}
-                  title={hiddenSummary(collapse)}
-                  aria-label={hiddenSummary(collapse)}
-                >
-                  {collapse.hiddenUnread > 0 ? (
-                    <>
-                      <span className="spooler-unread" aria-hidden="true" />
-                      {collapse.hiddenUnread}
-                    </>
-                  ) : null}
-                  {dot ? (
-                    <span
-                      className={cn("spooler-dot", dot)}
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </span>
-              );
-            })()}
           </span>
           <span className="spooler-row-extra">
             <span className="spooler-row-extra-inner">{gridNode}</span>
           </span>
-        </span>
-        <span className="spooler-row-badges">
-          {statusBadge}
-          {shortcut ? (
-            <kbd className="spooler-kbd">{shortcut.label}</kbd>
-          ) : null}
-          {rowStatus ? (
-            <span
-              className={cn("spooler-badge-icon", rowStatusToneClass(rowStatus.tone))}
-              title={rowStatus.label}
-              role="img"
-              aria-label={rowStatus.label}
-            >
-              <HostIcon name={rowStatus.icon} aria-hidden="true" />
-            </span>
-          ) : hasUnsubmittedDraft ? (
-            <span
-              className="spooler-draft-pip"
-              title="Unsent draft"
-              role="img"
-              aria-label="Unsent draft"
-            />
-          ) : null}
-          {thread.isUnread ? (
-            <span
-              className="spooler-unread"
-              role="img"
-              aria-label="Unread"
-              title="Unread"
-            />
-          ) : null}
         </span>
       </a>
       <span className="spooler-row-actions">

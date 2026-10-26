@@ -165,6 +165,41 @@ describe("app.css", () => {
     expect(deep?.body).toMatch(/margin-left:\s*28px/);
   });
 
+  it("puts the status cluster on the title line, beside the title", () => {
+    // Title and badges share one head row, aligned on the first baseline, so
+    // the cluster never floats between the title and the metadata grid. The
+    // grid is its own line, pinned to the text column so a long chip cannot
+    // spill past the row edge.
+    const head = rules().find((rule) => rule.selector === ".spooler-row-head");
+    expect(head?.body).toMatch(/display:\s*flex/);
+    expect(head?.body).toMatch(/align-items:\s*baseline/);
+    expect(rules().find((rule) => rule.selector === ".spooler-row-head > .spooler-row-title")?.body)
+      .toMatch(/flex:\s*1 1 auto/);
+    const extra = rules().find((rule) => rule.selector === ".spooler-row-extra");
+    expect(extra?.body).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    const inner = rules().find((rule) => rule.selector === ".spooler-row-extra-inner");
+    expect(inner?.body).toMatch(/min-width:\s*0/);
+  });
+
+  it("renders spool roster rows flush with the card, with no tree guides", () => {
+    // Members render at depth 1 for their row logic; the roster itself is
+    // flat, so it may not indent or draw the family tree's guides.
+    const members = rules().find((rule) => rule.selector === ".spooler-spool-members");
+    expect(members?.body).toMatch(/padding:\s*2px 10px 8px 0/);
+    const member = rules().find((rule) => rule.selector === ".spooler-spool-member .spooler-row-child");
+    expect(member?.body).toMatch(/margin-left:\s*0/);
+    const guides = rules().filter((rule) => /\.spooler-spool-member \.spooler-row-child::(before|after)/.test(rule.selector));
+    expect(guides).toHaveLength(1);
+    expect(guides[0]?.body).toMatch(/display:\s*none/);
+  });
+
+  it("gives no row a person glyph or a grid inset", () => {
+    // The glyph was the only reason the grid stepped in under child rows.
+    expect(css).not.toContain("spooler-child-glyph");
+    expect(rules().filter((rule) => /\.spooler-row-(child|deep) \.spooler-row-grid/.test(rule.selector)))
+      .toEqual([]);
+  });
+
   it("keeps compact inline padding identical to comfortable", () => {
     // Compact must compress vertically only, or the tree guides drift off
     // the text they belong to.

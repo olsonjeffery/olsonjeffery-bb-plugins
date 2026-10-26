@@ -355,6 +355,45 @@ describe("sidebar behavior regressions", () => {
 
 });
 
+describe("thread row layout", () => {
+  it("keeps the status cluster on the title line, outside the metadata grid", () => {
+    const slot = mount([makeThread({ id: "busy", title: "Busy thread", indicator: "runtime" })]);
+    const row = slot.container.querySelector(".spooler-row") as HTMLElement;
+    const head = row.querySelector(".spooler-row-head") as HTMLElement;
+    expect(head.querySelector(".spooler-row-title")).not.toBeNull();
+    expect(head.querySelector(".spooler-row-badges")?.textContent).toContain("Working");
+    // The grid is its own line beneath the head, never beside the cluster.
+    expect(row.querySelector(".spooler-row-extra")?.closest(".spooler-row-head")).toBeNull();
+    expect(row.querySelector(".spooler-row-badges")?.closest(".spooler-row-head")).toBe(head);
+  });
+
+  it("draws no person glyph on family children", () => {
+    const slot = mount([
+      makeThread({ id: "parent", title: "Parent" }),
+      makeThread({ id: "kid", title: "Kid", parentThreadId: "parent" }),
+    ]);
+    expect(slot.container.querySelector(".spooler-row-child")).not.toBeNull();
+    expect(slot.container.querySelector(".spooler-child-glyph")).toBeNull();
+  });
+
+  it("renders spool members as flat rows with no glyph", async () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
+      ]),
+      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "s1" }), makeThread({ id: "t2", sectionId: "s1" })],
+        projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "s1", name: "Ideation" })] },
+    });
+    await act(async () => {});
+    const members = slot.container.querySelectorAll(".spooler-spool-member .spooler-row");
+    expect(members).toHaveLength(2);
+    members.forEach((row) => expect(row.querySelector(".spooler-row-head")).not.toBeNull());
+    expect(slot.container.querySelector(".spooler-child-glyph")).toBeNull();
+  });
+});
+
 describe("spool drags across section buckets", () => {
   it("moves every member when a spool card lands on a section bucket", async () => {
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
