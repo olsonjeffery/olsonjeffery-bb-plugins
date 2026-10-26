@@ -64,6 +64,7 @@ import { useArrivals } from "./useArrivals";
 import {
   useThreadGroups,
   SETTLED_GROUP_ID,
+  UNFILED_GROUP_ID,
   type ThreadGroup,
 } from "./useThreadGroups";
 import {
@@ -1930,8 +1931,15 @@ export function SpoolerThreadList({
         );
       }
 
-      const isSectionBucket = grouping === "section" && group.sectionId != null;
-      const sectionColor = isSectionBucket
+      // The fixed Inbox pseudo-section (no server sectionId) counts as a
+      // section bucket for STYLING, so its fold rides the same rhythm and
+      // its spool cards and rows sit exactly like every colored section's —
+      // one uniform margin story across the whole list.
+      const isSectionBucket =
+        grouping === "section" &&
+        (group.sectionId != null || group.id === UNFILED_GROUP_ID);
+      const hasServerSection = grouping === "section" && group.sectionId != null;
+      const sectionColor = hasServerSection
         ? sectionColorOption(sectionColorMap, group.sectionId)
         : null;
       const sectionColorStyle = sectionColor
@@ -1964,7 +1972,7 @@ export function SpoolerThreadList({
                 ? () => handleNewThreadInProject(group.projectId!)
                 : undefined
             }
-            renaming={isSectionBucket && renamingSectionId === group.id}
+            renaming={hasServerSection && renamingSectionId === group.id}
             onRenameCommit={(title) => {
               if (group.sectionId == null) return;
               setRenamingSectionId(null);

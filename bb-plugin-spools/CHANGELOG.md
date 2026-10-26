@@ -4,6 +4,19 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.4 — 2026-10-24
+
+### Fixed
+- **Uniform margins around the Inbox.** The Inbox pseudo-section has no
+  server sectionId, so it never carried the `spooler-group-bucket` styling:
+  its content kept the legacy spool-card margins (4px top / 10px bottom) ON
+  TOP of the shared 6px fold gap, while the fold's inline gutter and the
+  thread-cluster margin resets applied only to real sections — its spool
+  cards sat visibly roomier than the colored sections around it. The Inbox
+  now counts as a section bucket for styling (same fold rhythm, same gutter,
+  same zero-margin cards), while everything server-section-gated (rename,
+  recolor) stays keyed on a real sectionId.
+
 ## 0.6.3 — 2026-10-24
 
 ### Changed

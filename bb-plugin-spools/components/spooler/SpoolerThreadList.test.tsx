@@ -1981,6 +1981,28 @@ describe("section-centered defaults and buckets", () => {
     expect(screen.queryByRole("menuitem", { name: "Change color…" })).toBeNull();
   });
 
+  it("styles the Inbox like every section bucket, so margins stay uniform", () => {
+    // The Inbox pseudo-section has no server sectionId, so without this the
+    // bucket fold rhythm (one 6px gap, zero card margins) skipped it and its
+    // content sat on the legacy spool-card margins — visibly roomier than
+    // the colored sections around it.
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    renderThreads([makeThread({ id: "t1", title: "Loose" })]);
+    const inbox = sectionHeader("Inbox")!.closest(".spooler-group");
+    expect(inbox).not.toBeNull();
+    expect(inbox!.className).toContain("spooler-group-bucket");
+    expect(inbox!.className).not.toContain("spooler-group-colored");
+    // A filed section keeps the same bucket class.
+    const section = makeSection({ id: "sec1", name: "Research" });
+    renderThreads(
+      [makeThread({ id: "t2", title: "Doc", sectionId: "sec1" })],
+      { sections: [section] },
+    );
+    expect(sectionHeader("Research")!.closest(".spooler-group")?.className).toContain(
+      "spooler-group-bucket",
+    );
+  });
+
   it("keeps time buckets free of section actions", () => {
     localStorage.setItem("spooler-sidebar:grouping:v1", "time");
     renderThreads([makeThread({ id: "t2", title: "Another" })]);
