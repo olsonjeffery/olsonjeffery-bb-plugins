@@ -84,6 +84,11 @@
   .gi svg { width:14px; height:14px; display:block; }
   .sp-header .rail { color: var(--muted-fg); }
   .ic svg { width:13px; height:13px; display:block; }
+  .sp-emoji { font-size: 13.5px; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif; }
+  .prov-spark { color: #c26440; }
+  .mock.dark .prov-spark { color: #e59a7a; }
+  .prov-bot { color: #64748b; }
+  .mock.dark .prov-bot { color: #9fb3cf; }
 
   /* ---------- shared icon rail: section / spool / thread icons align ----------
      one 20px rail at the same x for every kind of entry (req 8). */
@@ -102,7 +107,13 @@
     font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
     cursor: pointer; user-select: none;
   }
-  .sec-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sec-title {
+    flex: 1 1 auto; min-width: 0;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere;
+    
+  }
 
   /* right group: unread pip · count+working pill · chevron furthest right (req 5) */
   .right { display: inline-flex; align-items: center; gap: 6px; }
@@ -155,7 +166,9 @@
 
   .sp-title {
     flex: 1 1 auto; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere;
     font-size: 12.2px; font-weight: 500;          /* lighter than before (600→500) */
     font-style: italic;                            /* always italic (req 11) */
     color: var(--fg);
@@ -181,10 +194,34 @@
   .mock.dark .thread:hover { filter: brightness(1.12); }
   .th-title {
     flex: 1 1 auto; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere;
     font-size: 12.2px; font-weight: 450;          /* a notch below the spool (req 12) */
     font-style: normal; color: var(--fg);
   }
+  /* entry content column: title block first, detail pills beneath it */
+  .entry-col {
+    display: flex; flex-direction: column; gap: 2px;
+    flex: 1 1 auto; min-width: 0;
+  }
+  .entry-col-row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+
+  /* ONE detail pill grid per entry: wraps to fresh rows as needed, never
+     overflows the entry box. Pills ellipsize inside their own box. */
+  .pillgrid {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 3px 6px; min-width: 0; max-width: 100%;
+    font-size: 9.8px; color: var(--muted-fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .pillgrid > * {
+    flex: 0 1 auto; min-width: 0; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pillgrid .spool-chip { max-width: 58%; }   /* branch-style chips claim the most */
+  .pillgrid .spoll-pr { max-width: 45%; }
+
   .word { flex: none; font-size: 9px; font-weight: 700; letter-spacing: .05em; }
   .word.work { color: var(--success); }
   .word.need { color: var(--warning); }
@@ -284,11 +321,15 @@
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <symbol id="i-spool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M6 4h12M6 20h12M9.5 4v5h5V4M9.5 9v6h5V9M9.5 15v5h5v-5"/>
+    <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.5v17M4.6 7.75l14.8 8.5M4.6 16.25l14.8-8.5"/>
     </symbol>
-    <symbol id="i-provider" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3l9 9-9 9-9-9 9-9z"/>
+    <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.5v3"/>
+      <rect x="4" y="8" width="16" height="12" rx="2.5"/>
+      <circle cx="9" cy="14" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="15" cy="14" r="1.1" fill="currentColor" stroke="none"/>
+      <path d="M9.5 17.2h5"/>
     </symbol>
     <symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
@@ -349,7 +390,7 @@
 
 <div class="page-head">
   <h1>Spooler — “Section display” redesign · mockup</h1>
-  <p>Edge-to-edge slabs, one 2px rhythm between every entry, tri-tone section color, right-side chevron with count+working pill, per-section icons, and a Section&nbsp;Settings modal with auto-save. Open in a browser — hover a spool to see the grip swap into the icon rail.</p>
+  <p>Edge-to-edge slabs, one 2px rhythm between every entry, tri-tone section color, right-side chevron with count+working pill, per-section icons, a Section&nbsp;Settings modal with auto-save, and two-row title clamps above a wrapping detail-pill grid. Open in a browser — hover a spool to see the grip swap into the icon rail.</p>
 </div>
 
 <div class="stage">
@@ -380,32 +421,34 @@
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
-                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="glyph sp-emoji">🧵</span>
                   <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
                 </span>
-                <span class="sp-title">Refactor sidebar virtualization</span>
+                <span class="entry-col"><span class="entry-col-row"><span class="sp-title">Refactor the sidebar virtualization pass end to end</span></span><span class="pillgrid"><span class="spool-chip">bb-plugins</span><span class="spool-chip">⎇ refactor/sidebar-virtualization-slab-grid</span><span class="spoll-pr">⎇ #214 · Changes requested</span></span></span>
                 <span class="pip work"><span class="spinner"></span><span class="numeral">3</span></span>
               </div>
               <div class="thread needy">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
-                <span class="th-title">Extract Fold component</span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+                <span class="th-title">Extract the Fold component into its own shared module</span>
                 <span class="word need">NEEDS YOU</span>
               </div>
               <div class="thread">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
                 <span class="th-title">Fix fold unmount timing</span>
                 <span class="word work">WORKING</span>
               </div>
               <div class="thread unseen">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
                 <span class="th-title">Delete legacy RowVirtualizer</span>
                 <span class="word done">DONE</span>
               </div>
             </div>
             <div class="thread">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
-              <span class="th-title">Quick question about dnd sensors</span>
-              <span class="meta"><span>2h</span></span>
+              <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+              <span class="entry-col">
+                <span class="entry-col-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta"><span>2h</span></span></span>
+                <span class="pillgrid"><span class="spool-chip">bb-plugin-spools</span><span class="spoll-pr">⎇ #208 · Review pending</span></span>
+              </span>
             </div>
             <div class="thread failing">
               <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
@@ -431,7 +474,7 @@
         <section class="section violet">
           <header class="sec-header">
             <span class="glyph"><span class="gi"><svg><use href="#i-flask"></use></svg></span></span>
-            <span class="sec-title">Research</span>
+            <span class="sec-title">Research — crate graph, tone system &amp; sdk audit</span>
             <span class="right">
               <span class="unread">1</span>
               <span class="pip work"><span class="spinner"></span><span class="numeral">5</span></span>
@@ -440,34 +483,32 @@
           </header>
           <div class="sec-body">
             <div class="thread active">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
               <span class="th-title">Compare ECS patterns</span>
               <span class="meta"><span>14m</span></span>
             </div>
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
-                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="glyph sp-emoji">🧵</span>
                   <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
                 </span>
-                <span class="sp-title">Crate graph excavation</span>
-                <span class="spool-chip">bb-plugins</span>
-                <span class="spoll-pr">⎇ #212 · Open</span>
+                <span class="entry-col"><span class="entry-col-row"><span class="sp-title">Crate graph excavation</span></span><span class="pillgrid"><span class="spool-chip">bb-plugins</span><span class="spool-chip">⎇ spools/pip-overlay</span><span class="spoll-pr">⎇ #212 · Open</span></span></span>
                 <span class="pip"><span class="numeral">2</span></span>
               </div>
               <div class="thread">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
                 <span class="th-title">Map plugin-sdk surface</span>
                 <span class="word work">WORKING</span>
               </div>
               <div class="thread">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
                 <span class="th-title">Audit experimental_ exports</span>
                 <span class="meta"><span>1h</span></span>
               </div>
             </div>
             <div class="thread unseen">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
               <span class="th-title">Draft tone-system note</span>
               <span class="word done">DONE</span>
             </div>
@@ -496,11 +537,13 @@
       <li><span class="num">5</span><b>Header:</b> title left · right group = unread · count+working pill · chevron far right. “#” glyph gone; icon chosen per section (rocket, flask), rail empty when none.</li>
       <li><span class="num">6</span><b>Section Settings</b> (below) replaces Rename/Change color right-clicks.</li>
       <li><span class="num">7</span><b>All-caps section headers stay</b> (the reviewed styling).</li>
-      <li><span class="num">8</span><b>Icon rail:</b> section icon, thread-spool mark, provider glyphs share one 20px column; hover a spool header → grip fades in over the spool mark.</li>
+      <li><span class="num">8</span><b>Icon rail:</b> section icon, 🧵 spool emoji, real provider icons (spark = Claude-family agent, bot = OpenAI-family agent) share one 20px column; hover a spool header → grip fades in over 🧵.</li>
       <li><span class="num">9</span><b>Tighter spool/thread entries:</b> reduced vertical padding, plain header strip (no panel chrome, no roster hairlines).</li>
       <li><span class="num">10</span><b>Tri-tone:</b> header = anchor (darkest), spool = 58% over sidebar, thread = 30% — including unspooled threads in the section.</li>
       <li><span class="num">11</span><b>Spool titles:</b> weight 600→500, always italic.</li>
       <li><span class="num">12</span><b>Thread titles:</b> weight 500→450 (a notch under the spool), upright.</li>
+      <li><span class="num">13</span><b>Two-row titles:</b> every entry title (section, spool, thread) wraps to two rows before ellipsizing — the title always outranks the pills (see the Inbox spool and the long section name).</li>
+      <li><span class="num">14</span><b>Detail pill grid:</b> one wrapping flex grid under each title — project/branch/PR pills ellipsize inside their own boxes (the long branch chip) and the grid re-flows across rows; it never overflows the entry.</li>
     </ul>
   </div>
 
@@ -529,35 +572,37 @@
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
-                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="glyph sp-emoji">🧵</span>
                   <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
                 </span>
-                <span class="sp-title">Refactor sidebar virtualization</span>
+                <span class="entry-col"><span class="entry-col-row"><span class="sp-title">Refactor the sidebar virtualization pass end to end</span></span><span class="pillgrid"><span class="spool-chip">bb-plugins</span><span class="spool-chip">⎇ refactor/sidebar-virtualization-slab-grid</span><span class="spoll-pr">⎇ #214 · Changes requested</span></span></span>
                 <span class="pip work"><span class="spinner"></span><span class="numeral">3</span></span>
               </div>
               <div class="thread needy">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
-                <span class="th-title">Extract Fold component</span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+                <span class="th-title">Extract the Fold component into its own shared module</span>
                 <span class="word need">NEEDS YOU</span>
               </div>
               <div class="thread">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
                 <span class="th-title">Fix fold unmount timing</span>
                 <span class="word work">WORKING</span>
               </div>
               <div class="thread unseen">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
                 <span class="th-title">Delete legacy RowVirtualizer</span>
                 <span class="word done">DONE</span>
               </div>
             </div>
             <div class="thread">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
-              <span class="th-title">Quick question about dnd sensors</span>
-              <span class="meta"><span>2h</span></span>
+              <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+              <span class="entry-col">
+                <span class="entry-col-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta"><span>2h</span></span></span>
+                <span class="pillgrid"><span class="spool-chip">bb-plugin-spools</span><span class="spoll-pr">⎇ #208 · Review pending</span></span>
+              </span>
             </div>
             <div class="thread failing">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
               <span class="th-title">Run e2e sanity pass</span>
               <span class="word fail">FAILED</span>
             </div>
@@ -578,7 +623,7 @@
         <section class="section violet">
           <header class="sec-header">
             <span class="glyph"><span class="gi"><svg><use href="#i-flask"></use></svg></span></span>
-            <span class="sec-title">Research</span>
+            <span class="sec-title">Research — crate graph, tone system &amp; sdk audit</span>
             <span class="right">
               <span class="unread">1</span>
               <span class="pip work"><span class="spinner"></span><span class="numeral">5</span></span>
@@ -594,27 +639,25 @@
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
-                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="glyph sp-emoji">🧵</span>
                   <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
                 </span>
-                <span class="sp-title">Crate graph excavation</span>
-                <span class="spool-chip">bb-plugins</span>
-                <span class="spoll-pr">⎇ #212 · Open</span>
+                <span class="entry-col"><span class="entry-col-row"><span class="sp-title">Crate graph excavation</span></span><span class="pillgrid"><span class="spool-chip">bb-plugins</span><span class="spool-chip">⎇ spools/pip-overlay</span><span class="spoll-pr">⎇ #212 · Open</span></span></span>
                 <span class="pip"><span class="numeral">2</span></span>
               </div>
               <div class="thread">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
                 <span class="th-title">Map plugin-sdk surface</span>
                 <span class="word work">WORKING</span>
               </div>
               <div class="thread">
-                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
                 <span class="th-title">Audit experimental_ exports</span>
                 <span class="meta"><span>1h</span></span>
               </div>
             </div>
             <div class="thread unseen">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
               <span class="th-title">Draft tone-system note</span>
               <span class="word done">DONE</span>
             </div>
