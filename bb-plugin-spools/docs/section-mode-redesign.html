@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spools — Section display redesign · mockup</title>
+<style>
+  /* ---------- page chrome ---------- */
+  :root {
+    --page-bg: #eceef1;
+    --ink: #1e2126;
+    --muted-ink: #6b7078;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 32px 48px;
+    background: var(--page-bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+    font-size: 13px;
+  }
+  .page-head { max-width: 1060px; margin: 0 auto 18px; }
+  .page-head h1 { font-size: 17px; margin: 0 0 4px; }
+  .page-head p { margin: 0; color: var(--muted-ink); }
+  .stage {
+    max-width: 1060px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    align-items: start;
+  }
+  .col-head { font-weight: 700; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-ink); margin: 6px 0 8px; }
+  .notes {
+    margin: 10px 0 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.5;
+    background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 8px; color: #3a3f46;
+  }
+  .notes b { color: var(--ink); }
+  .notes li { margin: 2px 0; }
+  .num {
+    display: inline-grid; place-items: center; width: 15px; height: 15px;
+    border-radius: 50%; background: #31363f; color: #fff; font-size: 9.5px; font-weight: 700;
+    margin-right: 3px; vertical-align: 1px;
+  }
+
+  /* ---------- sidebar mock (theme-scoped tokens) ---------- */
+  .mock {
+    width: 336px; border-radius: 10px; overflow: hidden;
+    border: 1px solid rgba(0,0,0,.14); box-shadow: 0 18px 40px rgba(15,18,24,.14);
+  }
+  .mock.light {
+    --sidebar: #f7f7f8; --card: #ffffff; --muted: #e8e9ec;
+    --border: rgba(0,0,0,.12); --sidebar-border: rgba(0,0,0,.08);
+    --fg: #262626; --muted-fg: #71757c;
+    --primary: #3b82f6; --success: #3f9a6b; --warning: #b98533; --destructive: #d43d3d;
+  }
+  .mock.dark {
+    --sidebar: #191a1c; --card: #222226; --muted: #26272b;
+    --border: rgba(255,255,255,.11); --sidebar-border: rgba(255,255,255,.07);
+    --fg: #f2f3f5; --muted-fg: #9a9ea6;
+    --primary: #6f9df7; --success: #4fb583; --warning: #d1a15a; --destructive: #e06565;
+  }
+
+  /* filter bar (existing chrome, unchanged — shown for context) */
+  .bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-bottom: 1px solid var(--sidebar-border);
+    color: var(--muted-fg); font-size: 11px;
+    background: var(--sidebar);
+  }
+  .bar .search { display: flex; align-items: center; gap: 6px; flex: 1; color: var(--muted-fg); }
+  .bar .chip {
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted-fg); white-space: nowrap;
+  }
+  .bar .chip.on { color: var(--fg); border-color: color-mix(in srgb, var(--fg) 30%, transparent); }
+
+  /* list surface: entries paint themselves; gaps show the sidebar */
+  .list { background: var(--sidebar); padding: 2px 0 10px; max-height: 640px; }
+
+  /* ---------- 2px rhythm: EVERY entry (section / spool / thread) ----------
+     One gap definition keeps the whole column in step. Entries are
+     edge-to-edge slabs: no radius, no horizontal gutters, no nested boxes. */
+  .section, .spool, .thread { margin-top: 2px; }
+  .gi { display:inline-flex; width:14px; height:14px; overflow:visible; }
+  .gi svg { width:14px; height:14px; display:block; }
+  .sp-header .rail { color: var(--muted-fg); }
+  .ic svg { width:13px; height:13px; display:block; }
+
+  /* ---------- shared icon rail: section / spool / thread icons align ----------
+     one 20px rail at the same x for every kind of entry (req 8). */
+  .rail {
+    flex: none; width: 20px; display: flex; align-items: center; justify-content: center;
+  }
+  .glyph { display: inline-flex; width: 15px; height: 15px; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+  .glyph svg { width: 15px; height: 15px; }
+
+  /* ---------- section header (container level 1) ---------- */
+  .sec-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 6px 5px 0;              /* icon rail owns the left edge */
+    background: var(--sec-1); color: var(--sec-1-fg);
+    position: sticky; top: 0; z-index: 1;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer; user-select: none;
+  }
+  .sec-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* right group: unread pip · count+working pill · chevron furthest right (req 5) */
+  .right { display: inline-flex; align-items: center; gap: 6px; }
+  .unread { display: inline-flex; gap: 3px; font-size: 10px; font-weight: 700; color: var(--primary); }
+  .unread::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+
+  /* child-count + working pill (req 5) — spinner overlays the numeral */
+  .pip {
+    position: relative; display: inline-grid; place-items: center;
+    min-width: 17px; height: 17px; padding-inline: 5px;
+    border-radius: 999px; font-size: 9.5px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--sec-1) 55%, var(--sidebar));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+    color: var(--fg);
+  }
+  .pip .numeral { position: relative; z-index: 1; line-height: 1; font-family: ui-monospace, monospace; }
+  .pip.work { color: #1f7a4d; }
+  .mock.dark .pip.work { color: #7fd7ab; }
+  .spinner {
+    position: absolute; inset: 0; display: block; height: 15px; width: 15px; margin: auto;
+    border-radius: 50%; border: 1.6px solid transparent;
+    border-top-color: currentColor; border-right-color: currentColor; border-left-color: color-mix(in srgb, currentColor 30%, transparent);
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .chev { flex: none; display: inline-flex; opacity: .8; }
+  .chev svg { width: 13px; height: 13px; }
+
+  /* tri-tone tokens (req 10): header darkest, spool mid, threads lightest.
+     Derived with color-mix from ONE anchor per section + theme. */
+  .sec-body { display: block; }
+
+  /* ---------- spool entry (container level 2) ---------- */
+  .spool { background: var(--sec-2); }
+  .sp-header {
+    display: flex; align-items: center; gap: 5px;
+    padding: 3px 6px 3px 0;              /* tighter than before (req 9) */
+    min-height: 30px; cursor: pointer; user-select: none; position: relative;
+  }
+  /* grip lives IN the rail: hover swaps it over the icon (req 8) */
+  .sp-header .rail { position: relative; }
+  .sp-header .grip {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    opacity: 0; cursor: grab; color: var(--muted-fg);
+  }
+  .sp-header:hover .grip { opacity: 1; }
+  .sp-header:hover .rail .glyph { opacity: 0; }
+  .grip svg { width: 13px; height: 13px; }
+
+  .sp-title {
+    flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12.2px; font-weight: 500;          /* lighter than before (600→500) */
+    font-style: italic;                            /* always italic (req 11) */
+    color: var(--fg);
+  }
+  .spool-chip {
+    flex: none; font-size: 9.5px; padding: 0 5px; border-radius: 4px;
+    border: 1px solid var(--border); color: var(--muted-fg); white-space: nowrap;
+  }
+  .spoll-pr {
+    flex: none; display: inline-flex; gap: 3px; align-items: center;
+    font-size: 9.5px; font-weight: 700; color: #2f6fb8;
+  }
+  .mock.dark .spoll-pr { color: #7fb0e8; }
+
+  /* ---------- thread entry (leaf) ---------- */
+  .thread {
+    background: var(--sec-3);
+    display: flex; align-items: center;
+    padding: 3px 6px 3px 0;               /* tighter than before (req 9) */
+    min-height: 26px; position: relative;
+  }
+  .thread:hover { filter: brightness(.97); }
+  .mock.dark .thread:hover { filter: brightness(1.12); }
+  .th-title {
+    flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12.2px; font-weight: 450;          /* a notch below the spool (req 12) */
+    font-style: normal; color: var(--fg);
+  }
+  .word { flex: none; font-size: 9px; font-weight: 700; letter-spacing: .05em; }
+  .word.work { color: var(--success); }
+  .word.need { color: var(--warning); }
+  .word.fail { color: var(--destructive); }
+  .word.done { color: var(--primary); }
+  .meta {
+    flex: none; display: flex; gap: 5px; font-size: 9.8px; color: var(--muted-fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .prov {
+    display: inline-flex; width: 15px; height: 15px; border-radius: 3px;
+    align-items: center; justify-content: center; font-size: 10px;
+    color: var(--muted-fg);
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .dot.run { background: var(--success); animation: breathe 1.6s ease-in-out infinite; }
+  .dot.need { background: var(--warning); animation: breathe 1.6s ease-in-out infinite; }
+  .dot.fail { background: var(--destructive); }
+  .dot.done { background: var(--primary); }
+  @keyframes breathe { 50% { opacity: .35; } }
+
+  /* attention washes ride the light tone (kept from the row grammar) */
+  .thread.needy { background: color-mix(in srgb, var(--warning) 16%, var(--sec-3)); box-shadow: inset 2px 0 0 var(--warning); }
+  .thread.failing { background: color-mix(in srgb, var(--destructive) 14%, var(--sec-3)); box-shadow: inset 2px 0 0 var(--destructive); }
+  .thread.unseen { background: color-mix(in srgb, var(--primary) 12%, var(--sec-3)); box-shadow: inset 2px 0 0 var(--primary); }
+  .thread.unseen .th-title { font-weight: 650; }
+  .thread.active { outline: 2px solid var(--destructive); outline-offset: -2px; }
+
+  /* ---------- section tri-tone palettes (req 10) ---------- */
+  /* anchor per section+theme, then two mixes. Light theme: mix toward the
+     light sidebar lifts the tone (darkest header → lightest threads).
+     Dark theme: mixing toward the dark sidebar sinks saturation the same way. */
+  .section.teal    { --sec-anchor: #d0e7e3; --sec-1-fg: #262626; }
+  .section.violet  { --sec-anchor: #e6def2; --sec-1-fg: #262626; }
+  .section.gold    { --sec-anchor: #f4e8c5; --sec-1-fg: #262626; }
+  .section.inbox   { --sec-anchor: #c7cad0; --sec-1-fg: #262626; }  /* Inbox: gray header (req 4) */
+  .mock.dark .section.teal   { --sec-anchor: #284b47; --sec-1-fg: #f8f8f8; }
+  .mock.dark .section.violet { --sec-anchor: #3f2f5a; --sec-1-fg: #f8f8f8; }
+  .mock.dark .section.gold   { --sec-anchor: #463e1e; --sec-1-fg: #f8f8f8; }
+  .mock.dark .section.inbox  { --sec-anchor: #33373d; --sec-1-fg: #f8f8f8; }
+
+  .sec-header { background: var(--sec-anchor); color: var(--sec-1-fg); }                     /* level 1: darkest */
+  .spool      { background: color-mix(in srgb, var(--sec-anchor) 58%, var(--sidebar)); }     /* level 2: mid */
+  .thread     { background: color-mix(in srgb, var(--sec-anchor) 30%, var(--sidebar)); }     /* leaf: lightest */
+
+  /* hover on spool header keeps its own tone (no box-in-box) */
+  .sp-header:hover { filter: brightness(.97); }
+  .mock.dark .sp-header:hover { filter: brightness(1.12); }
+
+  /* ---------- Section Settings modal (req 6) ---------- */
+  .modal-demo { max-width: 1060px; margin: 26px auto 0; }
+  .modal-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .backdrop {
+    border-radius: 10px; border: 1px solid rgba(0,0,0,.14);
+    padding: 26px 18px; display: grid; place-items: center;
+  }
+  .backdrop.light { background: color-mix(in srgb, #6b7078 38%, #eceef1); }
+  .backdrop.dark { background: color-mix(in srgb, #121316 62%, #2c2e33); }
+  .backdrop.dark { --fg: #f2f3f5; --muted-fg: #9a9ea6; --border: rgba(255,255,255,.12); --sidebar: #191a1c; --muted: #26272b; --primary: #6f9df7; }
+  .backdrop.light { --fg: #262626; --muted-fg: #71757c; --border: rgba(0,0,0,.12); --sidebar: #f7f7f8; --muted: #e8e9ec; --primary: #3b82f6; }
+  .modal {
+    width: 292px; border-radius: 10px; overflow: hidden;
+    background: var(--sidebar); border: 1px solid var(--border);
+    box-shadow: 0 24px 60px rgba(0,0,0,.28); color: var(--fg);
+  }
+  .modal-head, .modal-foot {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  }
+  .modal-head { border-bottom: 1px solid var(--border); }
+  .modal-head .t { flex: 1; font-weight: 700; font-size: 12.5px; }
+  .save-state { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--muted-fg); }
+  .save-state .s { display: block; width: 11px; height: 11px; border-radius: 50%; border: 1.4px solid transparent; border-top-color: var(--primary); border-right-color: var(--primary); animation: spin .8s linear infinite; }
+  .modal-body { padding: 4px 12px 2px; display: grid; gap: 10px; }
+  .field > label { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted-fg); margin-bottom: 4px; }
+  .name-input {
+    width: 100%; padding: 6px 8px; font-size: 12.5px; color: var(--fg);
+    background: var(--muted); border: 1px solid var(--border); border-radius: 6px;
+  }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sw { width: 20px; height: 20px; border-radius: 6px; border: 1px solid rgba(0,0,0,.18); display: grid; place-items: center; font-size: 10px; color: var(--muted-fg); }
+  .sw.on { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .icons { display: flex; flex-wrap: wrap; gap: 5px; }
+  .ic { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; border: 1px solid var(--border); color: var(--fg); }
+  .ic.on { outline: 2px solid var(--primary); outline-offset: 1px; border-color: transparent; }
+  .hint { font-size: 10px; color: var(--muted-fg); line-height: 1.45; }
+  .modal-foot { border-top: 1px solid var(--border); justify-content: flex-end; }
+  .btn { padding: 4px 12px; font-size: 11.5px; font-weight: 600; border-radius: 6px; border: 0; }
+  .btn.done { background: var(--primary); color: #fff; }
+  .btn.ghost { background: transparent; color: var(--muted-fg); border: 1px solid var(--border); }
+
+  .demo-strip { max-width: 1060px; margin: 22px auto 0; }
+  .swatch-strip { display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,.15); }
+  .strip-cell { flex: 1; padding: 9px 0; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-spool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 4h12M6 20h12M9.5 4v5h5V4M9.5 9v6h5V9M9.5 15v5h5v-5"/>
+    </symbol>
+    <symbol id="i-provider" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3l9 9-9 9-9-9 9-9z"/>
+    </symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+    </symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.5 2v17.5a2.5 2.5 0 0 1-5 0V2M8.5 2h7M9 8h6"/>
+    </symbol>
+    <symbol id="i-hammer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 12l-8.4 8.4a2.1 2.1 0 0 1-3-3L12 9M17.6 3.4l3 3-2.6 2.6a2.1 2.1 0 0 1-3-3z"/>
+      <path d="M13 6l5 5M9 10l1.5-1.5"/>
+    </symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/>
+    </symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+    </symbol>
+    <symbol id="i-brush" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/>
+      <path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>
+    </symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/>
+    </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 7a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5 5 5 0 0 1-5-5v-1a5 5 0 0 1 5-5z"/>
+      <path d="M9 4.5 8 3M15 4.5 16 3M7 12H3M21 12h-4M6.5 17.5 4 20M17.5 17.5 20 20M12 12v10"/>
+    </symbol>
+    <symbol id="i-sprout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7 20h10M12 20c0-8 0-11 0-14"/>
+      <path d="M12 10c0-3-2.5-5-6.5-5C5.5 8.5 8 10.5 12 10zM12 7c0-2.5 2-4.5 5.5-4.5C17.5 5.5 15.5 7.5 12 7z"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 17v5M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 9.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v3.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>
+    </symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21.17 6.83a2.85 2.85 0 0 0-4-4L7.5 12.5 6 18l5.5-1.5L21.17 6.83z"/>
+    </symbol>
+    <symbol id="i-tray" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+    </symbol>
+    <symbol id="i-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 6l12 12M18 6 6 18"/>
+    </symbol>
+  </defs>
+</svg>
+
+
+<div class="page-head">
+  <h1>Spooler — “Section display” redesign · mockup</h1>
+  <p>Edge-to-edge slabs, one 2px rhythm between every entry, tri-tone section color, right-side chevron with count+working pill, per-section icons, and a Section&nbsp;Settings modal with auto-save. Open in a browser — hover a spool to see the grip swap into the icon rail.</p>
+</div>
+
+<div class="stage">
+
+  <!-- ================================================== LIGHT -->
+  <div class="col">
+    <div class="col-head">Light theme</div>
+    <div class="mock light">
+      <div class="bar">
+        <span class="search">⌕ Filter threads…</span>
+        <span class="chip on">Active</span><span class="chip">≡</span><span class="chip">#</span>
+        <span class="chip">⊞</span><span class="chip">☰</span>
+      </div>
+      <div class="list">
+
+        <!-- INBOX: gray tri-tone, icon rail empty (no icon selected) -->
+        <section class="section inbox" style="margin-top:0">
+          <header class="sec-header">
+            <span class="rail"></span>
+            <span class="sec-title">Inbox</span>
+            <span class="right">
+              <span class="unread">3</span>
+              <span class="pip work"><span class="spinner"></span><span class="numeral">6</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </header>
+          <div class="sec-body">
+            <div class="spool">
+              <div class="sp-header">
+                <span class="rail">
+                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
+                </span>
+                <span class="sp-title">Refactor sidebar virtualization</span>
+                <span class="pip work"><span class="spinner"></span><span class="numeral">3</span></span>
+              </div>
+              <div class="thread needy">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Extract Fold component</span>
+                <span class="word need">NEEDS YOU</span>
+              </div>
+              <div class="thread">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Fix fold unmount timing</span>
+                <span class="word work">WORKING</span>
+              </div>
+              <div class="thread unseen">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Delete legacy RowVirtualizer</span>
+                <span class="word done">DONE</span>
+              </div>
+            </div>
+            <div class="thread">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Quick question about dnd sensors</span>
+              <span class="meta"><span>2h</span></span>
+            </div>
+            <div class="thread failing">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Run e2e sanity pass</span>
+              <span class="word fail">FAILED</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- SHIP 0.6: teal tri-tone + chosen icon 🚀 -->
+        <section class="section teal">
+          <header class="sec-header">
+            <span class="glyph"><span class="gi"><svg><use href="#i-rocket"></use></svg></span></span>
+            <span class="sec-title">Ship Spooler 0.6</span>
+            <span class="right">
+              <span class="pip"><span class="numeral">4</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </header>
+        </section>
+
+        <!-- RESEARCH: violet, expanded with spool + threads + active row -->
+        <section class="section violet">
+          <header class="sec-header">
+            <span class="glyph"><span class="gi"><svg><use href="#i-flask"></use></svg></span></span>
+            <span class="sec-title">Research</span>
+            <span class="right">
+              <span class="unread">1</span>
+              <span class="pip work"><span class="spinner"></span><span class="numeral">5</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </header>
+          <div class="sec-body">
+            <div class="thread active">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Compare ECS patterns</span>
+              <span class="meta"><span>14m</span></span>
+            </div>
+            <div class="spool">
+              <div class="sp-header">
+                <span class="rail">
+                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
+                </span>
+                <span class="sp-title">Crate graph excavation</span>
+                <span class="spool-chip">bb-plugins</span>
+                <span class="spoll-pr">⎇ #212 · Open</span>
+                <span class="pip"><span class="numeral">2</span></span>
+              </div>
+              <div class="thread">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Map plugin-sdk surface</span>
+                <span class="word work">WORKING</span>
+              </div>
+              <div class="thread">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Audit experimental_ exports</span>
+                <span class="meta"><span>1h</span></span>
+              </div>
+            </div>
+            <div class="thread unseen">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Draft tone-system note</span>
+              <span class="word done">DONE</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- PLAIN: no color, no icon — '#' glyph is gone (req 6) -->
+        <section class="section" style="--sec-anchor: var(--muted);">
+          <header class="sec-header">
+            <span class="rail"></span>
+            <span class="sec-title">Archive</span>
+            <span class="right">
+              <span class="pip"><span class="numeral">12</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </header>
+        </section>
+
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="num">1</span><b>Edge-to-edge:</b> no radius, no card boxes; slabs run rail-to-edge.</li>
+      <li><span class="num">2</span><b>2px rhythm:</b> one shared gap between section/spool/thread entries.</li>
+      <li><span class="num">3</span><b>Sticky header slabs</b> keep the scroll washer from today.</li>
+      <li><span class="num">4</span><b>Inbox</b> = same treatment, gray tri-tone; contents lighten per level.</li>
+      <li><span class="num">5</span><b>Header:</b> title left · right group = unread · count+working pill · chevron far right. “#” glyph gone; icon chosen per section (rocket, flask), rail empty when none.</li>
+      <li><span class="num">6</span><b>Section Settings</b> (below) replaces Rename/Change color right-clicks.</li>
+      <li><span class="num">7</span><b>All-caps section headers stay</b> (the reviewed styling).</li>
+      <li><span class="num">8</span><b>Icon rail:</b> section icon, thread-spool mark, provider glyphs share one 20px column; hover a spool header → grip fades in over the spool mark.</li>
+      <li><span class="num">9</span><b>Tighter spool/thread entries:</b> reduced vertical padding, plain header strip (no panel chrome, no roster hairlines).</li>
+      <li><span class="num">10</span><b>Tri-tone:</b> header = anchor (darkest), spool = 58% over sidebar, thread = 30% — including unspooled threads in the section.</li>
+      <li><span class="num">11</span><b>Spool titles:</b> weight 600→500, always italic.</li>
+      <li><span class="num">12</span><b>Thread titles:</b> weight 500→450 (a notch under the spool), upright.</li>
+    </ul>
+  </div>
+
+  <!-- ================================================== DARK -->
+  <div class="col">
+    <div class="col-head">Dark theme</div>
+    <div class="mock dark">
+      <div class="bar">
+        <span class="search">⌕ Filter threads…</span>
+        <span class="chip on">Active</span><span class="chip">≡</span><span class="chip">#</span>
+        <span class="chip">⊞</span><span class="chip">☰</span>
+      </div>
+      <div class="list">
+
+        <section class="section inbox" style="margin-top:0">
+          <header class="sec-header">
+            <span class="rail"></span>
+            <span class="sec-title">Inbox</span>
+            <span class="right">
+              <span class="unread">3</span>
+              <span class="pip work"><span class="spinner"></span><span class="numeral">6</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </header>
+          <div class="sec-body">
+            <div class="spool">
+              <div class="sp-header">
+                <span class="rail">
+                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
+                </span>
+                <span class="sp-title">Refactor sidebar virtualization</span>
+                <span class="pip work"><span class="spinner"></span><span class="numeral">3</span></span>
+              </div>
+              <div class="thread needy">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Extract Fold component</span>
+                <span class="word need">NEEDS YOU</span>
+              </div>
+              <div class="thread">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Fix fold unmount timing</span>
+                <span class="word work">WORKING</span>
+              </div>
+              <div class="thread unseen">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Delete legacy RowVirtualizer</span>
+                <span class="word done">DONE</span>
+              </div>
+            </div>
+            <div class="thread">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Quick question about dnd sensors</span>
+              <span class="meta"><span>2h</span></span>
+            </div>
+            <div class="thread failing">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Run e2e sanity pass</span>
+              <span class="word fail">FAILED</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section teal">
+          <header class="sec-header">
+            <span class="glyph"><span class="gi"><svg><use href="#i-rocket"></use></svg></span></span>
+            <span class="sec-title">Ship Spooler 0.6</span>
+            <span class="right">
+              <span class="pip"><span class="numeral">4</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </header>
+        </section>
+
+        <section class="section violet">
+          <header class="sec-header">
+            <span class="glyph"><span class="gi"><svg><use href="#i-flask"></use></svg></span></span>
+            <span class="sec-title">Research</span>
+            <span class="right">
+              <span class="unread">1</span>
+              <span class="pip work"><span class="spinner"></span><span class="numeral">5</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+            </span>
+          </header>
+          <div class="sec-body">
+            <div class="thread active">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Compare ECS patterns</span>
+              <span class="meta"><span>14m</span></span>
+            </div>
+            <div class="spool">
+              <div class="sp-header">
+                <span class="rail">
+                  <span class="glyph"><span class="gi"><svg><use href="#i-spool"></use></svg></span></span>
+                  <span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg></span>
+                </span>
+                <span class="sp-title">Crate graph excavation</span>
+                <span class="spool-chip">bb-plugins</span>
+                <span class="spoll-pr">⎇ #212 · Open</span>
+                <span class="pip"><span class="numeral">2</span></span>
+              </div>
+              <div class="thread">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Map plugin-sdk surface</span>
+                <span class="word work">WORKING</span>
+              </div>
+              <div class="thread">
+                <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+                <span class="th-title">Audit experimental_ exports</span>
+                <span class="meta"><span>1h</span></span>
+              </div>
+            </div>
+            <div class="thread unseen">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Draft tone-system note</span>
+              <span class="word done">DONE</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" style="--sec-anchor: var(--muted);">
+          <header class="sec-header">
+            <span class="rail"></span>
+            <span class="sec-title">Archive</span>
+            <span class="right">
+              <span class="pip"><span class="numeral">12</span></span>
+              <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+            </span>
+          </header>
+        </section>
+
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="num">10</span><b>Dark tri-tone:</b> header = deep anchor (darkest), spool = 58% ink, thread = 30% — threads read as the faintest tint of the hue.</li>
+      <li><span class="num">7</span><b>Attention washes</b> (needs-you / failed / unseen) ride the lightest tone + the left bar, unchanged grammar.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ================================================== MODAL DEMO -->
+<section class="modal-demo">
+  <div class="page-head" style="margin-bottom:10px">
+    <h1 style="font-size:14px">Section Settings — modal with auto-save (replaces “Rename section…” / “Change color…”)</h1>
+  </div>
+  <div class="modal-wrap">
+    <div class="backdrop light">
+      <div class="modal" role="dialog" aria-label="Section settings">
+        <div class="modal-head">
+          <span class="gi" style="color:var(--primary)"><svg><use href="#i-rocket"></use></svg></span>
+          <span class="t">Section settings — Ship Spooler 0.6</span>
+          <span class="save-state"><span class="s"></span> Saving…</span>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label>Name</label>
+            <input class="name-input" value="Ship Spooler 0.6" />
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <div class="swatches">
+              <span class="sw on" style="background:#d0e7e3"></span>
+              <span class="sw" style="background:#eadbcc"></span>
+              <span class="sw" style="background:#f4d9d6"></span>
+              <span class="sw" style="background:#f7e2cc"></span>
+              <span class="sw" style="background:#f4e8c5"></span>
+              <span class="sw" style="background:#dcead8"></span>
+              <span class="sw" style="background:#d5e5f4"></span>
+              <span class="sw" style="background:#d9dcf3"></span>
+              <span class="sw" style="background:#e6def2"></span>
+              <span class="sw" style="background:#f2dce6"></span>
+              <span class="sw">✕</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Icon</label>
+            <div class="icons">
+              <span class="ic on"><svg><use href="#i-rocket"></use></svg></span><span class="ic"><svg><use href="#i-flask"></use></svg></span><span class="ic"><svg><use href="#i-hammer"></use></svg></span><span class="ic"><svg><use href="#i-box"></use></svg></span><span class="ic"><svg><use href="#i-bolt"></use></svg></span><span class="ic"><svg><use href="#i-brush"></use></svg></span><span class="ic"><svg><use href="#i-compass"></use></svg></span><span class="ic"><svg><use href="#i-gear"></use></svg></span><span class="ic"><svg><use href="#i-bug"></use></svg></span><span class="ic"><svg><use href="#i-sprout"></use></svg></span><span class="ic"><svg><use href="#i-pin"></use></svg></span><span class="ic"><svg><use href="#i-book"></use></svg></span><span class="ic"><svg><use href="#i-pencil"></use></svg></span><span class="ic"><svg><use href="#i-tray"></use></svg></span><span class="ic"><svg><use href="#i-none"></use></svg></span>
+            </div>
+            <p class="hint">Applies instantly — the header pretints as you click. The fixed “#” glyph is retired; a section without an icon shows none.</p>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span class="save-state" style="margin-right:auto"><span style="color:var(--success)">✓</span> All changes saved</span>
+          <button class="btn ghost" type="button">Cancel</button>
+          <button class="btn done" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+    <div class="backdrop dark">
+      <div class="modal">
+        <div class="modal-head">
+          <span class="gi" style="color:var(--primary)"><svg><use href="#i-rocket"></use></svg></span>
+          <span class="t">Section settings — Ship Spooler 0.6</span>
+          <span class="save-state"><span class="s"></span> Saving…</span>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label>Name</label>
+            <input class="name-input" value="Ship Spooler 0.6" />
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <div class="swatches">
+              <span class="sw on" style="background:#284b47"></span>
+              <span class="sw" style="background:#463527"></span>
+              <span class="sw" style="background:#4a2a28"></span>
+              <span class="sw" style="background:#4a3723"></span>
+              <span class="sw" style="background:#463e1e"></span>
+              <span class="sw" style="background:#2b422a"></span>
+              <span class="sw" style="background:#26394f"></span>
+              <span class="sw" style="background:#353a5c"></span>
+              <span class="sw" style="background:#3f2f5a"></span>
+              <span class="sw" style="background:#4a303c"></span>
+              <span class="sw">✕</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Icon</label>
+            <div class="icons">
+              <span class="ic on"><svg><use href="#i-rocket"></use></svg></span><span class="ic"><svg><use href="#i-flask"></use></svg></span><span class="ic"><svg><use href="#i-hammer"></use></svg></span><span class="ic"><svg><use href="#i-box"></use></svg></span><span class="ic"><svg><use href="#i-bolt"></use></svg></span><span class="ic"><svg><use href="#i-brush"></use></svg></span><span class="ic"><svg><use href="#i-compass"></use></svg></span><span class="ic"><svg><use href="#i-gear"></use></svg></span><span class="ic"><svg><use href="#i-bug"></use></svg></span><span class="ic"><svg><use href="#i-sprout"></use></svg></span><span class="ic"><svg><use href="#i-pin"></use></svg></span><span class="ic"><svg><use href="#i-book"></use></svg></span><span class="ic"><svg><use href="#i-pencil"></use></svg></span><span class="ic"><svg><use href="#i-tray"></use></svg></span><span class="ic"><svg><use href="#i-none"></use></svg></span>
+            </div>
+            <p class="hint">Name saves on a short debounce; color/icon save on pick. Errors surface here without closing.</p>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span class="save-state" style="margin-right:auto"><span style="color:var(--success)">✓</span> All changes saved</span>
+          <button class="btn ghost" type="button">Cancel</button>
+          <button class="btn done" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="demo-strip">
+    <div class="col-head">Tri-tone, one row (teal, light)</div>
+    <div class="swatch-strip">
+      <div class="strip-cell" style="background:#d0e7e3; color:#262626">Section header · anchor (darkest)</div>
+      <div class="strip-cell" style="background:color-mix(in srgb, #d0e7e3 58%, #f7f7f8); color:#262626">Spool entry · 58% ink</div>
+      <div class="strip-cell" style="background:color-mix(in srgb, #d0e7e3 30%, #f7f7f8); color:#3a3f46">Threads · 30% ink</div>
+    </div>
+    <p style="font-size:11px; color:var(--muted-ink); max-width:700px">Inbox uses the same derivation with a neutral gray anchor. Percentages are token-driven in <code>sectionColorVars()</code>, so tuning is one constant per level.</p>
+  </div>
+</section>
+
+</body>
+</html>
