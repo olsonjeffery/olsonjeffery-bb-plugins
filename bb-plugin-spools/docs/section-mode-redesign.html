@@ -153,7 +153,11 @@
     display: flex; align-items: center; gap: 5px;
     padding: 3px 6px 3px 0;              /* tighter than before (req 9) */
     min-height: 30px; cursor: pointer; user-select: none; position: relative;
+    border-bottom: 1px solid color-mix(in srgb, #000 16%, transparent);                 /* darkened rim */
   }
+  /* the roster starts flush under the rim: a spool's first member keeps no
+     top gap of its own — the rim is the only divide */
+  .sp-header + .thread { margin-top: 0; }
   /* grip lives IN the rail: hover swaps it over the icon (req 8) */
   .sp-header .rail { position: relative; }
   .sp-header .grip {
@@ -263,7 +267,8 @@
   .mock.dark .section.gold   { --sec-anchor: #463e1e; --sec-1-fg: #f8f8f8; }
   .mock.dark .section.inbox  { --sec-anchor: #33373d; --sec-1-fg: #f8f8f8; }
 
-  .sec-header { background: var(--sec-anchor); color: var(--sec-1-fg); }                     /* level 1: darkest */
+  .sec-header { background: var(--sec-anchor); color: var(--sec-1-fg);                        /* level 1: darkest */
+    border-bottom: 1px solid color-mix(in srgb, #000 16%, transparent); }                       /* darkened rim */
   .spool      { background: color-mix(in srgb, var(--sec-anchor) 58%, var(--sidebar)); }     /* level 2: mid */
   .thread     { background: color-mix(in srgb, var(--sec-anchor) 30%, var(--sidebar)); }     /* leaf: lightest */
 
@@ -418,6 +423,18 @@
             </span>
           </header>
           <div class="sec-body">
+            <div class="thread">
+              <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+              <span class="entry-col">
+                <span class="entry-col-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta"><span>2h</span></span></span>
+                <span class="pillgrid"><span class="spool-chip">bb-plugin-spools</span><span class="spoll-pr">⎇ #208 · Review pending</span></span>
+              </span>
+            </div>
+            <div class="thread failing">
+              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
+              <span class="th-title">Run e2e sanity pass</span>
+              <span class="word fail">FAILED</span>
+            </div>
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
@@ -443,19 +460,6 @@
                 <span class="word done">DONE</span>
               </div>
             </div>
-            <div class="thread">
-              <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
-              <span class="entry-col">
-                <span class="entry-col-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta"><span>2h</span></span></span>
-                <span class="pillgrid"><span class="spool-chip">bb-plugin-spools</span><span class="spoll-pr">⎇ #208 · Review pending</span></span>
-              </span>
-            </div>
-            <div class="thread failing">
-              <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-provider"></use></svg></span></span></span>
-              <span class="th-title">Run e2e sanity pass</span>
-              <span class="word fail">FAILED</span>
-            </div>
-          </div>
         </section>
 
         <!-- SHIP 0.6: teal tri-tone + chosen icon 🚀 -->
@@ -487,6 +491,11 @@
               <span class="th-title">Compare ECS patterns</span>
               <span class="meta"><span>14m</span></span>
             </div>
+            <div class="thread unseen">
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+              <span class="th-title">Draft tone-system note</span>
+              <span class="word done">DONE</span>
+            </div>
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
@@ -507,12 +516,6 @@
                 <span class="meta"><span>1h</span></span>
               </div>
             </div>
-            <div class="thread unseen">
-              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
-              <span class="th-title">Draft tone-system note</span>
-              <span class="word done">DONE</span>
-            </div>
-          </div>
         </section>
 
         <!-- PLAIN: no color, no icon — '#' glyph is gone (req 6) -->
@@ -544,6 +547,8 @@
       <li><span class="num">12</span><b>Thread titles:</b> weight 500→450 (a notch under the spool), upright.</li>
       <li><span class="num">13</span><b>Two-row titles:</b> every entry title (section, spool, thread) wraps to two rows before ellipsizing — the title always outranks the pills (see the Inbox spool and the long section name).</li>
       <li><span class="num">14</span><b>Detail pill grid:</b> one wrapping flex grid under each title — project/branch/PR pills ellipsize inside their own boxes (the long branch chip) and the grid re-flows across rows; it never overflows the entry.</li>
+      <li><span class="num">15</span><b>Order:</b> unspooled thread rows float to the top of a section; the spool deck sits beneath them.</li>
+      <li><span class="num">16</span><b>Darkened rims:</b> section + spool header slabs carry a darker bottom border; a spool's roster starts flush under it — no interior top margin/padding, the rim is the divide.</li>
     </ul>
   </div>
 
@@ -569,6 +574,18 @@
             </span>
           </header>
           <div class="sec-body">
+            <div class="thread">
+              <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+              <span class="entry-col">
+                <span class="entry-col-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta"><span>2h</span></span></span>
+                <span class="pillgrid"><span class="spool-chip">bb-plugin-spools</span><span class="spoll-pr">⎇ #208 · Review pending</span></span>
+              </span>
+            </div>
+            <div class="thread failing">
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+              <span class="th-title">Run e2e sanity pass</span>
+              <span class="word fail">FAILED</span>
+            </div>
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
@@ -594,19 +611,6 @@
                 <span class="word done">DONE</span>
               </div>
             </div>
-            <div class="thread">
-              <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
-              <span class="entry-col">
-                <span class="entry-col-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta"><span>2h</span></span></span>
-                <span class="pillgrid"><span class="spool-chip">bb-plugin-spools</span><span class="spoll-pr">⎇ #208 · Review pending</span></span>
-              </span>
-            </div>
-            <div class="thread failing">
-              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
-              <span class="th-title">Run e2e sanity pass</span>
-              <span class="word fail">FAILED</span>
-            </div>
-          </div>
         </section>
 
         <section class="section teal">
@@ -636,6 +640,11 @@
               <span class="th-title">Compare ECS patterns</span>
               <span class="meta"><span>14m</span></span>
             </div>
+            <div class="thread unseen">
+              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+              <span class="th-title">Draft tone-system note</span>
+              <span class="word done">DONE</span>
+            </div>
             <div class="spool">
               <div class="sp-header">
                 <span class="rail">
@@ -656,12 +665,6 @@
                 <span class="meta"><span>1h</span></span>
               </div>
             </div>
-            <div class="thread unseen">
-              <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
-              <span class="th-title">Draft tone-system note</span>
-              <span class="word done">DONE</span>
-            </div>
-          </div>
         </section>
 
         <section class="section" style="--sec-anchor: var(--muted);">
