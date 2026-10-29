@@ -123,12 +123,10 @@ by the spool's *lead* thread). Details:
   so the arrival's join stamp can never re-elect a different lead. Lead migration
   (archive/release) persists the promoted member's `spoolLead` too, and never promotes
   a member whose family leaves together with the old lead. The card also shows a
-  member count (when the collapsed line cannot fit the
-  working-count word it stands down to spinner + count — measured pre-paint, the
-  word returns when room does — and the badge tooltip keeps the detail); a hover
-  peek lists members with coloured status
-  pips (gray idle / blue needs-you / amber question / red failed / green success; working
-  pips breathe unless `prefers-reduced-motion`).
+  member count pip (working members announce the count with a green spinner
+  behind the numeral) and a stale-status rollup with a detail tooltip. The
+  spool-level hover peek card is retired — expand the spool to read the
+  roster; thread ROWS keep their own hover preview card.
 - Member rows are flat: they start flush under the header's darkened rim (no interior
   top margin), share the roster's left edge (same column as ordinary thread rows), and
   carry the section's lightest thread tone with no child indent, tree guides, or person
@@ -337,7 +335,7 @@ rows paint at their final height.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `hoverCard` | `true` | Show the hover peek card. |
+| `hoverCard` | `true` | Show the hover preview card on thread rows. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
 | `loudUnread` | `true` | Wash and accent bar on finished-but-unseen rows; off keeps the icon and pip only. |

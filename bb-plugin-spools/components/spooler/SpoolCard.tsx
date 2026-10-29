@@ -1,8 +1,5 @@
-import { createPortal } from "react-dom";
 import {
-  useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -28,12 +25,9 @@ import { useEnvironmentPullRequest } from "./usePullRequest";
 /** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
 const FOLD_UNMOUNT_MS = 320;
 
-/** How long the peek panel lingers after the pointer leaves the card. */
-const PEEK_LINGER_MS = 500;
-
 /**
- * Status for a peek pip, derived exactly like the ordinary row's visual:
- * the host-resolved indicator first, then plain unread as need.
+ * Status for the member rollup counts, derived exactly like the ordinary
+ * row's visual: the host-resolved indicator first, then plain unread as need.
  */
 export interface SpoolCardProps {
   data: SpoolGroupData;
@@ -47,9 +41,6 @@ export interface SpoolCardProps {
   /** Ellipsis click opens the spool menu (parent positions it). */
   onOpenMenu(event: React.MouseEvent<HTMLButtonElement>): void;
   onContextMenu(event: React.MouseEvent<HTMLDivElement>): void;
-  /** True while the spool's context/pip menu is raised: the peek is
-   *  dismissed and re-opening it is suppressed for the menu's lifetime. */
-  menuOpen?: boolean;
   /** In-place rename of the spool title (double-click the title). */
   isRenaming: boolean;
   onRenameCommit(title: string): void;
@@ -72,7 +63,7 @@ export interface SpoolCardProps {
   hasActiveThread?: boolean;
 }
 
-type PeekStatus =
+type MemberStatus =
   | "idle"
   | "need"
   | "question"
@@ -80,7 +71,7 @@ type PeekStatus =
   | "success"
   | "working";
 
-function peekStatusFor(thread: PluginSidebarThread): PeekStatus {
+function memberStatusFor(thread: PluginSidebarThread): MemberStatus {
   switch (thread.indicator) {
     case "waiting-for-input":
     case "queued-waiting":
@@ -102,13 +93,6 @@ function peekStatusFor(thread: PluginSidebarThread): PeekStatus {
       break;
   }
   return thread.isUnread ? "need" : "idle";
-}
-
-/** Quiet states breathe; answered/idle breathe too (idle breathes white). */
-function breatheFor(status: PeekStatus): boolean {
-  return (
-    status === "idle" || status === "need" || status === "failed"
-  );
 }
 
 /**
@@ -154,7 +138,6 @@ export function SpoolCardImpl({
   onOpenTop,
   onOpenMenu,
   onContextMenu,
-  menuOpen = false,
   isRenaming,
   onRenameCommit,
   onRenameCancel,
@@ -201,12 +184,12 @@ export function SpoolCardImpl({
   // Liveness rollup (item 6): the card hides its member rows, so the common
   // context must be summarized on the header.
 
-  // Peek meta line (hover-card parity): thread count plus any live states.
-  const peekStatuses = data.members.map(peekStatusFor);
-  const nWorking = peekStatuses.filter((s) => s === "working").length;
-  const nQuestion = peekStatuses.filter((s) => s === "question").length;
-  const nUnread = peekStatuses.filter((s) => s === "need").length;
-  const nFailed = peekStatuses.filter((s) => s === "failed").length;
+  // Rollup counts: derived from the same member statuses the rows show.
+  const memberStatuses = data.members.map(memberStatusFor);
+  const nWorking = memberStatuses.filter((s) => s === "working").length;
+  const nQuestion = memberStatuses.filter((s) => s === "question").length;
+  const nUnread = memberStatuses.filter((s) => s === "need").length;
+  const nFailed = memberStatuses.filter((s) => s === "failed").length;
   // Working liveness presents in the count pip itself (a green spinner
   // behind the numeral), the same pip grammar the section headers use —
   // there is no separate text badge, and the rollup never repeats it.
@@ -218,7 +201,9 @@ export function SpoolCardImpl({
   ]
     .filter((part) => part !== null)
     .join(" · ") || null;
-  const peekMeta = [
+  // The rollup's tooltip: the full member-status line, same words the
+  // collapsed roster could not carry live.
+  const rollupMeta = [
     `${data.members.length} thread${data.members.length === 1 ? "" : "s"}`,
     nWorking > 0 ? `${nWorking} working` : null,
     nQuestion > 0 ? `${nQuestion} needs you` : null,
@@ -244,99 +229,6 @@ export function SpoolCardImpl({
     });
   }, [isRenaming]);
 
-  // Member peek: opens immediately on card hover, lingers 500ms after the
-  // pointer leaves. The panel is portaled to document.body (so sidebar
-  // scroll containers can't clip it), so its own mouse handlers keep the
-  // linger alive while the pointer travels into the panel.
-  const [peekOpen, setPeekOpen] = useState(false);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const headerRef = useRef<HTMLDivElement | null>(null);
-  const peekRef = useRef<HTMLDivElement | null>(null);
-  const closeTimer = useRef<number | null>(null);
-  const openPeek = useCallback(() => {
-    // The context/pip menu owns the screen when it is up: no peek under it.
-    if (menuOpenRef.current) return;
-    if (closeTimer.current !== null) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-    setPeekOpen(true);
-  }, []);
-  const schedulePeekClose = useCallback(() => {
-    if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => {
-      closeTimer.current = null;
-      setPeekOpen(false);
-    }, PEEK_LINGER_MS);
-  }, []);
-  useEffect(() => {
-    return () => {
-      if (closeTimer.current !== null) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-    };
-  }, []);
-
-  const closePeekNow = useCallback(() => {
-    if (closeTimer.current !== null) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-    setPeekOpen(false);
-  }, []);
-
-  // Keep the openPeek suppression in a ref so the callback list stays empty
-  // (the handlers hang off the header's synthetic events) while menuOpen
-  // state changes drive dismissal from its own effect below.
-  const menuOpenRef = useRef(menuOpen);
-  useEffect(() => {
-    menuOpenRef.current = menuOpen;
-    if (menuOpen) closePeekNow();
-  }, [menuOpen, closePeekNow]);
-
-  // Position the portaled peek panel next to the card, clamped to the
-  // viewport. Runs before paint; offsetWidth/Height ignore transforms so
-  // the entrance animation can't skew the measurement.
-  useLayoutEffect(() => {
-    if (!peekOpen) return;
-    const el = peekRef.current;
-    const card = cardRef.current;
-    if (!el || !card) return;
-    const margin = 8;
-    const gap = 8;
-    const cardRect = card.getBoundingClientRect();
-    const width = el.offsetWidth;
-    const height = el.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let left = cardRect.right + gap;
-    let side = "right";
-    if (left + width > vw - margin) {
-      left = cardRect.left - gap - width;
-      side = "left";
-    }
-    if (left < margin) left = margin;
-    if (left + width > vw - margin) left = Math.max(margin, vw - margin - width);
-    let top = cardRect.top;
-    if (top + height > vh - margin) top = vh - margin - height;
-    if (top < margin) top = margin;
-    el.style.left = `${Math.round(left)}px`;
-    el.style.top = `${Math.round(top)}px`;
-    el.dataset.side = side;
-    // Keep the arrow pointing at the header row even after the nudge.
-    const header = headerRef.current;
-    if (header) {
-      const headerRect = header.getBoundingClientRect();
-      const rowMid = (headerRect.top + headerRect.bottom) / 2;
-      const arrow = Math.min(
-        Math.max(rowMid - top, 14),
-        Math.max(height - 14, 14),
-      );
-      el.style.setProperty("--spooler-arrow-y", `${Math.round(arrow)}px`);
-    }
-  }, [peekOpen]);
-
   const commit = () => {
     if (cancelled) return;
     onRenameCommit(renameValue);
@@ -347,7 +239,6 @@ export function SpoolCardImpl({
       ref={(node) => {
         setNodeRef(node);
         setDropNodeRef(node);
-        cardRef.current = node;
       }}
       role="group"
       aria-label={`Spool ${data.label}, ${data.members.length} threads`}
@@ -362,17 +253,11 @@ export function SpoolCardImpl({
       onContextMenu={onContextMenu}
     >
 
-      {/* Peek triggers ONLY on the header: hovering a member row is the
-          row's own thread hover card, not the spool's. The header's own
-          click toggles too, so the badges line and empty header background
-          collapse/expand like the title does. Interactive children stop
+      {/* The header's own click toggles the fold; interactive children stop
           propagation and keep their own behavior (drag, open-top, PR link,
           actions pip); renaming guards the input. */}
       <div
-        ref={headerRef}
         className="spooler-spool-header"
-        onMouseEnter={openPeek}
-        onMouseLeave={schedulePeekClose}
         onClick={() => {
           if (!isRenaming) onToggle();
         }}
@@ -514,7 +399,7 @@ export function SpoolCardImpl({
               </button>
             ) : null}
             {rollupRest ? (
-              <span className="spooler-spool-rollup" title={peekMeta}>
+              <span className="spooler-spool-rollup" title={rollupMeta}>
                 {rollupRest}
               </span>
             ) : null}
@@ -552,7 +437,7 @@ export function SpoolCardImpl({
 
       <Fold collapsed={collapsed} label={`${data.label} members`}>
         {() => (
-          <div className="spooler-spool-members" onMouseEnter={closePeekNow}>
+          <div className="spooler-spool-members">
             {data.members.map((member, index) => (
               <div
                 key={member.id}
@@ -566,67 +451,6 @@ export function SpoolCardImpl({
         )}
       </Fold>
 
-      {peekOpen
-        ? createPortal(
-            <div
-          ref={peekRef}
-          className="spooler-spool-peek"
-          role="tooltip"
-          style={{ position: "fixed" }}
-          onMouseEnter={openPeek}
-          onMouseLeave={schedulePeekClose}
-        >
-          <div className="spooler-spool-peek-head">
-            <div className="spooler-spool-peek-head-row">
-              <span
-                aria-hidden="true"
-                className="spooler-spool-peek-emoji"
-              >
-                🧵
-              </span>
-              <span className="spooler-spool-peek-title" title={data.label}>
-                {data.label}
-              </span>
-            </div>
-            <div className="spooler-spool-peek-meta">{peekMeta}</div>
-          </div>
-          <div className="spooler-spool-peek-list">
-            {data.members.map((member) => {
-              const status = peekStatusFor(member);
-              const breathe = breatheFor(status);
-              return (
-                <button
-                  key={member.id}
-                  type="button"
-                  className="spooler-spool-peek-row"
-                  title={member.displayTitle}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onOpen(member.id);
-                  }}
-                >
-                  <span
-                    className={cn(
-                      "spooler-peek-dot",
-                      `spooler-peek-dot-${status}`,
-                      breathe && "spooler-peek-dot-breathe",
-                    )}
-                    data-breathe={breathe ? "" : undefined}
-                    data-status={status}
-                    role="img"
-                    aria-label={status}
-                  />
-                  <span className="spooler-spool-peek-entry">
-                    {member.displayTitle}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>,
-        document.body,
-      )
-        : null}
     </div>
   );
 }

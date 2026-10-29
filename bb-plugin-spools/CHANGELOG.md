@@ -4,6 +4,18 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.7.1 — 2026-10-29
+
+### Removed
+- **The spool-level hover peek card.** Pausing on a spool header no longer
+  opens the portaled member-list panel (`.spooler-spool-peek`) — the
+  redesigned slab shows its roster outright (expand the spool, or use the
+  ✎ lead/member navigation and the header's count pip menu), so the peek is
+  redundant and its hover lag + pointer bridge were noise. Thread rows keep
+  their own hover preview card; the `hoverCard` setting still governs that
+  one only. The member-status rollup counts and its tooltip stay on the
+  spool header.
+
 ## 0.7.0 — 2026-10-29
 
 ### Changed

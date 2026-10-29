@@ -230,7 +230,7 @@ flowchart LR
 
 | Setting | Default | |
 | --- | --- | --- |
-| `hoverCard` | `true` | Show the hover peek card. |
+| `hoverCard` | `true` | Show the hover preview card on thread rows. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
 | `loudUnread` | `true` | Wash and accent bar on finished-but-unseen threads. Off keeps the icon and pip only. |
