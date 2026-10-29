@@ -33,13 +33,35 @@ both.
   project, or section. Project groups are drag-reorderable by their header
   (order persisted in `spools:project-order:v1`; right-click a header
   to reset). Each project header also carries a New-thread-in-project button.
-  In section grouping only the chevron stays on the header's left; the hash
-  glyph, title, live-status spinner and a count **pip** right-align in the
-  meta. The pip's background matches the inner panels and the spinner —
-  when threads are running — overlays it centered in the section's accent
-  (`--spooler-sec-accent` from `sectionColorVars`: darker than the pastel in
-  light theme, lighter than the deep tone in dark; plain sections fall back
-  to `--primary`).
+  Section grouping renders the redesigned slab column: edge-to-edge entries
+  (no rounded cards, no boxed panels), one 2px rhythm between every entry,
+  and a tri-tone per section color — the header anchor is darkest, spool
+  slabs mix 58% over the sidebar, thread slabs 30% (unspooled threads
+  included). **Inbox** is a sibling slab in neutral gray with the same
+  tri-tone. Section headers read title-left, controls-right: the rail
+  carries the section's chosen icon (curated builtin set or any pasted
+  emoji/unicode character — the universal `#` glyph retired), and the right
+  group runs unread pip · count-plus-working pill · collapse chevron
+  furthest right. Section + spool header slabs carry a darkened bottom rim
+  (`color-mix(#000 16%)`); a spool's roster starts flush beneath it. Threads
+  float to the top of a section with the spool deck beneath. Unspooled
+  thread titles may wrap to two rows before ellipsizing (title priority over
+  the detail pills); thread titles run weight 450, spool titles 500 always
+  italic. Spool detail pills (project/branch/PR/rollup) live in one wrapping
+  flex grid under the title (`spooler-row-grid`), pills ellipsize inside
+  their own boxes and the grid re-flows across rows without ever
+  overflowing the entry.
+- **Section Settings**: the header context menu offers a single
+  **Section settings…** entry (double-click the section title too) opening a
+  modal with auto-save — name saves on a short debounce via
+  `sdk.threadSections.update`, color and icon save the moment they are
+  picked; ONE status slot beside Done reports Saving…/Saved/error. Cancel
+  discards uncommitted drafts; Done flushes and closes. The inline
+  Rename/Change-color menu pair and the two-stage color submenu are gone.
+  Styles persist in `spooler-sidebar:section-style:v2` (a per-section
+  `{color, icon}` record; the v1 color map is migrated on read and left in
+  place for old clients), shared with the plugin-settings section editor
+  through the same event bus.
 - **Create a section**: switch to section grouping, choose **New section**,
   enter its name and submit with **Create section** or Enter. Cancel or Escape
   closes the form without creating anything. Names are trimmed; blank names
@@ -83,8 +105,11 @@ both.
 
 ## Thread spools
 
-**Spools gather child threads under one card.** A spool is a first-class card in section
-grouping only (other groupings keep ordinary rows), stored entirely in per-thread plugin
+**Spools gather child threads under one label.** A spool is a first-class entry in section
+grouping only (other groupings keep ordinary rows): an edge-to-edge mid-tone slab with a
+30px plain header strip — grip and 🧵 share the icon rail (the grip fades in over the
+mark on hover), the italic title sits above its wrapping detail-pill grid, and the count
+pip doubles as the actions button — stored entirely in per-thread plugin
 metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
 
@@ -104,9 +129,11 @@ by the spool's *lead* thread). Details:
   peek lists members with coloured status
   pips (gray idle / blue needs-you / amber question / red failed / green success; working
   pips breathe unless `prefers-reduced-motion`).
-- Member rows are flat: they sit flush with the roster's left edge, in the same column
-  as ordinary thread rows, with no child indent, tree guides, or person glyph. Every
-  member still renders at depth 1 for its row logic (no branch or section chip).
+- Member rows are flat: they start flush under the header's darkened rim (no interior
+  top margin), share the roster's left edge (same column as ordinary thread rows), and
+  carry the section's lightest thread tone with no child indent, tree guides, or person
+  glyph. Every member still renders at depth 1 for its row logic (no branch or section
+  chip).
 - Spools behave like families for sorting and navigation: open the lead via the card's
   Layers icon, jump to members, and the header layer dropdown lists every spool and
   its members for one-click navigation.

@@ -103,11 +103,21 @@ describe("app.css", () => {
     expect(title?.body).toMatch(/overflow-wrap:\s*anywhere/);
     expect(rules().filter((rule) => /spooler-title-wrap/.test(rule.selector) && /-webkit-line-clamp/.test(rule.body))
       .map((rule) => rule.selector)).toEqual([
-      // Ordinary thread titles and the spool header title both honor the
-      // two-line setting; no third rule may sneak a clamp in.
+      // Ordinary thread titles honor the two-line setting; no wrap-scoped
+      // third rule may sneak a clamp in.
       ".spooler-title-wrap .spooler-thread-title",
-      ".spooler-title-wrap .spooler-spool-title",
     ]);
+    // The redesigned section list runs the two-row grammar structurally:
+    // spool titles and section header titles clamp on their own, outside
+    // the wrap setting.
+    for (const selector of [
+      ".spooler-spool-title",
+      ".spooler-group-header-right .spooler-group-label",
+    ]) {
+      const rule = rules().find((candidate) => candidate.selector === selector);
+      expect(rule?.body).toMatch(/-webkit-line-clamp:\s*2/);
+      expect(rule?.body).toMatch(/overflow-wrap:\s*anywhere/);
+    }
   });
 
   it("sizes wrapping titles from content and keeps the grid out of two-line mode", () => {
@@ -183,9 +193,13 @@ describe("app.css", () => {
 
   it("renders spool roster rows flush with the card, with no tree guides", () => {
     // Members render at depth 1 for their row logic; the roster itself is
-    // flat, so it may not indent or draw the family tree's guides.
+    // flat and starts FLUSH under the header's rim — no top runway, no
+    // roster hairlines, one 2px gap between members.
     const members = rules().find((rule) => rule.selector === ".spooler-spool-members");
-    expect(members?.body).toMatch(/padding:\s*2px 10px 8px 0/);
+    expect(members?.body).toMatch(/padding:\s*0/);
+    expect(members?.body).toMatch(/margin-top:\s*0/);
+    expect(members?.body).toMatch(/border-top:\s*none/);
+    expect(members?.body).toMatch(/gap:\s*2px/);
     const member = rules().find((rule) => rule.selector === ".spooler-spool-member .spooler-row-child");
     expect(member?.body).toMatch(/margin-left:\s*0/);
     const guides = rules().filter((rule) => /\.spooler-spool-member \.spooler-row-child::(before|after)/.test(rule.selector));
@@ -343,7 +357,8 @@ describe("app.css", () => {
     const header = rules().find(
       (rule) => rule.selector === ".spooler-group-header-right",
     );
-    expect(header?.body).toMatch(/padding:\s*\d+px\s+\d+px/);
+    // Left edge free for the icon rail; right control inset only.
+    expect(header?.body).toMatch(/padding:\s*4px 6px 4px 0/);
   });
 
   it("lays bucket boxes on one vertical rhythm, flush under the header", () => {
@@ -352,12 +367,13 @@ describe("app.css", () => {
         rule.selector ===
         ".spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner",
     );
-    // The fold is the spacing authority: one flex gap for every adjacency,
-    // no top inset (the first box rides right under the header).
+    // The fold is the spacing authority: the 2px entry gap for every
+    // adjacency, no top inset (the first box rides right under the rim),
+    // and the column simply ends at the last entry.
     expect(fold?.body).toMatch(/flex-direction:\s*column/);
-    expect(fold?.body).toMatch(/gap:\s*6px/);
+    expect(fold?.body).toMatch(/gap:\s*2px/);
     expect(fold?.body).toMatch(/padding-top:\s*0/);
-    expect(fold?.body).toMatch(/padding-bottom:\s*8px/);
+    expect(fold?.body).toMatch(/padding-bottom:\s*0/);
     // A mangled merge once spliced a 999px radius in here, clipping whole
     // sections into pills when expanded (0fr hid it while collapsed).
     expect(fold?.body).not.toMatch(/border-radius|box-shadow/);
@@ -379,12 +395,13 @@ describe("app.css", () => {
       ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster + .spooler-thread-cluster::before",
     );
     expect(sep?.body).toMatch(/content:\s*none/);
-    // Threads inside a spool beat in the same 6px time (5px pad + 1px rule).
-    const member = rules().find(
-      (rule) => rule.selector === ".spooler-spool-member + .spooler-spool-member",
-    );
-    expect(member?.body).toMatch(/border-top/);
-    expect(member?.body).toMatch(/padding-top:\s*5px/);
+    // Member separators are gone: the flat roster separates by the same
+    // 2px entry rhythm instead of hairlines inside the card.
+    expect(
+      rules().find(
+        (rule) => rule.selector === ".spooler-spool-member + .spooler-spool-member",
+      ),
+    ).toBeUndefined();
     const first = rules().find(
       (rule) =>
         rule.selector ===
@@ -403,24 +420,41 @@ describe("app.css", () => {
     );
   });
 
-  it("divides the spool card between header and roster with one darker hairline", () => {
-    // Both rules share the ink: members' separators and the header/roster
-    // divide read 60% of the border color, past the panel tint.
+  it("divides headers from their contents with the darkened bottom rim", () => {
+    // Section and spool header slabs carry the same darker bottom border;
+    // the spool roster starts flush under it (no interior top margin). The
+    // rim is the only divide between a spool header and its members.
     for (const selector of [
-      ".spooler-spool-members",
-      ".spooler-spool-member + .spooler-spool-member",
+      ".spooler-group-bucket > .spooler-group-header-right",
+      ".spooler-spool-header",
     ]) {
       const rule = rules().find((candidate) => candidate.selector === selector);
       expect(rule?.body).toMatch(
-        /border-top:\s*1px solid color-mix\(in srgb, var\(--border\) 60%, transparent\)/,
+        /border-bottom:\s*1px solid color-mix\(in srgb, #000 16%, transparent\)/,
       );
     }
-    // The header keeps the same 5px runway above the divide that member
-    // separators carry below theirs (5px pad + 1px rule = one 6px beat).
     const members = rules().find(
       (candidate) => candidate.selector === ".spooler-spool-members",
     );
-    expect(members?.body).toMatch(/margin-top:\s*5px/);
+    expect(members?.body).toMatch(/margin-top:\s*0/);
+  });
+
+  it("derives the section tri-tone from one anchor", () => {
+    const bucket = rules().find(
+      (rule) => rule.selector === ".spooler-group-bucket",
+    );
+    expect(bucket?.body).toMatch(/--spooler-sec-1:\s*var\(--spooler-sec-anchor\)/);
+    expect(bucket?.body).toMatch(/58%/);
+    expect(bucket?.body).toMatch(/--spooler-sec-3:/);
+    expect(bucket?.body).toMatch(/30%/);
+    expect(bucket?.body).toMatch(/--sidebar/);
+    // Bucket rows paint the lightest tier and lose their rounding; the
+    // attention washes must still out-paint the tone (single-class rule).
+    const row = rules().find(
+      (rule) => rule.selector === ":where(.spooler-group-bucket) .spooler-row",
+    );
+    expect(row?.body).toMatch(/background:\s*var\(--spooler-sec-3\)/);
+    expect(row?.body).toMatch(/border-radius:\s*0/);
   });
 
   it("keeps the menu color swatch its own pill", () => {

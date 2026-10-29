@@ -1957,7 +1957,7 @@ describe("section-centered defaults and buckets", () => {
     expect(labels[2]).toBe("Group by project");
   });
 
-  it("offers rename and recolor on a filed section header only", () => {
+  it("offers Section Settings on a filed section header only", () => {
     const section = makeSection({ id: "sec1", name: "Research" });
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
     renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
@@ -1967,18 +1967,19 @@ describe("section-centered defaults and buckets", () => {
     const filed = sectionHeader("Research");
     expect(filed).toBeTruthy();
     fireEvent.contextMenu(filed!);
-    expect(screen.getByRole("menuitem", { name: "Rename section…" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "Change color…" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Section settings…" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Expand all folders" })).toBeTruthy();
+    // The old two entries are gone; one settings modal owns everything.
+    expect(screen.queryByRole("menuitem", { name: "Rename section…" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Change color…" })).toBeNull();
 
-    // The Inbox pseudo-section has no server record to rename or paint.
+    // The Inbox pseudo-section has no server record to configure.
     fireEvent.contextMenu(document.querySelector(".spooler-menu")!);
     fireEvent.pointerDown(document.body);
     const unfiled = sectionHeader("Inbox");
     expect(unfiled).toBeTruthy();
     fireEvent.contextMenu(unfiled!);
-    expect(screen.queryByRole("menuitem", { name: "Rename section…" })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Change color…" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Section settings…" })).toBeNull();
   });
 
   it("styles the Inbox like every section bucket, so margins stay uniform", () => {
@@ -2017,7 +2018,7 @@ describe("section-centered defaults and buckets", () => {
     expect(screen.getByRole("menuitem", { name: "Expand all folders" })).toBeTruthy();
   });
 
-  it("renames a section through the SDK from the header menu", async () => {
+  it("renames a section through the SDK from Section Settings", async () => {
     const section = makeSection({ id: "sec1", name: "Research" });
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
     const rename = vi.fn(async () => ({ ok: true }));
@@ -2030,24 +2031,81 @@ describe("section-centered defaults and buckets", () => {
     );
 
     fireEvent.contextMenu(sectionHeader("Research")!);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Rename section…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Section settings — Research" });
+    expect(dialog).toBeTruthy();
     const input = screen.getByRole("textbox", {
-      name: "Rename Research",
+      name: "Section name",
     }) as HTMLInputElement;
     expect(input.value).toBe("Research");
     fireEvent.change(input, { target: { value: "  Lab notes  " } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() =>
       expect(slot.inspection.sdkCalls).toContainEqual({
         method: "threadSections.update",
         args: [{ id: "sec1", name: "Lab notes" }],
       }),
     );
-    // The editor is gone after committing.
-    expect(screen.queryByRole("textbox", { name: "Rename Research" })).toBeNull();
+    // Done closes the modal.
+    expect(screen.queryByRole("dialog", { name: "Section settings — Research" })).toBeNull();
   });
 
-  it("paints a section from the color submenu and persists the choice", () => {
+  it("renders the section icon rail from the style map and nothing when unset", () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    localStorage.setItem(
+      "spooler-sidebar:section-style:v2",
+      JSON.stringify({ sec1: { icon: "builtin:Star" } }),
+    );
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [makeSection({ id: "sec1", name: "Research" })],
+    });
+    const header = sectionHeader("Research")!;
+    // The chosen icon renders through the icon pipeline; the old universal
+    // '#' glyph is retired — an unset rail renders nothing at all.
+    expect(header.querySelector(".spooler-group-rail")).toBeTruthy();
+    expect(header.querySelector("[data-icon='Star']")).toBeTruthy();
+    expect(header.querySelector("[data-icon='Hash']")).toBeNull();
+
+    cleanup();
+    localStorage.setItem("spooler-sidebar:section-style:v2", JSON.stringify({}));
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [makeSection({ id: "sec1", name: "Research" })],
+    });
+    const unsetHeader = sectionHeader("Research")!;
+    expect(unsetHeader.querySelector(".spooler-group-rail")).toBeTruthy();
+    expect(
+      unsetHeader.querySelector(".spooler-group-rail")!.childElementCount,
+    ).toBe(0);
+  });
+
+  it("saves a pasted icon character through Section Settings", async () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [section],
+    });
+
+    fireEvent.contextMenu(sectionHeader("Research")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
+    await screen.findByRole("dialog");
+    const input = screen.getByRole("textbox", {
+      name: "Section icon (paste any emoji or unicode character)",
+    }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "🧵" } });
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}",
+        ),
+      ).toEqual({ sec1: { icon: "🧵" } }),
+    );
+    // The chosen pip glyph lands in the file: header can apply out along the
+    // header rail; Done closes the modal.
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("paints a section from Section Settings and persists the choice", () => {
     const section = makeSection({ id: "sec1", name: "Research" });
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
     renderThreads([makeThread({ id: "t4", title: "Doc", sectionId: "sec1" })], {
@@ -2055,31 +2113,30 @@ describe("section-centered defaults and buckets", () => {
     });
 
     fireEvent.contextMenu(sectionHeader("Research")!);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change color…" }));
-    expect(screen.getByText("Color: Research")).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
     // jsdom's resolved token is transparent/white: the light variant paints.
-    fireEvent.click(screen.getByRole("menuitem", { name: "Red" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Red" }));
     const bucket = document.querySelector(".spooler-group-colored");
     expect(bucket).toBeTruthy();
     const style = bucket!.getAttribute("style") ?? "";
-    expect(style).toContain("--spooler-sec-bg");
+    expect(style).toContain("--spooler-sec-anchor");
     expect(style).toContain("#f4d9d6");
     expect(style).toContain("--spooler-sec-fg");
     expect(
-      JSON.parse(localStorage.getItem("spooler-sidebar:section-colors:v1") ?? "{}"),
-    ).toEqual({ sec1: "red" });
+      JSON.parse(localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}"),
+    ).toEqual({ sec1: { color: "red" } });
 
-    // No color: from the same submenu clears both the tint and the storage.
+    // No color from the same modal clears both the tint and the storage.
     fireEvent.contextMenu(sectionHeader("Research")!);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change color…" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "No color" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
+    fireEvent.click(screen.getByRole("radio", { name: "No color" }));
     expect(document.querySelector(".spooler-group-colored")).toBeNull();
     expect(
-      JSON.parse(localStorage.getItem("spooler-sidebar:section-colors:v1") ?? "{}"),
+      JSON.parse(localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}"),
     ).toEqual({});
   });
 
-  it("repaints sections when another surface (the settings page) changes colors", async () => {
+  it("repaints sections when another surface (the settings page) changes styles", async () => {
     const section = makeSection({ id: "sec1", name: "Research" });
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
     renderThreads([makeThread({ id: "t4", title: "Doc", sectionId: "sec1" })], {
@@ -2090,8 +2147,8 @@ describe("section-centered defaults and buckets", () => {
     // Same-document write: the settings section writes storage and the list
     // hears the change event, without a sidebar remount.
     localStorage.setItem(
-      "spooler-sidebar:section-colors:v1",
-      JSON.stringify({ sec1: "red" }),
+      "spooler-sidebar:section-style:v2",
+      JSON.stringify({ sec1: { color: "red" } }),
     );
     window.dispatchEvent(new CustomEvent("spooler-section-colors-changed"));
     const bucket = await waitFor(() => {
@@ -2099,12 +2156,12 @@ describe("section-centered defaults and buckets", () => {
       expect(found).toBeTruthy();
       return found;
     });
-    expect(bucket!.getAttribute("style") ?? "").toContain("--spooler-sec-bg");
+    expect(bucket!.getAttribute("style") ?? "").toContain("--spooler-sec-anchor");
 
     // Cross-document write (storage event): same repaint path.
-    localStorage.setItem("spooler-sidebar:section-colors:v1", JSON.stringify({}));
+    localStorage.setItem("spooler-sidebar:section-style:v2", JSON.stringify({}));
     window.dispatchEvent(
-      new StorageEvent("storage", { key: "spooler-sidebar:section-colors:v1" }),
+      new StorageEvent("storage", { key: "spooler-sidebar:section-style:v2" }),
     );
     await waitFor(() =>
       expect(document.querySelector(".spooler-group-colored")).toBeNull(),

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useTransition,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import {
@@ -68,16 +69,14 @@ import {
   type ThreadGroup,
 } from "./useThreadGroups";
 import {
-  SECTION_COLOR_NONE,
-  SECTION_COLOR_OPTIONS,
-  colorSwatchFor,
   onSectionColorsChanged,
-  readSectionColorMap,
+  readSectionStyleMap,
   sectionColorOption,
   sectionColorVars,
-  writeSectionColorMap,
-  type SectionColorMap,
+  sectionIconOf,
+  type SectionStyleMap,
 } from "./sectionColors";
+import { SectionSettingsModal } from "./SectionSettingsModal";
 import { useThemeIsDark } from "./useThemeIsDark";
 import { SpoolerSmartViews } from "./SpoolerSmartViews";
 import { SpoolerNewSection } from "./SpoolerNewSection";
@@ -498,39 +497,31 @@ export function SpoolerThreadList({
   const [groupMenu, setGroupMenu] = useState<{
     x: number;
     y: number;
-    /** When the target is a filed section: drives Rename / Change color. */
+    /** When the target is a filed section: opens Section Settings. */
     section: { id: string; name: string } | null;
-    /** Second stage of the menu: the Change Color swatch list. */
-    stage: "actions" | "colors";
   } | null>(null);
-  const [sectionColorMap, setSectionColorMap] = useState<SectionColorMap>(
-    () => readSectionColorMap(),
+  /** Section Settings modal target (id + name snapshot at open time). */
+  const [sectionSettings, setSectionSettings] = useState<{
+    sectionId: string;
+    name: string;
+  } | null>(null);
+  // Styles may be picked elsewhere (the settings modal, the plugin settings
+  // section): re-read on the change event instead of forcing a reload.
+  const [sectionStyleMap, setSectionStyleMap] = useState<SectionStyleMap>(
+    () => readSectionStyleMap(),
   );
-  // Colors may be picked elsewhere (the plugin's settings section): re-read
-  // on the change event instead of forcing a sidebar reload.
   useEffect(
-    () => onSectionColorsChanged(() => setSectionColorMap(readSectionColorMap())),
+    () => onSectionColorsChanged(() => setSectionStyleMap(readSectionStyleMap())),
     [],
   );
-  const applySectionColor = useCallback(
-    (sectionId: string, colorId: string) => {
-      setSectionColorMap((previous) => {
-        const next = colorId === SECTION_COLOR_NONE
-          ? (() => {
-              const copy = { ...previous };
-              delete copy[sectionId];
-              return copy;
-            })()
-          : { ...previous, [sectionId]: colorId };
-        writeSectionColorMap(next);
-        return next;
-      });
-    },
-    [],
-  );
-  const [renamingSectionId, setRenamingSectionId] = useState<string | null>(
-    null,
-  );
+  /** The color view of the style map, for the header/anchor lookup. */
+  const sectionColorMap = useMemo(() => {
+    const colors: Record<string, string> = {};
+    for (const [sectionId, style] of Object.entries(sectionStyleMap)) {
+      if (style.color) colors[sectionId] = style.color;
+    }
+    return colors;
+  }, [sectionStyleMap]);
   const justDragged = useRef(false);
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -609,24 +600,6 @@ export function SpoolerThreadList({
   const navigate = useBbNavigate();
   const runtimePluginId = experimental_usePluginId();
   const isDark = useThemeIsDark();
-
-  const commitSectionRename = useCallback(
-    async (sectionId: string, title: string) => {
-      try {
-        // The realtime snapshot carries the new name into the header (and
-        // every other view) on its own — nothing more to refresh here.
-        await sdk.threadSections.update({ id: sectionId, name: title });
-        toast.success(`Section renamed to “${title}”`);
-      } catch (cause) {
-        toast.error(
-          cause instanceof Error
-            ? `Couldn’t rename section: ${cause.message}`
-            : "Couldn’t rename section.",
-        );
-      }
-    },
-    [sdk],
-  );
 
   // Spool state: bulk per-thread plugin metadata (pluginId "spools"), folded
   // into resolved spools by the hook, refetching when mutations land.
@@ -1824,7 +1797,7 @@ export function SpoolerThreadList({
               grouping === "section" && group.sectionId != null
                 ? { id: group.sectionId, name: group.label }
                 : null;
-            setGroupMenu({ x: event.clientX, y: event.clientY, section, stage: "actions" });
+            setGroupMenu({ x: event.clientX, y: event.clientY, section });
           };
       const groupContextMenuStrict = groupContextMenu ?? (() => undefined);
 
@@ -1891,7 +1864,8 @@ export function SpoolerThreadList({
               <p className="spooler-group-empty">Drop a thread here to file it.</p>
             ) : (
               <>
-                {spoolCards}
+                {/* Threads float to the top of the section; the spool deck
+                    rides beneath them. */}
                 {group.roots.map((root, index) =>
                   renderSubtree(
                     root,
@@ -1906,6 +1880,7 @@ export function SpoolerThreadList({
                     rowDrop,
                   ),
                 )}
+                {spoolCards}
               </>
             )
           }
@@ -1939,11 +1914,23 @@ export function SpoolerThreadList({
         grouping === "section" &&
         (group.sectionId != null || group.id === UNFILED_GROUP_ID);
       const hasServerSection = grouping === "section" && group.sectionId != null;
+      const isUnfiled = isSectionBucket && group.id === UNFILED_GROUP_ID;
       const sectionColor = hasServerSection
         ? sectionColorOption(sectionColorMap, group.sectionId)
         : null;
-      const sectionColorStyle = sectionColor
+      // Colored sections paint their anchor into the header; the unfiled
+      // Inbox gets a neutral gray so the bucket reads as a sibling of the
+      // colored slabs without pretending to be one. Uncolored sections fall
+      // back to theme tokens in CSS (no inline override at all).
+      const sectionAnchorStyle: CSSProperties | null = sectionColor
         ? sectionColorVars(sectionColor, isDark)
+        : isUnfiled
+          ? (isDark
+              ? ({ "--spooler-sec-anchor": "#33373d", "--spooler-sec-fg": "#f8f8f8" } as CSSProperties)
+              : ({ "--spooler-sec-anchor": "#c9ccd2", "--spooler-sec-fg": "#262626" } as CSSProperties))
+          : null;
+      const sectionRailIcon = grouping === "section"
+        ? sectionIconOf(sectionStyleMap, group.sectionId)
         : null;
 
       const plainSection = (
@@ -1958,7 +1945,7 @@ export function SpoolerThreadList({
             isSectionBucket && sectionColor && "spooler-group-colored",
             isCollapsed ? "spooler-group-collapsed" : "spooler-group-expanded",
           )}
-          style={sectionColorStyle ?? undefined}
+          style={sectionAnchorStyle ?? undefined}
           data-settled={isSettled || undefined}
         >
           <GroupHeader
@@ -1967,18 +1954,12 @@ export function SpoolerThreadList({
             onToggle={() => toggleGroup(group.id)}
             onContextMenu={groupContextMenuStrict}
             titleRight={grouping === "section"}
+            railIcon={sectionRailIcon}
             onNewThread={
               group.projectId
                 ? () => handleNewThreadInProject(group.projectId!)
                 : undefined
             }
-            renaming={hasServerSection && renamingSectionId === group.id}
-            onRenameCommit={(title) => {
-              if (group.sectionId == null) return;
-              setRenamingSectionId(null);
-              void commitSectionRename(group.sectionId, title);
-            }}
-            onRenameCancel={() => setRenamingSectionId(null)}
           />
           {foldContent}
         </section>
@@ -2026,9 +2007,8 @@ export function SpoolerThreadList({
       spoolMenu,
       grouping,
       sectionColorMap,
+      sectionStyleMap,
       isDark,
-      renamingSectionId,
-      commitSectionRename,
       activeThreadId,
     ],
   );
@@ -2051,7 +2031,10 @@ export function SpoolerThreadList({
         "spooler-list",
         (density === "compact" || isCompactViewport) && "spooler-density-compact",
         isCompactViewport && "spooler-list-compact",
-        settings.wrapTitles && "spooler-title-wrap",
+        // Section display runs the two-line title grammar unconditionally:
+        // every entry title may wrap to two rows before it ellipsizes, and
+        // the pills live in their own wrapping grid beneath it.
+        (settings.wrapTitles || grouping === "section") && "spooler-title-wrap",
       )}
       data-spooler-motion={settings.motion ? "on" : "off"}
       data-spooler-loud-unread={settings.loudUnread ? "on" : "off"}
@@ -2705,106 +2688,52 @@ export function SpoolerThreadList({
           x={groupMenu.x}
           y={groupMenu.y}
           items={
-            groupMenu.section && groupMenu.stage === "colors"
-              ? [
-                  {
-                    kind: "header" as const,
-                    label: `Color: ${groupMenu.section.name}`,
-                  },
-                  ...SECTION_COLOR_OPTIONS.map((option) => ({
-                    kind: "item" as const,
-                    id: `color:${option.id}`,
-                    label: option.label,
-                    swatch: colorSwatchFor(option, isDark),
-                    checked:
-                      sectionColorOption(
-                        sectionColorMap,
-                        groupMenu.section?.id ?? null,
-                      )?.id === option.id,
-                  })),
-                  { kind: "separator" as const },
-                  {
-                    kind: "item" as const,
-                    id: "color:none",
-                    label: "No color",
-                    icon: "Ban",
-                    checked:
-                      sectionColorOption(
-                        sectionColorMap,
-                        groupMenu.section?.id ?? null,
-                      ) === null,
-                  },
-                ]
-              : [
-                  {
-                    kind: "item",
-                    id: "expand-all-groups",
-                    label: "Expand all folders",
-                    icon: "Expand",
-                  },
-                  {
-                    kind: "item",
-                    id: "collapse-all-groups",
-                    label: "Collapse all folders",
-                    icon: "Collapse",
-                  },
-                  ...(groupMenu.section
-                    ? [
-                        { kind: "separator" as const },
-                        {
-                          kind: "item" as const,
-                          id: "rename-section",
-                          label: "Rename section…",
-                          icon: "Edit",
-                        },
-                        {
-                          kind: "item" as const,
-                          id: "change-color",
-                          label: "Change color…",
-                          icon: "Palette",
-                        },
-                      ]
-                    : []),
-                  ...(projectOrder.length > 0
-                    ? [
-                        { kind: "separator" as const },
-                        {
-                          kind: "item" as const,
-                          id: "reset-project-order",
-                          label: "Reset project order",
-                          icon: "ArrowReloadHorizontal",
-                        },
-                      ]
-                    : []),
-                ]
+            [
+              {
+                kind: "item",
+                id: "expand-all-groups",
+                label: "Expand all folders",
+                icon: "Expand",
+              },
+              {
+                kind: "item",
+                id: "collapse-all-groups",
+                label: "Collapse all folders",
+                icon: "Collapse",
+              },
+              ...(groupMenu.section
+                ? [
+                    { kind: "separator" as const },
+                    {
+                      kind: "item" as const,
+                      id: "section-settings",
+                      label: "Section settings…",
+                      icon: "SlidersHorizontal",
+                    },
+                  ]
+                : []),
+              ...(projectOrder.length > 0
+                ? [
+                    { kind: "separator" as const },
+                    {
+                      kind: "item" as const,
+                      id: "reset-project-order",
+                      label: "Reset project order",
+                      icon: "ArrowReloadHorizontal",
+                    },
+                  ]
+                : []),
+            ]
           }
           onSelect={(id) => {
             const section = groupMenu.section;
-            if (section && id.startsWith("color:")) {
-              // Second stage: every choice is a color; then retint + close.
-              const colorId = id.slice("color:".length);
-              applySectionColor(section.id, colorId);
-              setGroupMenu(null);
-              if (colorId === SECTION_COLOR_NONE) {
-                toast.success("Section color cleared");
-              } else {
-                const found = SECTION_COLOR_OPTIONS.find(
-                  (option) => option.id === colorId,
-                );
-                toast.success(`Section color set: ${found?.label ?? colorId}`);
-              }
-              return;
-            }
             setGroupMenu(null);
             if (id === "expand-all-groups") {
               expandAllGroups();
             } else if (id === "collapse-all-groups") {
               collapseAllGroups();
-            } else if (id === "rename-section" && section) {
-              setRenamingSectionId(`section:${section.id}`);
-            } else if (id === "change-color" && section) {
-              // Two-stage menu: swap in the swatch list at the same spot.
-              setGroupMenu({ ...groupMenu, stage: "colors" });
+            } else if (id === "section-settings" && section) {
+              setSectionSettings({ sectionId: section.id, name: section.name });
             } else if (id === "reset-project-order") {
               try {
                 localStorage.removeItem(PROJECT_ORDER_KEY);
@@ -2946,6 +2875,14 @@ export function SpoolerThreadList({
             unspoolSpool(spoolId);
           }}
           onCancel={() => setUnspoolConfirmId(null)}
+        />
+      ) : null}
+
+      {sectionSettings ? (
+        <SectionSettingsModal
+          sectionId={sectionSettings.sectionId}
+          initialName={sectionSettings.name}
+          onDone={() => setSectionSettings(null)}
         />
       ) : null}
 

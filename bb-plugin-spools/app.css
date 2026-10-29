@@ -1014,12 +1014,80 @@
   cursor: grabbing;
 }
 
-/* Section-bucket headers only paint the chevron on the left: glyph, title,
-   status pip all right-align in the meta, so the header is tighter on its
-   left edge and the click affordance reads around the chevron. */
+/* Section headers read title-left, controls-right: the rail replaces the
+   chevron on the left (the collapse chevron sits at the far right), the
+   slab is opaque (scrolling rows can't show through), edge-to-edge with a
+   darkened bottom rim, and the title clamps to two rows before it
+   ellipsizes. The rail's 14px icon box starts 26px in, so the section icon
+   sits on the same vertical axis as spool marks and thread provider icons. */
 .spooler-group-header-right {
   gap: 4px;
-  padding: 4px 6px;
+  padding: 4px 6px 4px 0;
+}
+
+/* Colored sections are always buckets too, so this single rule covers both
+   groups. */
+.spooler-group-bucket > .spooler-group-header-right {
+  /* Opaque tint: rows scrolling beneath the sticky header don't show
+     through, and the slab has no rounding or blur wash. */
+  background: var(--spooler-sec-1);
+  color: var(--spooler-sec-fg);
+  border-radius: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  /* Darkened bottom rim: the one divide between a header slab and its
+     contents. */
+  border-bottom: 1px solid color-mix(in srgb, #000 16%, transparent);
+  box-shadow: none;
+}
+
+.spooler-group-header-right .spooler-group-label {
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+}
+
+.spooler-group-bucket > .spooler-group-header-right:hover,
+.spooler-group-bucket > .spooler-group-header-right:hover .spooler-group-toggle {
+  background: color-mix(in srgb, rgb(0 0 0 / 7%), var(--spooler-sec-1));
+  color: var(--spooler-sec-fg);
+}
+
+/* The section icon rail: an empty rail renders nothing (the '#' glyph is
+   retired); a chosen icon — curated builtin or pasted character — centers
+   on the shared icon axis. */
+.spooler-group-rail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  margin-left: 26px;
+}
+
+.spooler-group-rail-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1;
+}
+
+.spooler-group-rail-glyph [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-group-chevron-right {
+  margin-right: 0;
+  flex: none;
 }
 
 .spooler-group-chevron {
@@ -1982,7 +2050,8 @@ a.spooler-row-main:hover {
 /* Backstop for squeezed rows: once the chip and time have shrunk and the
    title is at its floor, anything left over (a year timestamp plus a
    rollup pill beside a badge) clips at the text edge instead of painting
-   under the badge. */
+   under the badge. Thread titles sit a weight notch BELOW the (italic 500)
+   spool titles. */
 .spooler-row-title {
   display: flex;
   align-items: baseline;
@@ -1990,7 +2059,7 @@ a.spooler-row-main:hover {
   min-width: 0;
   overflow: clip;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 450;
   line-height: 1.35;
 }
 
@@ -3331,24 +3400,28 @@ a.spooler-row-main:hover {
 .spooler-spool-card {
   position: relative;
   z-index: 0;
-  margin: 4px 0 10px;
-  padding: 6px 0 8px;
-  border-radius: 10px;
-  /* Sidebar tint via color-mix, same convention as the group headers. */
-  background: color-mix(
-    in srgb,
-    var(--card, var(--background)) 60%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+  /* Edge-to-edge mid-tone slab: zero radius, zero padding, no inset ring.
+     The tone comes from the section's tri-tone chain; the color-mix fallback
+     is only for a card somehow outside a bucket. */
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: var(
+    --spooler-sec-2,
+    color-mix(
+      in srgb,
+      var(--card, var(--background)) 60%,
+      color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+    )
   );
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
-  transition: background-color 200ms ease, box-shadow 200ms ease;
+  transition: background-color 200ms ease;
 }
 
 .spooler-spool-card:hover {
   background: color-mix(
     in srgb,
-    var(--card, var(--background)) 78%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 22%, transparent)
+    var(--spooler-sec-2) 92%,
+    var(--spooler-sec-1, var(--muted))
   );
 }
 
@@ -3364,14 +3437,14 @@ a.spooler-row-main:hover {
 .spooler-spool-card-active:hover {
   background: color-mix(
     in srgb,
-    var(--card, var(--background)) 78%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 22%, transparent)
+    var(--spooler-sec-2) 92%,
+    var(--spooler-sec-1, var(--muted))
   );
 }
 
-/* Collapsed: only the header shows, so the deck sits tighter. */
+/* Collapsed: only the header slab shows. */
 .spooler-spool-card-collapsed {
-  padding: 5px 0;
+  padding: 0;
 }
 
 .spooler-spool-card-dragging {
@@ -3390,36 +3463,61 @@ a.spooler-row-main:hover {
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
-/* Header row: grip, Layers icon, title, pip/actions, member count. The
-   header background fold-toggles too (round 11), so its cursor matches the
-   other clickable spool chrome — buttons/text keep their own cursors. */
+/* Header slab: mid tone over the roster, one darkened rim, grip + 🧵 mark
+   sharing the rail, title column over the detail-pill grid, count pip on the
+   right. Height collapses from the old 54px card head to a plain strip. */
 .spooler-spool-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: 54px;
+  gap: 5px;
+  min-height: 30px;
   cursor: pointer;
-  /* No extra left inset: grip + icon start at the list edge so the spool
-     icon column lines up with peer freestanding threads. */
-  padding: 0 12px 0 2px;
+  /* The rail's own margin aligns the icon axis; the right edge keeps one
+     inset from the slab edge. */
+  padding: 3px 6px 3px 0;
+  border-bottom: 1px solid color-mix(in srgb, #000 16%, transparent);
+}
+
+.spooler-spool-rail {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 24px;
+  margin-left: 25px;
+}
+
+.spooler-spool-rail .spooler-row-grip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.spooler-spool-card:hover .spooler-spool-rail .spooler-spool-icon,
+.spooler-spool-card .spooler-row-grip:focus-visible
+  + .spooler-spool-icon {
+  opacity: 0;
 }
 
 .spooler-spool-icon {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 24px;
+  width: 16px;
   height: 24px;
   border: 0;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color 150ms ease, color 150ms ease, opacity 120ms ease;
 }
 
 .spooler-spool-icon:hover {
-  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
   color: var(--foreground);
 }
 
@@ -3438,14 +3536,19 @@ a.spooler-row-main:hover {
   user-select: none;
 }
 
-.spooler-spool-title-btn {
-  display: block;
-  /* flex-grow with a CONTENT basis (not 0%): a squeezed header used to
-     hand the title zero width — the card rendered badges with no title.
-     basis auto puts the title in the shrink math like everything else,
-     and the floor keeps it present even at phone widths. */
+.spooler-spool-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1 1 auto;
   min-width: 80px;
+  min-height: 0;
+}
+
+.spooler-spool-title-btn {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -3455,51 +3558,19 @@ a.spooler-row-main:hover {
   cursor: pointer;
 }
 
+/* Spool titles: lighter than before (600 → 500), ALWAYS italic, and they
+   may take two rows before the ellipsis (title priority over the pills). */
 .spooler-spool-title {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* Two-line titles setting: the spool header honors it — the title clamps to
-   two lines like ordinary thread titles, and the badges drop to
-   their own full-width line (indented to the title column) instead of
-   squeezing the title. */
-.spooler-title-wrap .spooler-spool-header {
-  flex-wrap: wrap;
-  row-gap: 2px;
-  align-items: flex-start;
-}
-
-/* In wrap mode the header grows taller than one line (badges drop below);
-   the grip and the 🧵 icon keep their column centered across the whole
-   header height instead of pinning to its top-left corner. */
-.spooler-title-wrap .spooler-spool-header .spooler-row-grip,
-.spooler-title-wrap .spooler-spool-header .spooler-spool-icon,
-.spooler-title-wrap .spooler-spool-header .spooler-spool-pip {
-  align-self: center;
-}
-
-.spooler-title-wrap .spooler-spool-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.spooler-title-wrap .spooler-spool-badges {
-  order: 3;
-  /* basis auto + explicit width so the 48px start margin fits INSIDE the
-     header instead of extending the box past the card edge. */
-  flex: 0 0 auto;
-  width: calc(100% - 48px);
-  /* Grip (16) + gap (4) + shape icon (24) + gap (4): the title column. */
-  margin-inline-start: 48px;
+  white-space: normal;
+  font-size: 13px;
+  font-weight: 500;
+  font-style: italic;
 }
 
 .spooler-spool-rename {
@@ -3509,8 +3580,9 @@ a.spooler-row-main:hover {
 }
 
 /* The pip is the count circle, doubled as the spool-actions button (the
-   old hover-swapped ellipsis never got clicks in the real app). Panel
-   recipe and metrics match the section count pip exactly. */
+   old hover-swapped ellipsis never got clicks in the real app). Metrics
+   match the section count pip exactly; in buckets it takes the light
+   anchor mix so it reads off the mid-tone slab. */
 .spooler-spool-pip {
   flex-shrink: 0;
 }
@@ -3528,8 +3600,8 @@ a.spooler-row-main:hover {
   border-radius: 999px;
   background: color-mix(
     in srgb,
-    var(--card, var(--background)) 60%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
+    var(--spooler-sec-1, var(--card, var(--background))) 55%,
+    var(--sidebar, var(--background))
   );
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
   color: var(--foreground);
@@ -3558,29 +3630,10 @@ a.spooler-row-main:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* Header badges (project / multi-proj, branch, PR): they shrink with an
-   ellipsis before they can clip; the title keeps its min-width. */
-.spooler-spool-badges {
-  display: flex;
-  flex: 0 1 auto;
-  min-width: 0;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-}
-
-.spooler-spool-badges > * {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spooler-spool-badges .spooler-pr-link > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* Detail pills live in a .spooler-row-grid (shared with thread rows): one
+   wrapping flex grid — every pill ellipsizes inside its own box (min-width
+   0, per-kind max-widths) and the grid re-flows to further rows rather than
+   ever overflowing the entry. */
 
 /* Shared branch chip for the uniform-branch badge. */
 .spooler-spool-badge-branch {
@@ -3621,16 +3674,11 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
-/* Liveness summary on the spool header. Working members no longer text
-   their count here: the green spinner rides behind the count pip numeral —
-   the same pip grammar the section headers use. The muted rollup keeps only
-   the non-working parts (needs you · unread · failed); expanded threads
-   carry their own working badges, so the pip spinner stays the one summary.
-   It shrinks like the chips do, so a squeezed line degrades to an ellipsis
-   instead of a mid-letter cut at the container edge. */
+/* Liveness summary on the spool header: it rides the detail-pill grid like
+   any other pill (Working members announce themselves behind the count pip
+   numeral instead). It shrinks like the chips do, so a squeezed line
+   degrades to an ellipsis instead of a mid-letter cut. */
 .spooler-spool-rollup {
-  margin-left: auto;
-  padding-right: 2px;
   font-size: 10px;
   line-height: 1.6;
   font-variant-numeric: tabular-nums;
@@ -3642,25 +3690,17 @@ a.spooler-row-main:hover {
   text-overflow: ellipsis;
 }
 
-/* Member list: rows come from the ordinary renderer; just indent and tighten. */
+/* Member list: rows come from the ordinary renderer and start FLUSH under
+   the header's darkened rim — no interior top margin/padding and no roster
+   hairlines; the rim is the divide, and members separate by the entry's
+   own 2px entry rhythm. */
 .spooler-spool-members {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  /* No left inset: member rows share the card's left edge, the same column
-     as ordinary thread rows, so the roster reads flat rather than indented. */
-  padding: 2px 10px 8px 0;
-  /* The 5px runway above this rule matches the 5px pad below the member
-     separators (5px + 1px hairline = the same 6px beat): the header keeps
-     daylight before the divide instead of sitting on it. The space lives
-     with the roster inside the fold, so a collapsed card (0fr, hidden)
-     sheds it along with the divide. */
-  margin-top: 5px;
-  /* Header/roster divide: the same hairline ink as the member separators,
-     one full-width rule where the header yields to the thread list — the
-     card reads header above, roster below. It lives inside the fold, so a
-     collapsed card (0fr, hidden) shows no divide. */
-  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  gap: 2px;
+  padding: 0;
+  margin-top: 0;
+  border-top: none;
 }
 
 .spooler-spool-member {
@@ -4251,20 +4291,38 @@ a.spooler-row-main:hover {
 
 /* ===== Section buckets (Group By Section) ===== */
 
-/* A section's drawer and its sticky header carry the section color (chosen
-   from the header's context menu). The color vars come from sectionColors.ts;
-   they are absent for uncolored sections, which stay plain. */
+/* A section's body is a column of edge-to-edge slabs: the bucket paints
+   NOTHING itself (entries do), so the 2px gaps between entries show the
+   plain sidebar. The tri-tone chain lives here — the section header anchor
+   (from sectionColors.ts, or gray theme tokens for uncolored sections) is
+   darkest, spools mix 58% over the sidebar, threads 30%, including the
+   unspooled threads in the section. The fixed Inbox gets its own neutral
+   gray anchor inline from the list (a sibling slab, not a colored one). */
+.spooler-group-bucket {
+  --spooler-sec-anchor: var(--muted);
+  --spooler-sec-fg: var(--foreground);
+  --spooler-sec-1: var(--spooler-sec-anchor);
+  /* The two derived tones: 58% ink over the sidebar = spool slabs, 30% =
+     thread slabs. Dark themes sink toward the dark sidebar the same way. */
+  --spooler-sec-2: color-mix(
+    in srgb,
+    var(--spooler-sec-1) 58%,
+    var(--sidebar, var(--background))
+  );
+  --spooler-sec-3: color-mix(
+    in srgb,
+    var(--spooler-sec-1) 30%,
+    var(--sidebar, var(--background))
+  );
+}
+
 .spooler-group-colored {
-  border-radius: 10px;
-  background: var(--spooler-sec-bg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 35%, transparent);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .spooler-group-colored > .spooler-group-header {
-  /* Opaque tint: rows scrolling beneath the sticky header don't show through. */
-  background: var(--spooler-sec-bg);
   color: var(--spooler-sec-fg);
-  border-radius: 9px 9px 0 0;
 }
 
 .spooler-group-colored .spooler-group-icon,
@@ -4275,7 +4333,6 @@ a.spooler-row-main:hover {
 }
 
 .spooler-group-colored > .spooler-group-header:hover {
-  background: color-mix(in srgb, rgb(0 0 0 / 7%), var(--spooler-sec-bg));
   color: var(--spooler-sec-fg);
 }
 
@@ -4284,80 +4341,78 @@ a.spooler-row-main:hover {
   color: var(--spooler-sec-fg);
 }
 
-/* Inline rename input inside the header (context menu → Rename section). */
-.spooler-group-rename {
-  width: max(120px, 50%);
-  height: 20px;
-  font-size: 12px;
+/* Every row in a bucket is a light-tone slab: spool rosters included, so
+   threads read as the lightest tier whether they live in a spool or not.
+   The :where() keeps the bucket rule at single-class specificity so the
+   attention washes (needs-you / failed / unseen) still paint over it. */
+:where(.spooler-group-bucket) .spooler-row {
+  background: var(--spooler-sec-3);
+  border-radius: 0;
 }
 
-/* Unspooled threads in a bucket render as cards, matching their spool
-   neighbors. Spool members stay flat inside their spool card (:not excludes
-   them and their nested rows). Active rows keep this same card background —
-   with the gray fill retired, excluding them would let the drawer's darker
-   tint show through where the row box is. The danger ring is the highlight. */
-.spooler-group-bucket .spooler-row:not(.spooler-spool-card *) {
+:where(.spooler-group-bucket) .spooler-row:hover {
   background: color-mix(
     in srgb,
-    var(--card, var(--background)) 60%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
-  );
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
-}
-
-.spooler-group-bucket .spooler-row:not(.spooler-spool-card *):hover {
-  background: color-mix(
-    in srgb,
-    var(--card, var(--background)) 78%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 22%, transparent)
+    var(--spooler-sec-3) 88%,
+    var(--spooler-sec-1)
   );
 }
 
-/* Spool members: same rhythm as unspooled rows, no individual box — a darker
-   separator between members is all they get inside their card (60% ink so it
-   reads past the panel tint at a glance). The 5px pad plus the 1px hairline
-   adds to the bucket's 6px inter-box gap, so threads inside a spool beat in
-   time with the cards around it. */
-.spooler-spool-member + .spooler-spool-member {
-  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  padding-top: 5px;
+/* Swipe pills follow the slab's square edge inside buckets. */
+.spooler-group-bucket .spooler-swipe-underlay {
+  border-radius: 0;
 }
 
-/* Buckets sit closer together than unfolded groups elsewhere: the card
-   treatment already separates them visually, so the drawer reads as one
-   column of sections rather than spaced islands. */
+/* Tighter rows inside buckets: the entries' vertical padding drops to half
+   of comfortable, keeping the two-column grid intact. */
+:where(.spooler-group-bucket)
+  .spooler-row:not(.spooler-row-compact)
+  .spooler-row-main {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Buckets sit on the same 2px rhythm as every entry inside them: one shared
+   gap down the whole section column, expanded or not. */
 .spooler-list-sections .spooler-group {
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .spooler-list-sections .spooler-group-expanded + .spooler-group {
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
-/* The first entry clears the section header by the same inset the panels
-   keep from the bucket's side and bottom edges (3px) — no extra buffer. */
+/* The first entry clears the section header with no buffer of its own. */
 .spooler-list-sections .spooler-fold-inner > :first-child {
   margin-top: 0;
 }
 
-/* Interior panels keep a small gutter from the bucket's left/right edges:
-   boxed rows and spool cards otherwise sit flush against the drawer (the
-   colored frame especially), reading as glued to it. */
+/* No interior gutter: entries run edge-to-edge and manage their own
+   internal padding. */
 .spooler-group-bucket .spooler-fold-inner {
-  padding-inline: 3px;
+  padding-inline: 0;
+}
+
+/* Pips inside a bucket take the light anchor mix so they read off their
+   slab — one pip grammar across section headers and spool cards. */
+.spooler-group-bucket .spooler-group-count-pip {
+  background: color-mix(
+    in srgb,
+    var(--spooler-sec-1, var(--card, var(--background))) 55%,
+    var(--sidebar, var(--background))
+  );
 }
 
 /* Section main body: the fold is the spacing authority. A flex column with
-   one gap lays every top-level box — spool card or thread card — with the
-   identical spacing in every adjacency (row↔row, card↔card, card↔row), the
-   first box sits flush against the header (zero padding, zero margins), and
-   the bottom inset is one shared value for both kinds. */
+   the 2px entry gap lays every top-level entry — thread rows, spool deck —
+   with identical spacing in every adjacency; the first sits flush against
+   the header's rim and the column simply ends at the last entry. */
 .spooler-list-sections .spooler-group > .spooler-fold > .spooler-fold-inner {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   padding-top: 0;
-  padding-bottom: 8px;
+  padding-bottom: 0;
 }
 
 /* The gap above is the ONLY vertical space: neither kind brings its own
@@ -4387,4 +4442,254 @@ a.spooler-row-main:hover {
 .spooler-menu-swatch {
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+/* ==========================================================================
+   Section Settings modal (right-click → Section settings…, or double-click
+   the section title): name + color + icon with auto-save shown in ONE slot
+   beside Done. Close to the approved mock: 292px card, header with the
+   section's current icon, swatch row, curated icon grid with a
+   paste-any-emoji input beneath it (24px box, uniform 5px gap), footer with
+   the save status left of the buttons.
+   ========================================================================== */
+
+.spooler-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, #000 38%, transparent);
+}
+
+.spooler-modal {
+  width: 292px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--sidebar, var(--background));
+  box-shadow:
+    0 24px 60px rgb(0 0 0 / 0.28);
+  color: var(--foreground);
+}
+
+.spooler-modal-head,
+.spooler-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.spooler-modal-head {
+  border-bottom: 1px solid var(--border);
+}
+
+.spooler-modal-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.spooler-modal-head-icon [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-modal-title {
+  flex: 1;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.spooler-modal-body {
+  display: grid;
+  gap: 10px;
+  padding: 4px 12px 2px;
+}
+
+.spooler-modal-field > .spooler-modal-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.spooler-modal-input,
+.spooler-icon-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: var(--foreground);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+}
+
+.spooler-modal-input:focus-visible,
+.spooler-icon-input:focus-visible {
+  border-color: var(--ring, var(--primary));
+}
+
+.spooler-swatch-row,
+.spooler-icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spooler-swatch-row {
+  gap: 6px;
+}
+
+.spooler-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid rgb(0 0 0 / 18%);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.spooler-swatch [data-icon-root] {
+  width: 10px;
+  height: 10px;
+}
+
+.spooler-swatch-on {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* The paste input sits BENEATH the grid, uniform with the cells: a 24px box
+   on the grid's own 5px gap so the field reads as one grid. */
+.spooler-icon-grid {
+  gap: 5px;
+}
+
+.spooler-icon-cell {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.spooler-icon-cell [data-icon-root] {
+  width: 13px;
+  height: 13px;
+}
+
+.spooler-icon-cell:hover {
+  background: var(--muted);
+}
+
+.spooler-icon-cell-on {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.spooler-icon-input {
+  width: 52px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  margin-top: 5px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1;
+}
+
+.spooler-modal-foot {
+  border-top: 1px solid var(--border);
+  justify-content: flex-end;
+}
+
+/* ONE save-status slot, left-aligned; the buttons stay right. */
+.spooler-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-end: auto;
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+  min-height: 1em;
+}
+
+.spooler-save-state[data-state="error"] {
+  color: var(--destructive, #d43d3d);
+}
+
+.spooler-save-check {
+  color: var(--success, #3f9a6b);
+}
+
+.spooler-save-state[data-state="error"] .spooler-save-error-dot {
+  color: var(--destructive, #d43d3d);
+}
+
+.spooler-save-spinner {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.4px solid transparent;
+  border-top-color: var(--primary);
+  border-right-color: var(--primary);
+  animation: spooler-save-spin 0.8s linear infinite;
+}
+
+@keyframes spooler-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spooler-modal-btn {
+  padding: 4px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+}
+
+.spooler-modal-btn-done {
+  background: var(--primary);
+  color: #fff;
+}
+
+.spooler-modal-btn-ghost {
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+}
+
+.spooler-modal-btn:hover {
+  filter: brightness(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-save-spinner {
+    animation: none;
+  }
 }

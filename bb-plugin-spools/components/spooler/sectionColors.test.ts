@@ -4,10 +4,14 @@ import {
   SECTION_COLOR_OPTIONS,
   colorSwatchFor,
   onSectionColorsChanged,
+  parseSectionIcon,
   readSectionColorMap,
+  readSectionStyleMap,
   sectionColorOption,
   sectionColorVars,
+  writeSectionColor,
   writeSectionColorMap,
+  writeSectionIcon,
 } from "./sectionColors";
 import { isDarkColor } from "./useThemeIsDark";
 
@@ -34,6 +38,47 @@ describe("section colors storage", () => {
     expect(seen).toEqual(["changed"]);
   });
 
+  it("keeps icons when colors are rewritten, and colors when icons are set", () => {
+    writeSectionColor("a", "green");
+    writeSectionIcon("a", "builtin:Star");
+    writeSectionColor("b", "teal");
+    writeSectionIcon("c", "🧵");
+    expect(readSectionStyleMap()).toEqual({
+      a: { color: "green", icon: "builtin:Star" },
+      b: { color: "teal" },
+      c: { icon: "🧵" },
+    });
+    // Clearing the color leaves the icon; clearing the icon leaves the
+    // color; an entry with nothing left disappears.
+    writeSectionColor("a", null);
+    expect(readSectionStyleMap().a).toEqual({ icon: "builtin:Star" });
+    writeSectionIcon("b", null);
+    expect(readSectionStyleMap().b).toEqual({ color: "teal" });
+    writeSectionIcon("c", null);
+    expect(readSectionStyleMap().c).toBeUndefined();
+  });
+
+  it("migrates the legacy color map into styles on read", () => {
+    localStorage.setItem(
+      "spooler-sidebar:section-colors:v1",
+      JSON.stringify({ legacy: "gold" }),
+    );
+    expect(readSectionColorMap()).toEqual({ legacy: "gold" });
+    expect(readSectionStyleMap()).toEqual({ legacy: { color: "gold" } });
+    // A style write adopts the v2 file for good; the legacy file stays put.
+    writeSectionIcon("legacy", "✅");
+    expect(JSON.parse(localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}"))
+      .toEqual({ legacy: { color: "gold", icon: "✅" } });
+  });
+
+  it("tokenizes icon values into builtin ids and pasted glyphs", () => {
+    expect(parseSectionIcon("builtin:Sent")).toEqual({ kind: "builtin", name: "Sent" });
+    expect(parseSectionIcon("🧵")).toEqual({ kind: "char", glyph: "🧵" });
+    expect(parseSectionIcon("   ")).toBeNull();
+    expect(parseSectionIcon(null)).toBeNull();
+    expect(parseSectionIcon("builtin:")).toBeNull();
+  });
+
   it("survives unreadable storage", () => {
     localStorage.setItem("spooler-sidebar:section-colors:v1", "{nope");
     expect(readSectionColorMap()).toEqual({});
@@ -42,20 +87,17 @@ describe("section colors storage", () => {
 
   it("variables swap with the theme", () => {
     const gold = sectionColorOption({ g: "gold" }, "g")!;
-    const light = sectionColorVars(gold, false)! as Record<string, string>;
+    const light = sectionColorVars(gold, false) as Record<string, string>;
+    // One anchor: the header tone. Spool and thread tones derive in CSS.
     expect(light).toMatchObject({
-      "--spooler-sec-bg": gold.light,
+      "--spooler-sec-anchor": gold.light,
       "--spooler-sec-fg": "#262626",
     });
-    // Light theme accent darkens the anchor away from the bucket background.
-    expect(light["--spooler-sec-accent"]).toContain("#000000");
-    const dark = sectionColorVars(gold, true)! as Record<string, string>;
+    const dark = sectionColorVars(gold, true) as Record<string, string>;
     expect(dark).toMatchObject({
-      "--spooler-sec-bg": gold.dark,
+      "--spooler-sec-anchor": gold.dark,
       "--spooler-sec-fg": "#f8f8f8",
     });
-    // Dark theme accent lightens the anchor away from the bucket background.
-    expect(dark["--spooler-sec-accent"]).toContain("#ffffff");
     expect(colorSwatchFor(gold, true)).toBe(gold.dark);
   });
 

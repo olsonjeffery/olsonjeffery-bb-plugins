@@ -24,6 +24,10 @@ A thread list you can read at a glance, for BB.
   filter, comfortable or compact density, keyboard traversal with quick
   archive and pin, multi-select bulk actions, and drag a thread onto a section
   header to file it.
+- **A redesigned section display.** Edge-to-edge tinted slabs on one 2px
+  rhythm, a tri-tone per section color (darkest header, mid spool strip,
+  lightest thread slabs — gray for the Inbox), per-section icons, and one
+  Section Settings modal with auto-save for name, color and icon.
 
 ## How it works
 

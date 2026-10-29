@@ -377,33 +377,39 @@ export function SpoolCardImpl({
           if (!isRenaming) onToggle();
         }}
       >
-        {/* Grip only: a plain click never starts a drag. */}
-        <button
-          type="button"
-          className="spooler-row-grip"
-          aria-label="Drag spool onto a section header to file its threads"
-          title="Drag spool onto a section header to file its threads"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-          {...attributes}
-          {...listeners}
-        >
-          <Icon name="DragDropVertical" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="spooler-spool-icon"
-          title="Open top thread"
-          aria-label="Open top thread"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenTop(data.leadThreadId);
-          }}
-        >
-          <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
-        </button>
+        {/* The rail stacks the 🧵 mark over the drag grip: the grip fades in
+            on hover WITHOUT moving the mark, so the spool's icon axis stays
+            static (aligned with section icons and thread provider icons). */}
+        <span className="spooler-spool-rail">
+          {/* Grip only: a plain click never starts a drag. */}
+          <button
+            type="button"
+            className="spooler-row-grip"
+            aria-label="Drag spool onto a section header to file its threads"
+            title="Drag spool onto a section header to file its threads"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            {...attributes}
+            {...listeners}
+          >
+            <Icon name="DragDropVertical" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="spooler-spool-icon"
+            title="Open top thread"
+            aria-label="Open top thread"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenTop(data.leadThreadId);
+            }}
+          >
+            <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
+          </button>
+        </span>
+        <span className="spooler-spool-entry">
         {isRenaming ? (
           <input
             ref={inputRef}
@@ -448,11 +454,11 @@ export function SpoolCardImpl({
             <span className="spooler-spool-title">{data.label}</span>
           </button>
         )}
-        {/* Badges stay visible in both states: collapsing a spool hides its
-            thread list, not what the threads have in common. The rollup sits
-            on the right and fills the empty side of the badge line with the
-            liveness states the expanded body no longer shows. */}
-        <div className="spooler-spool-badges">
+        {/* Detail pills run in ONE wrapping grid under the title — a pill
+            ellipsizes inside its own box and the grid re-flows to further
+            lines; the title's two-line clamp always outranks them. The rollup
+            rides the grid like any other pill. */}
+        <div className="spooler-spool-grid spooler-row-grid">
           {uniformProjectName ? (
               <span
                 className="spooler-row-project"
@@ -512,7 +518,8 @@ export function SpoolCardImpl({
                 {rollupRest}
               </span>
             ) : null}
-          </div>
+        </div>
+        </span>
         {/* The count pip IS the actions button (the ellipsis never worked
             reliably): clicking it opens the spool context menu. */}
         <span className="spooler-spool-pip">

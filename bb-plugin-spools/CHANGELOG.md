@@ -4,6 +4,55 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.7.0 — 2026-10-29
+
+### Changed
+- **The Section display is redesigned** to the approved mock: every entry
+  (section header, spool, thread) is an edge-to-edge slab on one shared
+  **2px rhythm** — no rounded cards, no boxed panels, no interior gutters;
+  children manage their own padding.
+- **Tri-tone section color:** the header slab carries the anchor (darkest),
+  spool strips mix **58%** over the sidebar, thread slabs **30%** — including
+  unspooled threads in the section. The unfiled **Inbox** joins as a
+  neutral-gray slab with the same derivation. Attention washes still paint
+  over the tones.
+- **Section headers read title-left, controls-right:** the left rail shows
+  the section's chosen icon and the right group runs unread ·
+  count-plus-working pill · collapse chevron **furthest right**. The old
+  universal `#` glyph is retired; a section without an icon renders none.
+- **Section Settings modal** (context menu `Section settings…` or
+  double-click the section title) replaces the Rename/Change-color pair:
+  name, color and icon with auto-save — name on a short debounce, color and
+  icon the moment they are set — reported in ONE status slot beside Done
+  (left-aligned). Cancel discards uncommitted drafts; Done flushes and
+  closes.
+- **Icons:** a curated builtin grid plus **paste in any emoji/unicode
+  character** (single grapheme cluster); styles store in
+  `spooler-sidebar:section-style:v2` ("`{color, icon}`" per section) with the
+  v1 color map migrated on read. The plugin-settings section editor stays in
+  sync through the same event bus.
+- **Entry typography:** spool titles drop to weight 500 and are ALWAYS
+  italic; thread titles sit a notch lower (450), upright. All-caps section
+  headers keep the reviewed styling.
+- **Two-row titles:** every section-mode entry title wraps to two rows
+  before it ellipsizes, always outranking the detail pills, which now run in
+  one wrapping flex grid under the title — pills ellipsize inside their own
+  boxes (per-kind max-widths) and the grid re-flows across rows without ever
+  overflowing the entry.
+- **Order:** unspooled threads float to the top of a section; the spool deck
+  rides beneath.
+- **Rims:** section and spool header slabs carry a darkened bottom border
+  (`color-mix(#000 16%)`); a spool's roster starts flush under it — no
+  interior top margin, and the old roster hairlines are gone. All entry
+  icons (section, spool 🧵, thread provider) share one horizontal axis; the
+  spool's drag grip fades in over the 🧵 mark on hover.
+
+### Removed
+- The `--spooler-sec-accent` token (the pip spinner color is theme-fixed
+  green today, so the token had no remaining consumer) and
+  `--spooler-sec-bg` (superseded by `--spooler-sec-anchor`).
+- The section header's inline rename editor (superseded by the modal).
+
 ## 0.6.6 — 2026-10-29
 
 ### Fixed

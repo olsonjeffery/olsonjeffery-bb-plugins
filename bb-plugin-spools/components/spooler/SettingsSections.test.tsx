@@ -132,8 +132,8 @@ describe("SpoolsSettingsSection — section editor", () => {
     fireEvent.click(screen.getByTestId("spooler-settings-color:sec-a:gold"));
     await waitFor(() => expect(setItem).toHaveBeenCalled());
     const [key, value] = setItem.mock.calls.at(-1)!;
-    expect(key).toBe("spooler-sidebar:section-colors:v1");
-    expect(JSON.parse(value)).toEqual({ "sec-a": "gold" });
+    expect(key).toBe("spooler-sidebar:section-style:v2");
+    expect(JSON.parse(value)).toEqual({ "sec-a": { color: "gold" } });
     // The swatch reflects the choice; the strip is closed after picking.
     expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
       "Color: Gold",
@@ -142,6 +142,7 @@ describe("SpoolsSettingsSection — section editor", () => {
   });
 
   it("clears a section's color with the No color choice", async () => {
+    // Seeded in the legacy v1 file: the style map migrates it on read.
     localStorage.setItem(
       "spooler-sidebar:section-colors:v1",
       JSON.stringify({ "sec-a": "gold", "sec-b": "teal" }),
@@ -154,7 +155,9 @@ describe("SpoolsSettingsSection — section editor", () => {
     );
     fireEvent.click(screen.getByTestId("spooler-settings-color:sec-a:none"));
     await waitFor(() => expect(setItem).toHaveBeenCalled());
-    expect(JSON.parse(setItem.mock.calls.at(-1)![1])).toEqual({ "sec-b": "teal" });
+    expect(JSON.parse(setItem.mock.calls.at(-1)![1])).toEqual({
+      "sec-b": { color: "teal" },
+    });
     expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
       "Change color",
     );

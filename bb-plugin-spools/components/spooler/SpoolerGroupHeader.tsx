@@ -1,14 +1,8 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { CSS } from "@dnd-kit/utilities";
 import { useSortable } from "@dnd-kit/sortable";
 import { Icon } from "@/components/ui/icon";
+import { SectionIconGlyph } from "./SectionIcon";
 import { cn } from "@/lib/utils";
 
 /** The group shape the header needs; kept structural so callers stay loose. */
@@ -28,6 +22,8 @@ export interface GroupHeaderData {
  * One glyph rule for every grouping mode. Previously the sortable and plain
  * paths each hard-coded their own, so the Pinned group rendered a folder in
  * project view while time and section groups rendered no icon at all.
+ * Section mode no longer draws this glyph: its rail shows the section's
+ * own chosen icon (or nothing) instead.
  */
 export function groupGlyph(
   group: Pick<GroupHeaderData, "id" | "icon" | "projectId">,
@@ -87,14 +83,13 @@ interface HeaderProps {
   onToggle: () => void;
   onContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
   onNewThread?: () => void;
-  /** Inline section rename, driven from the header's context menu. */
-  renaming?: boolean;
-  onRenameCommit?: (title: string) => void;
-  onRenameCancel?: () => void;
-  /** Sections mode: the glyph and title join the right-aligned meta ahead
-   *  of the status, so only the chevron stays on the header's left,
-   *  and the count renders as a pip the status overlays. */
+  /** Sections mode: the header reads title-left, controls-right — the rail
+   *  carries the section's chosen icon, and the right group runs unread ·
+   *  count-plus-working pill · chevron (chevron furthest right). */
   titleRight?: boolean;
+  /** Sections mode: the stored icon value for this section (builtin or a
+   *  literal pasted glyph); null renders an empty rail. */
+  railIcon?: string | null;
   /** Drag-to-reorder affordance; only project grouping supplies these. */
   drag?: {
     attributes: ReturnType<typeof useSortable>["attributes"];
@@ -109,51 +104,14 @@ export function GroupHeader({
   onToggle,
   onContextMenu,
   onNewThread,
-  renaming = false,
-  onRenameCommit,
-  onRenameCancel,
-  drag,
   titleRight = false,
+  railIcon = null,
+  drag,
 }: HeaderProps) {
   const counts =
     group.unread > 0
       ? `${group.unread} unread of ${group.total}`
       : plural(group.total, "thread");
-
-  // Inline rename. Seeds once per rename start, like the spool card: Enter,
-  // blur, or outside click commits; Escape reverts. Empty input cancels.
-  const [renameValue, setRenameValue] = useState("");
-  const [cancelled, setCancelled] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (!renaming) return;
-    setCancelled(false);
-    setRenameValue(group.label);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
-  }, [renaming, group.id, group.label]);
-  const commitRename = () => {
-    if (!renaming) return;
-    const trimmed = renameValue.trim();
-    if (trimmed === group.label || trimmed === "") {
-      setCancelled(true);
-      onRenameCancel?.();
-      return;
-    }
-    onRenameCommit?.(trimmed);
-  };
-  const onRenameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commitRename();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      setCancelled(true);
-      onRenameCancel?.();
-    }
-  };
 
   return (
     <div
@@ -179,64 +137,30 @@ export function GroupHeader({
             <Icon name="DragDropVertical" />
           </span>
         ) : null}
-        <Icon
-          name={isCollapsed ? "ChevronRight" : "ChevronDown"}
-          aria-hidden="true"
-          className="spooler-group-chevron"
-        />
-        {titleRight ? null : (
-          <Icon
-            name={groupGlyph(group, isCollapsed)}
-            aria-hidden="true"
-            className="spooler-group-icon"
-          />
-        )}
-        {titleRight ? null : renaming ? (
-          <input
-            ref={inputRef}
-            value={renameValue}
-            onChange={(event) => setRenameValue(event.target.value)}
-            onKeyDown={onRenameKeyDown}
-            onBlur={() => {
-              // Escape already cancelled; don't double-fire through blur.
-              if (!cancelled) commitRename();
-            }}
-            aria-label={`Rename ${group.label}`}
-            placeholder={group.label}
-            maxLength={200}
-            className="spooler-rename spooler-group-rename"
-          />
+        {titleRight ? (
+          // The rail replaces the leading chevron: the collapse chevron lives
+          // at the far right, so the icon column can align with the spool
+          // cards and thread rows the header opens.
+          <span className="spooler-group-rail" aria-hidden="true">
+            <SectionIconGlyph raw={railIcon} className="spooler-group-rail-glyph" />
+          </span>
         ) : (
-          <span className="spooler-group-label">{group.label}</span>
+          <>
+            <Icon
+              name={isCollapsed ? "ChevronRight" : "ChevronDown"}
+              aria-hidden="true"
+              className="spooler-group-chevron"
+            />
+            <Icon
+              name={groupGlyph(group, isCollapsed)}
+              aria-hidden="true"
+              className="spooler-group-icon"
+            />
+            <span className="spooler-group-label">{group.label}</span>
+          </>
         )}
+        {titleRight ? <span className="spooler-group-label">{group.label}</span> : null}
         <span className="spooler-group-meta">
-          {titleRight ? (
-            <>
-              <Icon
-                name={groupGlyph(group, isCollapsed)}
-                aria-hidden="true"
-                className="spooler-group-icon"
-              />
-              {renaming ? (
-                <input
-                  ref={inputRef}
-                  value={renameValue}
-                  onChange={(event) => setRenameValue(event.target.value)}
-                  onKeyDown={onRenameKeyDown}
-                  onBlur={() => {
-                    // Escape already cancelled; don't double-fire through blur.
-                    if (!cancelled) commitRename();
-                  }}
-                  aria-label={`Rename ${group.label}`}
-                  placeholder={group.label}
-                  maxLength={200}
-                  className="spooler-rename spooler-group-rename"
-                />
-              ) : (
-                <span className="spooler-group-label">{group.label}</span>
-              )}
-            </>
-          ) : null}
           {titleRight ? null : <GroupStatus group={group} />}
           {group.unread > 0 ? (
             <span className="spooler-group-unread" aria-hidden="true">
@@ -253,6 +177,13 @@ export function GroupHeader({
             {titleRight ? <GroupStatus group={group} /> : null}
             <span className="spooler-pip-numeral">{group.total}</span>
           </span>
+          {titleRight ? (
+            <Icon
+              name={isCollapsed ? "ChevronRight" : "ChevronDown"}
+              aria-hidden="true"
+              className="spooler-group-chevron spooler-group-chevron-right"
+            />
+          ) : null}
         </span>
       </button>
       {onNewThread ? (

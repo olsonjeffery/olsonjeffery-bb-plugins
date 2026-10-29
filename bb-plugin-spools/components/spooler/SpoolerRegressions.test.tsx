@@ -394,6 +394,43 @@ describe("thread row layout", () => {
   });
 });
 
+describe("section bucket layout", () => {
+  it("floats threads above the spool deck in a section bucket", async () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const slot = renderSlot(list, props, {
+      sdk: spoolSdk([
+        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
+        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
+      ]),
+      sidebarThreads: {
+        status: "ready",
+        threads: [
+          makeThread({ id: "t1", sectionId: "old" }),
+          makeThread({ id: "t2", sectionId: "old" }),
+          makeThread({ id: "t3", title: "Loose thread", sectionId: "old" }),
+        ],
+        projects: [makeProject({ id: "proj_a" })],
+        sections: [makeSection({ id: "old", name: "Old" })],
+      },
+    });
+    await act(async () => {});
+    // The unfiled Inbox bucket leads the list; this deck lives in "Old".
+    const fold = slot.container.querySelector(
+      '.spooler-group[aria-label="Old"] > .spooler-fold > .spooler-fold-inner',
+    );
+    expect(fold).not.toBeNull();
+    const cluster = fold!.querySelector(".spooler-thread-cluster");
+    const deck = fold!.querySelector(".spooler-spool-slot");
+    expect(cluster).not.toBeNull();
+    expect(deck).not.toBeNull();
+    // Threads first, spool deck beneath: the row cluster precedes the deck
+    // in DOM order so the 2px rhythm reads threads → deck, every time.
+    expect(
+      cluster!.compareDocumentPosition(deck!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
 describe("spool drags across section buckets", () => {
   it("moves every member when a spool card lands on a section bucket", async () => {
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
