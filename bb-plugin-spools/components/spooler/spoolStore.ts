@@ -6,7 +6,9 @@
 //   spool:       <spool id>            member of that spool
 //   spoolJoined: <ms epoch number>     join order (stable member ordering)
 //   spoolLead:   true                  the spool's Top / title-source thread
-//   spoolTitle:  <string>              optional custom title, kept on the lead
+//   spoolTitle:  <string>              the spool's frozen title, kept on the lead
+//                                      (named once at creation, replaced only
+//                                      by an explicit user rename)
 //
 // A spool exists only where members carry the metadata — an empty spool
 // simply disappears. This module owns the shapes and pure derivations; the
@@ -34,6 +36,10 @@ export interface Spool {
   customTitle: string | null;
   /** Resolved display title: customTitle ?? `Spool: <lead thread title>`. */
   title: string;
+  /** True when leadThreadId was recovered by election (no member carries
+   *  spoolLead) rather than read from real metadata. The next add
+   *  reconciles it into actual metadata (planAddReconcile). */
+  leadElected: boolean;
 }
 
 export const SPOOL_ID_PREFIX = "spool_";
@@ -52,7 +58,8 @@ export function newSpoolId(): string {
   return `${SPOOL_ID_PREFIX}${hex}`;
 }
 
-/** Default spool title derives from the Top thread at creation time. */
+/** The title written on a lead when a spool names itself. Sourced from the
+ *  lead thread at that moment; `customTitle` (a user rename) always wins. */
 export function spoolTitleFor(lead: ThreadTitleSource | null, custom: string | null): string {
   if (custom && custom.trim()) return custom.trim();
   const base = lead ? (lead.displayTitle ?? lead.title ?? "") : "";
@@ -97,11 +104,14 @@ export function deriveSpools(args: {
     membershipByThreadId.set(thread.id, membership);
     let spool = byId.get(membership.id);
     if (!spool) {
-      spool = { id: membership.id, members: [], leadThreadId: null, customTitle: null, title: "" };
+      spool = { id: membership.id, members: [], leadThreadId: null, leadElected: true, customTitle: null, title: "" };
       byId.set(membership.id, spool);
     }
     spool.members.push(thread.id);
-    if (membership.lead) spool.leadThreadId = thread.id;
+    if (membership.lead) {
+      spool.leadThreadId = thread.id;
+      spool.leadElected = false;
+    }
   }
 
   // Order members by join time (ties: first-seen), elect a lead if none
@@ -140,6 +150,26 @@ export function deriveSpools(args: {
   const spools = [...byId.values()].filter((spool) => spool.members.length > 0);
 
   return { spools, membershipByThreadId };
+}
+
+/**
+ * One-time reconciliation before a thread joins an existing spool: a lead
+ * that was only recovered by election is persisted with spoolLead for real,
+ * and a spool that still derives its title gets its CURRENT display title
+ * written onto the lead. Both fixes are idempotent and only fire while the
+ * hole exists, so the arrival itself (whose join stamp out-sorts the old
+ * members under `addPosition: top`) can never rename the card or re-elect
+ * the lead. The title is decided ONCE — at creation, or at the first add
+ * that touches a spool created before titles were frozen.
+ */
+export function planAddReconcile(
+  spool: Pick<Spool, "leadThreadId" | "leadElected" | "customTitle" | "title"> | null | undefined,
+): SpoolMetadataWrite[] {
+  if (!spool?.leadThreadId) return [];
+  const set: Record<string, unknown> = {};
+  if (spool.leadElected) set["spoolLead"] = true;
+  if (!spool.customTitle) set["spoolTitle"] = spool.title;
+  return Object.keys(set).length > 0 ? [{ threadId: spool.leadThreadId, set }] : [];
 }
 
 /**
@@ -216,10 +246,26 @@ export function familyOf({ threadId, childrenOf }: DescendantsOfArgs): string[] 
 }
 
 export type SpoolIntent =
-  | { kind: "create"; spoolId: string; memberIds: readonly string[]; leadId: string; customTitle?: string | null; joinedAt: number }
+  | {
+      kind: "create";
+      spoolId: string;
+      memberIds: readonly string[];
+      leadId: string;
+      /** The lead thread's current title, to freeze "Spool: <lead>" once. */
+      leadTitle?: string | null;
+      customTitle?: string | null;
+      joinedAt: number;
+    }
   | { kind: "add"; spoolId: string; memberIds: readonly string[]; joinedAt: number; customTitle?: string | null }
   | { kind: "breakOut"; threadIds: readonly string[] }
-  | { kind: "rename"; memberIds: readonly string[]; leadId: string; customTitle: string | null }
+  | {
+      kind: "rename";
+      memberIds: readonly string[];
+      leadId: string;
+      customTitle: string | null;
+      /** The derived title at rename time, frozen when clearing. */
+      derivedTitle?: string | null;
+    }
   | { kind: "unspool"; spoolId: string; memberIds: readonly string[] };
 
 /**
@@ -233,13 +279,24 @@ export function planMetadataWrites(
 ): SpoolMetadataWrite[] {
   switch (intent.kind) {
     case "create": {
+      // The spool names itself ONCE, right here: the lead carries spoolTitle
+      // from the first write — a user-supplied name, or the derived
+      // "Spool: <lead title>" ("Unnamed spool" when the lead cannot name
+      // itself). Later adds, lead renames and lead handovers never re-derive
+      // it; the user's next rename replaces the value.
+      const provided = intent.customTitle && intent.customTitle.trim() ? intent.customTitle.trim() : null;
+      const leadTitleSource: ThreadTitleSource | null =
+        typeof intent.leadTitle === "string" && intent.leadTitle.trim()
+          ? { id: intent.leadId, displayTitle: intent.leadTitle, title: intent.leadTitle }
+          : null;
+      const frozenTitle = provided ?? spoolTitleFor(leadTitleSource, null);
       return intent.memberIds.map((threadId, index) => ({
         threadId,
         ...memberPatch({
           spoolId: intent.spoolId,
           joined: intent.joinedAt + index,
           lead: threadId === intent.leadId,
-          customTitle: threadId === intent.leadId ? (intent.customTitle ?? null) : null,
+          customTitle: threadId === intent.leadId ? frozenTitle : null,
         }),
       }));
     }
@@ -260,8 +317,10 @@ export function planMetadataWrites(
         .map((threadId) => ({ threadId, ...releasePatch() }));
     }
     case "rename": {
-      // Custom title lives on the lead thread only; clearing it restores the
-      // derived "Spool: <lead>" naming everywhere else.
+      // Custom title lives on the lead thread only. Renaming replaces it;
+      // CLEARING it re-freezes the title that currently derives, so the name
+      // never returns to live derivation — nothing can retitle the spool
+      // under the user's feet afterwards.
       return intent.customTitle && intent.customTitle.trim()
         ? [
             {
@@ -269,7 +328,12 @@ export function planMetadataWrites(
               set: { spoolTitle: intent.customTitle.trim() },
             },
           ]
-        : [{ threadId: intent.leadId, remove: ["spoolTitle"] }];
+        : [
+            {
+              threadId: intent.leadId,
+              set: { spoolTitle: (intent.derivedTitle ?? "").trim() || "Unnamed spool" },
+            },
+          ];
     }
     case "unspool": {
       return intent.memberIds.map((threadId) => ({
@@ -282,8 +346,10 @@ export function planMetadataWrites(
 
 /**
  * Lead migration: when the current lead leaves (archived / broken out) the
- * next member (by join order) is elected and — if it never held one — the
- * old lead's custom title follows so a rename survives the handover.
+ * next member (by join order) is elected. The election is PERSISTED — the
+ * promoted member now truly carries spoolLead, so a later add (whose top
+ * join stamps out-sort the positives) can never re-elect a different lead —
+ * and the old lead's custom title follows so a rename survives the handover.
  */
 export function planLeadMigration(args: {
   spoolId: string;
@@ -294,9 +360,7 @@ export function planLeadMigration(args: {
 }): SpoolMetadataWrite[] {
   const next = args.memberIds.find((memberId) => memberId !== args.leavingLeadId);
   if (!next) return [];
-  const writes: SpoolMetadataWrite[] = [];
-  if (args.oldLeadCustomTitle) {
-    writes.push({ threadId: next, set: { spoolTitle: args.oldLeadCustomTitle } });
-  }
-  return writes;
+  const set: Record<string, unknown> = { spoolLead: true };
+  if (args.oldLeadCustomTitle) set["spoolTitle"] = args.oldLeadCustomTitle;
+  return [{ threadId: next, set }];
 }

@@ -88,8 +88,16 @@ grouping only (other groupings keep ordinary rows), stored entirely in per-threa
 metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
 
-- The card shows the derived title (`Spool: <lead title>` until it is renamed — renaming
-  writes `spoolTitle` to the lead; clearing the title brings the derived one back) and a
+- The card shows a FROZEN title, named ONCE at creation (`Spool: <lead title>` at that
+  moment, or the user-supplied name) and written into `spoolTitle` on the lead — later
+  adds, the lead thread's own renames, and lead handovers never re-derive it; renaming
+  the spool replaces the frozen value, and clearing the name re-freezes the currently
+  derived title at that moment (nothing returns to live derivation). Spools created
+  before titles froze keep their live-derived name until the first add to them, which
+  locks the name exactly as it shows — and also persists an elected lead's `spoolLead`
+  so the arrival's join stamp can never re-elect a different lead. Lead migration
+  (archive/release) persists the promoted member's `spoolLead` too, and never promotes
+  a member whose family leaves together with the old lead. The card also shows a
   member count (when the collapsed line cannot fit the
   working-count word it stands down to spinner + count — measured pre-paint, the
   word returns when room does — and the badge tooltip keeps the detail); a hover

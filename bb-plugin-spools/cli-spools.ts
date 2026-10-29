@@ -18,6 +18,7 @@ import {
   deriveSpools,
   familyOf,
   newSpoolId,
+  planAddReconcile,
   planMetadataWrites,
   SPOOL_ID_PREFIX,
   type Spool,
@@ -289,12 +290,16 @@ export function buildSpoolsCli(bb: BbPluginApi): PluginCliRegistration {
         const title = input.options.title ?? null;
 
         if (input.positionals.target.trim().toLowerCase() === "new") {
+          // The spool names itself once, here: the lead's current title is
+          // frozen into spoolTitle (a --title name wins), so later adds
+          // never rename the card.
           const writes = planMetadataWrites(
             {
               kind: "create",
               spoolId: newSpoolId(),
               memberIds: [thread.id],
               leadId: thread.id,
+              leadTitle: thread.displayTitle,
               customTitle: title,
               joinedAt: Date.now(),
             },
@@ -322,15 +327,21 @@ export function buildSpoolsCli(bb: BbPluginApi): PluginCliRegistration {
           };
         }
         const memberIds = [...family, thread.id];
-        const writes = planMetadataWrites(
-          {
-            kind: "add",
-            spoolId: spool.id,
-            memberIds,
-            joinedAt: Date.now(),
-          },
-          world.membership,
-        );
+        // One-time reconciliation before the arrival: a still-derived title
+        // freezes at its current value and an elected lead becomes real,
+        // so the add can never rename the card or re-elect the lead.
+        const writes = [
+          ...planAddReconcile(spool),
+          ...planMetadataWrites(
+            {
+              kind: "add",
+              spoolId: spool.id,
+              memberIds,
+              joinedAt: Date.now(),
+            },
+            world.membership,
+          ),
+        ];
         return Promise.allSettled(
           writes.map((write) =>
             bb.sdk.threads.updatePluginMetadata({

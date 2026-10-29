@@ -15,8 +15,10 @@ import {
   deriveSpools,
   familyOf,
   newSpoolId,
+  planAddReconcile,
   planLeadMigration,
   planMetadataWrites,
+  spoolTitleFor,
   type Spool,
   type SpoolMembership,
   type SpoolMetadataWrite,
@@ -180,6 +182,10 @@ export function useSpools(args: {
     async (threadId, extra) => {
       const family = familyOf({ threadId, childrenOf: childrenOf() });
       const memberIds = [...family, ...(extra?.extraMemberIds ?? [])];
+      // The spool names itself ONCE, here: the lead's current title is frozen
+      // into spoolTitle on the first write (a user-supplied customTitle
+      // wins), so no later add or lead rename ever re-derives the card name.
+      const lead = threadsRef.current.find((thread) => thread.id === threadId) ?? null;
       await write(
         planMetadataWrites(
           {
@@ -187,6 +193,7 @@ export function useSpools(args: {
             spoolId: newSpoolId(),
             memberIds,
             leadId: threadId,
+            leadTitle: lead ? lead.displayTitle ?? lead.title ?? null : null,
             customTitle: extra?.customTitle ?? null,
             joinedAt: Date.now(),
           },
@@ -200,11 +207,18 @@ export function useSpools(args: {
   const throwOntoSpool = useCallback<UseSpoolsResult["throwOntoSpool"]>(
     async (spoolId, threadId) => {
       const family = familyOf({ threadId, childrenOf: childrenOf() });
+      // One-time reconciliation before the arrival: a still-derived title
+      // freezes at its current value and an elected lead becomes real, so
+      // the add itself can never rename the card or re-elect the lead (a
+      // top join stamp out-sorts every existing member). Idempotent — it
+      // only writes while the hole exists.
+      const reconcile = planAddReconcile(spoolById.get(spoolId));
       // Spools never nest: the member patch below rewrites the whole spool
       // key-set (spool/spoolJoined/spoolLead) and clears any stale spoolTitle
       // from a previous spool, so no separate break-out write is needed.
-      await write(
-        planMetadataWrites(
+      await write([
+        ...reconcile,
+        ...planMetadataWrites(
           {
             kind: "add",
             spoolId,
@@ -214,9 +228,9 @@ export function useSpools(args: {
           },
           membershipByThreadId,
         ),
-      );
+      ]);
     },
-    [childrenOf, membershipByThreadId, write, addPosition],
+    [childrenOf, membershipByThreadId, write, addPosition, spoolById],
   );
 
   const releaseThread = useCallback<UseSpoolsResult["releaseThread"]>(
@@ -224,10 +238,15 @@ export function useSpools(args: {
       const membership = membershipByThreadId.get(threadId);
       if (!membership) return;
       const spool = spoolById.get(membership.id);
-      const remaining = (spool?.members ?? []).filter((id) => id !== threadId);
+      const released = familyOf({ threadId, childrenOf: childrenOf() });
+      // The whole released family leaves (breakOut releases descendants
+      // too), so the migration must elect among the members that actually
+      // stay — a released child must not be promoted into the hole.
+      const releasedIds = new Set(released);
+      const remaining = (spool?.members ?? []).filter((id) => !releasedIds.has(id));
       const leavingLead = spool?.leadThreadId === threadId;
       const writes = planMetadataWrites(
-        { kind: "breakOut", threadIds: familyOf({ threadId, childrenOf: childrenOf() }) },
+        { kind: "breakOut", threadIds: released },
         membershipByThreadId,
       );
       if (leavingLead && spool) {
@@ -250,9 +269,18 @@ export function useSpools(args: {
     async (spoolId, title) => {
       const spool = spoolById.get(spoolId);
       if (!spool?.leadThreadId) return;
+      // Clearing the name re-freezes the currently derived title; the spool
+      // never goes back to live derivation, so nothing retitles it later.
+      const leadThread = threadsRef.current.find((thread) => thread.id === spool.leadThreadId) ?? null;
       await write(
         planMetadataWrites(
-          { kind: "rename", memberIds: spool.members, leadId: spool.leadThreadId, customTitle: title },
+          {
+            kind: "rename",
+            memberIds: spool.members,
+            leadId: spool.leadThreadId,
+            customTitle: title,
+            derivedTitle: spoolTitleFor(leadThread, null),
+          },
           membershipByThreadId,
         ),
       );

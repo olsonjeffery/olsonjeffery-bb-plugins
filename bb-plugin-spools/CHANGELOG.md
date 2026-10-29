@@ -4,6 +4,40 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.6 — 2026-10-29
+
+### Fixed
+- **A spool is named ONCE, at creation — adds can no longer retitle the card.**
+  The card name derived live from the lead thread's frontier title, so a lead
+  marker that slipped away (a release without persisted election) let the next
+  join — whose top stamp out-sorts every existing member — become the effective
+  lead; every subsequent add then flipped the card to `Spool: <that thread>`.
+  Creation now freezes the derived name (`Spool: <lead>` at that moment, or the
+  user's `--title`) into `spoolTitle` on the lead, and nothing derives again:
+  later adds, the lead thread's own renames, and lead handovers leave the name
+  exactly as it shows. Renaming replaces the frozen value and sticks; clearing a
+  rename now re-freezes the currently derived name at that moment (the title
+  never returns to live derivation). Spools created before this change keep
+  their current behaviour until the first add touching them, which freezes the
+  name as shown and — when the lead had slipped away — persists the elected
+  lead, so arrival stamps can never re-elect underneath the card.
+- **Lead migration persists the promoted member.** When the lead leaves
+  (archive, release), the elected next member now gets real `spoolLead`
+  metadata along with the migrated title — previously only the title moved,
+  leaving a lead-less spool whose effective lead re-elected by join order on
+  every later add.
+- **Release elects a member that actually stays.** Releasing a lead dropped its
+  whole family from the spool, but the election considered only the direct
+  member list — a released child could be promoted and take the migrated title
+  into the exit. The remaining family is now excluded before electing.
+- **`bb spools mv-spool … new` names its spool once too** — same frozen title
+  semantics as the sidebar (a `--title` name still wins).
+
+### Changed
+- `deriveSpools` exposes `leadElected` (true when the lead was recovered by the
+  election fallback rather than read from real `spoolLead` metadata); the add
+  path reconciles it into real metadata once, idempotently.
+
 ## 0.6.5 — 2026-10-26
 
 ### Changed

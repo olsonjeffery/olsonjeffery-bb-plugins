@@ -62,6 +62,7 @@ describe("spools CLI resolvers", () => {
           members: ["aaaa1111"],
           leadThreadId: "aaaa1111",
           customTitle: null,
+          leadElected: false,
           title: "Spool: Thread aaaa1111",
         },
         {
@@ -69,6 +70,7 @@ describe("spools CLI resolvers", () => {
           members: ["aaaa2222"],
           leadThreadId: "aaaa2222",
           customTitle: null,
+          leadElected: false,
           title: "Spool: Thread aaaa2222",
         },
       ],
@@ -96,6 +98,7 @@ describe("spools CLI resolvers", () => {
           members: ["aaaa1111", "aaaa2222"],
           leadThreadId: "aaaa1111",
           customTitle: null,
+          leadElected: false,
           title: "Spool: Thread aaaa1111",
         },
       ],

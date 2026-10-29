@@ -114,7 +114,7 @@ describe("spool groups (section view only)", () => {
     const lone = makeThread({ id: "x", sectionId: "sec_1" });
     const hook = renderHook(() => useThreadGroups(
       argsForSection([lead, peer, lone], {
-        spools: [{ id: "spool_a", members: ["l", "m"], leadThreadId: "l", customTitle: null, title: "Spool: Top" }],
+        spools: [{ id: "spool_a", members: ["l", "m"], leadThreadId: "l", leadElected: false, customTitle: null, title: "Spool: Top" }],
         spoolIdByThreadId: new Map([["l", "spool_a"], ["m", "spool_a"]]),
       }),
     ));
@@ -138,7 +138,7 @@ describe("spool groups (section view only)", () => {
     const failer = makeThread({ id: "f", parentThreadId: "l", sectionId: "sec_1", indicator: "unread-error", isUnread: true });
     const hook = renderHook(() => useThreadGroups(
       argsForSection([keep, child, failer], {
-        spools: [{ id: "spool_a", members: ["l", "c", "f"], leadThreadId: "l", customTitle: null, title: "S" }],
+        spools: [{ id: "spool_a", members: ["l", "c", "f"], leadThreadId: "l", leadElected: false, customTitle: null, title: "S" }],
         spoolIdByThreadId: new Map([["l", "spool_a"], ["c", "spool_a"], ["f", "spool_a"]]),
       }),
     ));
@@ -154,7 +154,7 @@ describe("spool groups (section view only)", () => {
     const member = makeThread({ id: "m", parentThreadId: "l", sectionId: "sec_1" });
     const hook = renderHook(() => useThreadGroups(
       argsForSection([lead, member], {
-        spools: [{ id: "spool_a", members: ["x"], leadThreadId: "x", customTitle: null, title: "S" }],
+        spools: [{ id: "spool_a", members: ["x"], leadThreadId: "x", leadElected: false, customTitle: null, title: "S" }],
         spoolIdByThreadId: new Map(),
       }),
     ));
@@ -168,7 +168,7 @@ describe("spool groups (section view only)", () => {
     const lead = makeThread({ id: "l" });
     const hook = renderHook(() => useThreadGroups(
       argsWith([lead], {
-        spools: [{ id: "spool_a", members: ["l"], leadThreadId: "l", customTitle: null, title: "Spool: l" }],
+        spools: [{ id: "spool_a", members: ["l"], leadThreadId: "l", leadElected: false, customTitle: null, title: "Spool: l" }],
         spoolIdByThreadId: new Map([["l", "spool_a"]]),
       }),
     ));

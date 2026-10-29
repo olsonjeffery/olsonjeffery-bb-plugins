@@ -79,12 +79,65 @@ describe("useSpools writes", () => {
     expect(fakeUpdate).toHaveBeenCalledTimes(2);
     const first = fakeUpdate.mock.calls[0][0];
     expect(first.threadId).toBe("t1");
-    expect(first.set).toMatchObject({ spoolLead: true });
+    // Named once, at creation: the lead's current title is frozen, so later
+    // adds can never retitle the spool.
+    expect(first.set).toMatchObject({ spoolLead: true, spoolTitle: "Spool: Root" });
     expect(first.pluginId).toBe("spools");
     const second = fakeUpdate.mock.calls[1][0];
     expect(second.threadId).toBe("t2");
     expect(second.set).toMatchObject({ spoolLead: false });
+    expect(second.remove).toEqual(["spoolTitle"]);
     expect(second.set!!["spoolJoined"]).toBeGreaterThan(first.set["spoolJoined"]);
+  });
+
+  it("createSpoolFromThread freezes a user-supplied custom title", async () => {
+    fakeList.mockResolvedValue({ threads: [] });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1", { title: "Root" })]);
+    await act(() => utils.result.current.createSpoolFromThread("t1", { customTitle: "Sprint" }));
+    expect(fakeUpdate.mock.calls[0][0].set).toMatchObject({ spoolTitle: "Sprint" });
+    expect(fakeUpdate.mock.calls[0][0].remove).toBeUndefined();
+  });
+
+  it("throwOntoSpool reconciles a derived title + elected lead ONCE, before the join", async () => {
+    // The existing spool carries no spoolTitle (pre-freeze install) and its
+    // lead marker is gone (elected) — the arrival must neither rename the
+    // card nor re-elect: one reconciliation write fixes both holes first.
+    fakeList.mockResolvedValue({
+      threads: [
+        metaRow("t1", { spool: "spool_a", spoolJoined: 10 }),
+        metaRow("t2", { spool: "spool_a", spoolJoined: 20 }),
+      ],
+    });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1", { title: "Alpha" }), t("t2", { title: "Beta" }), t("t3")]);
+    await act(() => utils.result.current.throwOntoSpool("spool_a", "t3"));
+    const calls = fakeUpdate.mock.calls.map((c: any[]) => c[0]);
+    expect(calls).toEqual([
+      // Reconcile: freeze the CURRENT derived title, persist the elected lead.
+      { threadId: "t1", set: { spoolLead: true, spoolTitle: "Spool: Alpha" }, remove: undefined, pluginId: "spools" },
+      // The arrival joins last (bottom default) and stays title-less.
+      {
+        threadId: "t3",
+        set: { spool: "spool_a", spoolJoined: expect.any(Number), spoolLead: false },
+        remove: ["spoolTitle"],
+        pluginId: "spools",
+      },
+    ]);
+  });
+
+  it("throwOntoSpool writes nothing extra onto an already-frozen spool", async () => {
+    fakeList.mockResolvedValue({
+      threads: [
+        metaRow("t1", { spool: "spool_a", spoolJoined: 10, spoolLead: true, spoolTitle: "Named" }),
+      ],
+    });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1", { title: "Alpha" }), t("t2")]);
+    await act(() => utils.result.current.throwOntoSpool("spool_a", "t2"));
+    const calls = fakeUpdate.mock.calls.map((c: any[]) => c[0]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].threadId).toBe("t2");
   });
 
   it("throwOntoSpool breaks out of the old spool then joins the new", async () => {
@@ -130,7 +183,7 @@ describe("useSpools writes", () => {
     expect(joined[1]).toBeGreaterThan(joined[0]);
   });
 
-  it("releaseThread migrates a custom title when the lead leaves", async () => {
+  it("releaseThread migrates the title AND the real lead when the lead leaves", async () => {
     fakeList.mockResolvedValue({
       threads: [
         metaRow("t1", { spool: "spool_a", spoolJoined: 5, spoolLead: true, spoolTitle: "Fuzz" }),
@@ -144,7 +197,30 @@ describe("useSpools writes", () => {
     const calls = fakeUpdate.mock.calls.map((c: any[]) => c[0]);
     expect(calls).toEqual([
       { threadId: "t1", set: undefined, remove: ["spool", "spoolJoined", "spoolLead", "spoolTitle"], pluginId: "spools" },
-      { threadId: "t2", set: { spoolTitle: "Fuzz" }, remove: undefined, pluginId: "spools" },
+      // The promoted member now really carries spoolLead, so a later add's
+      // join stamp can never re-elect a different lead underneath the card.
+      { threadId: "t2", set: { spoolTitle: "Fuzz", spoolLead: true }, remove: undefined, pluginId: "spools" },
+    ]);
+  });
+
+  it("releaseThread elects a member whose family is NOT also leaving", async () => {
+    // The lead's child leaves together with it; the child must not be
+    // promoted (its title migration would land on a thread that just left).
+    fakeList.mockResolvedValue({
+      threads: [
+        metaRow("t1", { spool: "spool_a", spoolJoined: 5, spoolLead: true, spoolTitle: "Fuzz" }),
+        metaRow("t2", { spool: "spool_a", spoolJoined: 6 }),
+        metaRow("t3", { spool: "spool_a", spoolJoined: 7 }),
+      ],
+    });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1"), t("t2", { parentThreadId: "t1" }), t("t3")]);
+    await act(() => utils.result.current.releaseThread("t1"));
+    const calls = fakeUpdate.mock.calls.map((c: any[]) => c[0]);
+    expect(calls).toEqual([
+      { threadId: "t1", set: undefined, remove: ["spool", "spoolJoined", "spoolLead", "spoolTitle"], pluginId: "spools" },
+      { threadId: "t2", set: undefined, remove: ["spool", "spoolJoined", "spoolLead", "spoolTitle"], pluginId: "spools" },
+      { threadId: "t3", set: { spoolTitle: "Fuzz", spoolLead: true }, remove: undefined, pluginId: "spools" },
     ]);
   });
 
@@ -182,6 +258,23 @@ describe("useSpools writes", () => {
       pluginId: "spools",
     });
     expect(fakeUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("clearing a rename re-freezes the derived title instead of restoring derivation", async () => {
+    fakeList.mockResolvedValue({
+      threads: [
+        metaRow("t1", { spool: "spool_a", spoolJoined: 5, spoolLead: true, spoolTitle: "Fuzz" }),
+      ],
+    });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1", { title: "Alpha" })]);
+    await act(() => utils.result.current.renameSpool("spool_a", "  "));
+    expect(fakeUpdate).toHaveBeenCalledTimes(1);
+    expect(fakeUpdate.mock.calls[0][0]).toMatchObject({
+      threadId: "t1",
+      // The value shown at clear-time becomes the permanent frozen title.
+      set: { spoolTitle: "Spool: Alpha" },
+    });
   });
 
   it("mutations refetch metadata after writes", async () => {
