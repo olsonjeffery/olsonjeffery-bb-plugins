@@ -1,0 +1,358 @@
+/* MSB + pi page. All rules are prefixed `msp-` and read BB's live theme
+   tokens (with fallbacks), so custom palettes keep working. None touch
+   BB's own elements. */
+
+.msp-page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 22px 24px 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.msp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.msp-sub {
+  color: var(--muted-foreground, var(--foreground));
+  opacity: 0.85;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+}
+
+.msp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.msp-btn,
+.msp-mini {
+  appearance: none;
+  border: 1px solid var(--border, transparent);
+  background: var(--card, transparent);
+  color: var(--foreground);
+  border-radius: 8px;
+  padding: 5px 11px;
+  font-size: 12.5px;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.msp-btn:hover:not(:disabled),
+.msp-mini:hover:not(:disabled) {
+  background: var(--muted, rgba(127, 127, 127, 0.12));
+}
+
+.msp-btn:disabled,
+.msp-mini:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.msp-mini {
+  padding: 4px 7px;
+  border-radius: 7px;
+}
+
+.msp-icon,
+.msp-mini .msp-icon {
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+}
+
+.msp-icon.spinning {
+  animation: msp-spin 900ms linear infinite;
+}
+
+@keyframes msp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.msp-machines {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.msp-card {
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 12px;
+  background: var(--card, transparent);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.msp-card-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.2));
+  background: color-mix(in oklab, var(--muted, transparent) 30%, transparent);
+}
+
+.msp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted-foreground, var(--foreground));
+  opacity: 0.5;
+  flex: none;
+}
+
+.msp-dot.on {
+  background: var(--success, var(--foreground));
+  opacity: 1;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--success, transparent) 22%, transparent);
+}
+
+.msp-name {
+  font-weight: 620;
+  letter-spacing: -0.005em;
+}
+
+.msp-meta {
+  margin-left: auto;
+  color: var(--muted-foreground, var(--foreground));
+  font-size: 12px;
+  text-align: right;
+}
+
+.msp-tool {
+  padding: 11px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.msp-tool + .msp-tool {
+  border-top: 1px dashed var(--border, rgba(127, 127, 127, 0.2));
+}
+
+.msp-tool-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.msp-tool-label {
+  width: 30px;
+  flex: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground, var(--foreground));
+}
+
+.msp-ver {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 16.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  min-width: 44px;
+}
+
+.msp-ver-none {
+  color: var(--muted-foreground, var(--foreground));
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.msp-ver-bad {
+  color: var(--destructive, var(--foreground));
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: 0;
+}
+
+.msp-absent .msp-ver-none,
+.msp-failed .msp-ver-bad {
+  min-width: 0;
+}
+
+.msp-chip {
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground, var(--foreground));
+  background: color-mix(in oklab, var(--muted, transparent) 55%, transparent);
+  white-space: nowrap;
+}
+
+.msp-tool-sub {
+  padding-left: 40px;
+  color: var(--muted-foreground, var(--foreground));
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.msp-err {
+  color: var(--destructive, var(--foreground));
+  opacity: 0.9;
+}
+
+.msp-release {
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 6px;
+  padding: 0 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground, var(--foreground));
+  background: color-mix(in oklab, var(--muted, transparent) 45%, transparent);
+}
+
+.msp-release.active {
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--primary, var(--foreground)) 45%, var(--border, transparent));
+  background: color-mix(in oklab, var(--primary, var(--foreground)) 12%, transparent);
+}
+
+.msp-machine-error {
+  padding: 8px 14px 10px;
+  border-top: 1px dashed var(--border, rgba(127, 127, 127, 0.2));
+  color: var(--warning, var(--destructive, var(--foreground)));
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.msp-fatal {
+  color: var(--destructive, var(--foreground));
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.msp-history {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.msp-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted-foreground, var(--foreground));
+  margin: 6px 0 6px 2px;
+}
+
+.msp-empty-note {
+  color: var(--muted-foreground, var(--foreground));
+  font-size: 12.5px;
+  padding: 8px 2px;
+}
+
+.msp-hist-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.msp-hist-row:hover {
+  background: var(--muted, rgba(127, 127, 127, 0.1));
+}
+
+.msp-hist-tool {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground, var(--foreground));
+  width: 34px;
+  flex: none;
+}
+
+.msp-hist-kind {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.msp-hist-kind.added {
+  color: var(--success, var(--foreground));
+}
+
+.msp-hist-kind.removed {
+  color: var(--destructive, var(--foreground));
+}
+
+.msp-hist-kind.changed {
+  color: var(--foreground);
+}
+
+.msp-hist-host {
+  color: var(--muted-foreground, var(--foreground));
+  font-size: 12px;
+}
+
+.msp-hist-when {
+  margin-left: auto;
+  color: var(--muted-foreground, var(--foreground));
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.msp-empty {
+  padding: 26px 20px;
+  text-align: center;
+  color: var(--muted-foreground, var(--foreground));
+  font-size: 13px;
+}
+
+.msp-skel {
+  height: 104px;
+  border-radius: 12px;
+  animation: msp-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes msp-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msp-icon.spinning {
+    animation: none;
+  }
+  .msp-skel {
+    animation: none;
+    opacity: 0.6;
+  }
+}

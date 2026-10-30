@@ -1,0 +1,42 @@
+{
+  "name": "bb-plugin-msb-pi",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "bb": ">=0.48",
+    "bbPluginSdk": ">=0.6.94"
+  },
+  "bb": {
+    "name": "MSB + pi",
+    "description": "Keeps a version watch on every bb machine: which microsandbox (msb) and pi coding agent installs exist, what version each one is, and what changed when. One page, one CLI, one history.",
+    "branding": {
+      "icon": "./assets/icon.svg"
+    },
+    "server": "./server.ts",
+    "host": "./host.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "dependencies": {
+    "@get-bb/plugin-sdk": "0.6.94",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "better-sqlite3": "^12.11.1",
+    "hono": "^4.13.14",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
+  },
+  "scripts": {
+    "build": "bb plugin build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT"
+}
