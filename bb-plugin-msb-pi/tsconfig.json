@@ -16,16 +16,8 @@
     "skipLibCheck": false
   },
   "include": [
-    "server.ts",
-    "host.ts",
-    "app.tsx",
-    "contract.ts",
-    "host-contract.ts",
-    "snapshot.ts",
-    "probe.ts",
-    "diff.ts",
-    "store.ts",
-    "cli-msb-pi.ts",
+    "*.ts",
+    "*.tsx",
     "lib"
   ]
 }
