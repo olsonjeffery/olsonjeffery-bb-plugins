@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — host entry (bb.host).
+// bb-plugin-microsandbox-pi — host entry (bb.host).
 //
 // Runs as a full-trust Node worker on every enrolled machine. It only
 // ever answers "what msb and pi are installed here" — `--version` runs

@@ -11,7 +11,7 @@ One page, one CLI, four agent tools, one history:
   tool's active version, install origin, resolve path, npm update chips,
   the machine's msb sandbox list, all installed pi releases, and a change
   log (`1.2.9 → 1.3.0`) recorded across probes.
-- **CLI** — `bb msb-pi versions|refresh|history|boxes` for agents and
+- **CLI** — `bb microsandbox-pi versions|refresh|history|boxes` for agents and
   scripts, with `--json` everywhere.
 - **Agent tools** — `msb_pi_versions`, `msb_pi_probe`, `msb_pi_boxes`,
   `msb_pi_history`: schema'd tools any bb thread can call directly.
@@ -50,10 +50,10 @@ changed. This plugin is that memory.
 | --- | --- |
 | Navigation → MSB + pi | Machine cards (versions, update chips, sandbox list) + version history |
 | Agent tools `msb_pi_versions` / `msb_pi_probe` / `msb_pi_boxes` / `msb_pi_history` | Direct answers in any thread |
-| `bb msb-pi versions [--machine <ref>] [--refresh] [--json]` | Stored results with npm hints |
-| `bb msb-pi refresh [--machine <ref>] [--json]` | Probe now, keep results |
-| `bb msb-pi boxes [--machine <ref>] [--running] [--refresh] [--json]` | Each machine's msb runtime sandboxes |
-| `bb msb-pi history [--machine <ref>] [--limit N] [--json]` | Recorded version changes |
+| `bb microsandbox-pi versions [--machine <ref>] [--refresh] [--json]` | Stored results with npm hints |
+| `bb microsandbox-pi refresh [--machine <ref>] [--json]` | Probe now, keep results |
+| `bb microsandbox-pi boxes [--machine <ref>] [--running] [--refresh] [--json]` | Each machine's msb runtime sandboxes |
+| `bb microsandbox-pi history [--machine <ref>] [--limit N] [--json]` | Recorded version changes |
 | Settings → Installed plugins → MSB + pi | Check interval, extra msb paths, pi managed-root override, npm check |
 
 ## How it works

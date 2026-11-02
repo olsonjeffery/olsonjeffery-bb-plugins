@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — the host-side probe.
+// bb-plugin-microsandbox-pi — the host-side probe.
 //
 // Runs inside the plugin's bb.host artifact (full-trust Node) and asks
 // a machine how its two toolchains are installed. Every failure mode —

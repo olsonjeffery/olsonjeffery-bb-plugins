@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — durable plugin state.
+// bb-plugin-microsandbox-pi — durable plugin state.
 //
 // One kv row keeps everything between probes: the latest snapshot per
 // machine plus the version-change history. Small, JSON, capped — the

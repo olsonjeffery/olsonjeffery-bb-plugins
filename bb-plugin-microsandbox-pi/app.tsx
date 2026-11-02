@@ -26,7 +26,7 @@ export default definePluginApp((app) => {
     id: "watch",
     title: "MSB + pi",
     icon: "Activity",
-    path: "msb-pi",
+    path: "microsandbox-pi",
     component: MsbPiPage,
   });
 });

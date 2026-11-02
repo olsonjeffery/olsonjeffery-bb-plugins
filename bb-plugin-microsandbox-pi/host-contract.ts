@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — the host RPC contract.
+// bb-plugin-microsandbox-pi — the host RPC contract.
 //
 // One method, one job: return this machine's toolchain snapshot. The
 // server calls it per enrolled host; both the host artifact and the

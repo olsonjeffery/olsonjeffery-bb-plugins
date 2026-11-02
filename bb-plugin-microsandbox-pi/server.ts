@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — server entry.
+// bb-plugin-microsandbox-pi — server entry.
 //
 // Watches every enrolled machine for installed versions of the
 // microsandbox CLI (`msb`) and the pi coding agent (`pi`):
@@ -8,14 +8,14 @@
 //   - this entry keeps one snapshot per host in kv storage, records
 //     version changes in a capped history, and pushes a realtime ping
 //     after every cycle;
-//   - the nav panel page and `bb msb-pi` CLI read the same state.
+//   - the nav panel page and `bb microsandbox-pi` CLI read the same state.
 //
 // Cycles serialize behind a small mutex so concurrent refreshes (page
 // + CLI + timer) can't interleave read-modify-write or double-record
 // a transition.
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { buildMsbPiCli, gatherState, renderHistory, renderWatch, renderBoxes, type MsbPiBackend } from "./cli-msb-pi";
+import { buildMsbPiCli, gatherState, renderHistory, renderWatch, renderBoxes, type MsbPiBackend } from "./cli-microsandbox-pi";
 import { hostContract } from "./host-contract";
 import { rpcContract, REALTIME_CHANNEL } from "./contract";
 import { loadMonitorState, saveMonitorState, withHistory, type MonitorState } from "./store";
@@ -67,7 +67,7 @@ export default async function plugin(bb: BbPluginApi) {
       type: "number",
       label: "Check interval (minutes)",
       description:
-        "How often each machine is re-probed in the background. You can always force a cycle from the page or `bb msb-pi refresh`.",
+        "How often each machine is re-probed in the background. You can always force a cycle from the page or `bb microsandbox-pi refresh`.",
       default: 15,
       experimental_schema: z.number().int().min(1).max(720),
     },
@@ -360,7 +360,7 @@ export default async function plugin(bb: BbPluginApi) {
   // in-box view of each machine's msb runtime.
 
   bb.agents.registerTool({
-    name: "msb_pi_versions",
+    name: "microsandbox_pi_versions",
     description:
       "Installed versions of msb (microsandbox) and the pi coding agent across every enrolled bb machine — the MSB + pi watcher's stored results, with install origins and npm update hints. Use this instead of shelling out to `msb --version`/`pi --version`.",
     presentation: {
@@ -374,7 +374,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.agents.registerTool({
-    name: "msb_pi_probe",
+    name: "microsandbox_pi_probe",
     description:
       "Force a fresh probe of installed msb and pi versions right now (defaults to every connected machine; pass a machine id/name to target one). Takes a few seconds.",
     presentation: {
@@ -392,7 +392,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.agents.registerTool({
-    name: "msb_pi_boxes",
+    name: "microsandbox_pi_boxes",
     description:
       "The in-box view: which sandboxes exist in each machine's msb runtime (name, image, state), straight from `msb list` at the last probe. Machines without msb report none.",
     presentation: {
@@ -409,7 +409,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   bb.agents.registerTool({
-    name: "msb_pi_history",
+    name: "microsandbox_pi_history",
     description:
       "Version changes the MSB + pi watcher has recorded (newest first): when msb/pi appeared, changed or vanished on each machine.",
     presentation: {

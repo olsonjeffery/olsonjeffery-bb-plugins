@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — history retention.
+// bb-plugin-microsandbox-pi — history retention.
 //
 // A version watcher's log grows one row per change; without shaping it
 // becomes 4am noise. Policy: everything from the last 24h stays, older

@@ -1,11 +1,11 @@
 ---
-name: msb-pi
-description: Check which microsandbox (msb) and pi coding agent versions are installed on each bb machine — the `bb msb-pi` command, the monitor state behind it, and how to force a fresh probe.
+name: microsandbox-pi
+description: Check which microsandbox (msb) and pi coding agent versions are installed on each bb machine — the `bb microsandbox-pi` command, the monitor state behind it, and how to force a fresh probe.
 ---
 
 ---
-name: msb-pi
-description: Get installed microsandbox (msb) and pi coding agent versions per bb machine — the `bb msb-pi` command, the plugin's agent tools (versions, probe, in-box sandbox listing, history), npm update hints, and how to force a fresh probe.
+name: microsandbox-pi
+description: Get installed microsandbox (msb) and pi coding agent versions per bb machine — the `bb microsandbox-pi` command, the plugin's agent tools (versions, probe, in-box sandbox listing, history), npm update hints, and how to force a fresh probe.
 ---
 
 # MSB + pi version watcher
@@ -14,7 +14,7 @@ This plugin watches every machine enrolled with bb for installed versions of
 the microsandbox CLI (`msb`) and the pi coding agent (`pi`). It keeps one
 snapshot per machine (versions, install origins, npm updates, the machine's
 msb runtime sandbox list) plus a change history, shows everything on its
-"MSB + pi" page, and answers over `bb msb-pi` or its agent tools.
+"MSB + pi" page, and answers over `bb microsandbox-pi` or its agent tools.
 
 ## Agent tools
 
@@ -29,7 +29,7 @@ host; otherwise they report across every machine.
 
 ## Commands
 
-- `bb msb-pi versions` — print per machine: pi and msb versions, install
+- `bb microsandbox-pi versions` — print per machine: pi and msb versions, install
   origin, resolve paths, every installed pi release, npm-update hints, and the
   machine's msb sandbox list. Fast: reads the stored state, no probing.
   - `--machine <id|prefix>` — only that machine (host id or name prefix).
@@ -37,12 +37,12 @@ host; otherwise they report across every machine.
     machine), then print.
   - `--json` — machine-readable JSON envelope (`{ ok: true, result: … }` with
     the full state under `machines`/`history`/`npmLatest`).
-- `bb msb-pi refresh [--machine <ref>] [--json]` — force a probe cycle now and
+- `bb microsandbox-pi refresh [--machine <ref>] [--json]` — force a probe cycle now and
   leave the results as the new stored state.
-- `bb msb-pi boxes [--machine <ref>] [--running] [--refresh] [--json]` — the
+- `bb microsandbox-pi boxes [--machine <ref>] [--running] [--refresh] [--json]` — the
   in-box view: each machine's msb runtime sandboxes as recorded at the last
   probe.
-- `bb msb-pi history [--machine <ref>] [--limit N] [--json]` — version changes
+- `bb microsandbox-pi history [--machine <ref>] [--limit N] [--json]` — version changes
   recorded so far, newest first.
 
 ## Reading the output

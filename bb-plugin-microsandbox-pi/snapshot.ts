@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — shared data vocabulary.
+// bb-plugin-microsandbox-pi — shared data vocabulary.
 //
 // The plugin watches two toolchains on every machine bb talks to:
 // the microsandbox CLI (`msb`) and the pi coding agent (`pi`). One

@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — version strings and their ordering.
+// bb-plugin-microsandbox-pi — version strings and their ordering.
 //
 // Pure, dependency-free utilities shared by the host probe, the CLI
 // and the page. Everything here is safe to import from the frontend

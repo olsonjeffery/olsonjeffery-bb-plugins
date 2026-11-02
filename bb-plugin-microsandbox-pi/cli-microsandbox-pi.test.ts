@@ -10,7 +10,7 @@ import {
   renderTool,
   renderWatch,
   type MsbPiBackend,
-} from "./cli-msb-pi";
+} from "./cli-microsandbox-pi";
 import type { BoxesView, MachineState, NpmLatestEntry, ToolStatus, WatchOutput } from "./snapshot";
 
 const status = (version: string | null, extra: Partial<ToolStatus> = {}): ToolStatus => ({

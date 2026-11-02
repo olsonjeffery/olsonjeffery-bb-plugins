@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — turning snapshots into history.
+// bb-plugin-microsandbox-pi — turning snapshots into history.
 //
 // Pure and small on purpose: given yesterday's snapshot and today's,
 // list the version transitions that happened on that machine. The

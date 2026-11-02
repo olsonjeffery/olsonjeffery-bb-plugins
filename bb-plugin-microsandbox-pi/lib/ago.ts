@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — relative time, shared by the page and the CLI.
+// bb-plugin-microsandbox-pi — relative time, shared by the page and the CLI.
 
 /** "just now", "42s ago", "7m ago", "3h 12m ago", "5d ago", then date. */
 export function formatAgo(ms: number, now: number = Date.now()): string {

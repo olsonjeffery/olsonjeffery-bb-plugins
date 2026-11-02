@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — npm "latest available" answers.
+// bb-plugin-microsandbox-pi — npm "latest available" answers.
 //
 // Pure logic here (TTL decisions, dist-tag parsing, staleness); the
 // network fetch lives in server.ts so it can ride the cycle's signal.

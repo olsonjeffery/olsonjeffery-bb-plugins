@@ -1,5 +1,5 @@
 {
-  "name": "bb-plugin-msb-pi",
+  "name": "bb-plugin-microsandbox-pi",
   "version": "0.2.0",
   "type": "module",
   "engines": {

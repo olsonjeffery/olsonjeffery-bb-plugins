@@ -1,4 +1,4 @@
-// bb-plugin-msb-pi — agent-facing CLI (`bb msb-pi …`).
+// bb-plugin-microsandbox-pi — agent-facing CLI (`bb microsandbox-pi …`).
 //
 // All three subcommands read or force the same monitor state the page
 // shows; nothing here probes directly. Rendering treats absence as a
@@ -123,7 +123,7 @@ export function renderMachine(machine: MachineState, now: number, latest: Latest
   const connection = machine.connected ? "connected" : "disconnected";
   const checked = machine.snapshot
     ? `checked ${formatAgo(machine.snapshot.checkedAt, now)}`
-    : "no probe yet (`bb msb-pi refresh`)";
+    : "no probe yet (`bb microsandbox-pi refresh`)";
   const error = machine.lastError ? ` · error: ${machine.lastError}` : "";
   lines.push(
     `${machine.hostName} — ${connection} · ${machine.snapshot?.platform ?? "—"} · ${checked}${error}`,
@@ -221,7 +221,7 @@ function describeTransition(entry: HistoryEntry): string {
 
 export function buildMsbPiCli(backend: MsbPiBackend): PluginCliRegistration {
   return defineCli({
-    name: "msb-pi",
+    name: "microsandbox-pi",
     summary: "Installed versions of msb (microsandbox) and the pi coding agent, per machine",
     description:
       "Reads the monitor state the MSB + pi plugin keeps; add --refresh to probe before printing. Probes only run `--version` locally on each machine.",

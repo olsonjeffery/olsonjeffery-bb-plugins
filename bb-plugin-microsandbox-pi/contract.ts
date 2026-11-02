@@ -1,13 +1,13 @@
-// bb-plugin-msb-pi — the server RPC contract.
+// bb-plugin-microsandbox-pi — the server RPC contract.
 //
-// The app page and `bb msb-pi` both speak this. `watch` is the one
+// The app page and `bb microsandbox-pi` both speak this. `watch` is the one
 // read; `refresh` forces a probe cycle. Both declare the same tag, so
 // a completed refresh invalidates live reads in every open page.
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { machineStateSchema, watchOutputSchema } from "./snapshot";
 
-export const STATE_TAG = "msb-pi-watch";
+export const STATE_TAG = "microsandbox-pi-watch";
 
 export const rpcContract = defineRpcContract({
   watch: {
@@ -27,4 +27,4 @@ export const rpcContract = defineRpcContract({
 });
 
 /** The realtime channel pages listen on for background probes. */
-export const REALTIME_CHANNEL = "msb-pi";
+export const REALTIME_CHANNEL = "microsandbox-pi";

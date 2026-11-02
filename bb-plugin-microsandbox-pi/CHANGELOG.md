@@ -8,7 +8,7 @@
 - **In-box view** — each snapshot now carries the machine's own msb runtime
   inventory, parsed from the `msb list` fixed-width table (name, image, state,
   created): a filtered `boxes` row on the page cards, the new
-  `bb msb-pi boxes [--machine] [--running] [--refresh] [--json]` command, and
+  `bb microsandbox-pi boxes [--machine] [--running] [--refresh] [--json]` command, and
   the `msb_pi_boxes` tool.
 - **npm "latest available"** — every install carries the npm package name it
   maps to (pi's managed tree resolves through its lockfile root's dependency,
@@ -40,7 +40,7 @@
   checked-ago, per-machine refresh), tool rows with version/origin/path,
   release chips, history log, realtime refetch, shared query cache with
   tag invalidation on refresh.
-- `bb msb-pi versions|refresh|history` CLI with `--machine`, `--refresh`,
+- `bb microsandbox-pi versions|refresh|history` CLI with `--machine`, `--refresh`,
   `--limit`, `--json`.
 - Settings: check interval (1–720 min, default 15), extra msb paths, pi
   managed-install root override. Settings changes trigger an immediate probe.
