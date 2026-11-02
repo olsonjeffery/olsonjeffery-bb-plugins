@@ -2,13 +2,16 @@ import { describe, expect, test } from "vitest";
 import {
   findMachines,
   gatherState,
+  npmLine,
+  renderBoxes,
+  renderBoxesRow,
   renderHistory,
   renderMachine,
   renderTool,
   renderWatch,
   type MsbPiBackend,
 } from "./cli-msb-pi";
-import type { MachineState, ToolStatus, WatchOutput } from "./snapshot";
+import type { BoxesView, MachineState, NpmLatestEntry, ToolStatus, WatchOutput } from "./snapshot";
 
 const status = (version: string | null, extra: Partial<ToolStatus> = {}): ToolStatus => ({
   version,
@@ -17,7 +20,15 @@ const status = (version: string | null, extra: Partial<ToolStatus> = {}): ToolSt
   detail: null,
   installedVersions: null,
   error: null,
+  packageName: version === "1.3.0" ? "@earendil-works/pi-coding-agent" : version === "0.7.11" ? "microsandbox" : undefined,
   ...extra,
+});
+
+const latest = (packageName: string, version: string | null, stale = false): NpmLatestEntry => ({
+  packageName,
+  version,
+  fetchedAt: 10,
+  stale,
 });
 
 function machine(overrides: Partial<MachineState> = {}): MachineState {
@@ -96,6 +107,22 @@ describe("renderMachine / renderTool", () => {
     const errorTail = renderTool("msb", status(null, { error: "boom" }));
     expect(errorTail.at(-1)).toContain("error: boom");
   });
+
+  test("npmLine reads every state the registry can answer with", () => {
+    const pi = status("1.3.0");
+    expect(npmLine(pi, latest(pi.packageName!, "1.4.0"))).toBe("npm      update available — latest 1.4.0");
+    expect(npmLine(pi, latest(pi.packageName!, "1.3.0"))).toBe("npm      up to date (registry latest 1.3.0)");
+    expect(npmLine(status(null, { packageName: "microsandbox" }), latest("microsandbox", "0.7.13"))).toBe(
+      "npm      registry latest 0.7.13 (not installed here)",
+    );
+    expect(npmLine(pi, undefined)).toBeNull();
+    expect(npmLine(status(null, { packageName: "nope" }), latest("nope", null))).toBeNull();
+  });
+
+  test("out-of-date installs get an npm tail in the rendered block", () => {
+    const lines = renderTool("msb", status("0.7.11", { detail: "state dir: ~/.msb" }), new Map([["microsandbox", latest("microsandbox", "0.7.13")]]));
+    expect(lines.at(-1)).toBe("         npm      update available — latest 0.7.13");
+  });
 });
 
 describe("renderWatch", () => {
@@ -104,6 +131,67 @@ describe("renderWatch", () => {
     const text = renderWatch(state, { now: 2_000, refreshed: { triggered: ["host_1"], failed: ["h2"], missing: [] } });
     expect(text.split("\n")[0]).toBe("2 machine(s) · refreshed 1 machine(s), 1 failed");
     expect(text).toContain("build-2 — connected · — · no probe yet");
+  });
+
+  test("an npm update available surfaces beside the version", () => {
+    const state: WatchOutput = {
+      generatedAt: 0,
+      machines: [machine()],
+      history: [],
+      npmLatest: [latest("@earendil-works/pi-coding-agent", "1.4.0")],
+    };
+    const text = renderWatch(state, { now: 2_000 });
+    expect(text).toContain("update available — latest 1.4.0");
+  });
+});
+
+describe("renderBoxes", () => {
+  const view = (boxes: BoxesView): MachineState["snapshot"] => ({
+    checkedAt: 1_000,
+    platform: "linux/x64",
+    pi: status("1.3.0"),
+    msb: status("0.7.11"),
+    boxes,
+  });
+
+  test("the in-box table lists name, state, image, created", () => {
+    const rows: BoxesView = {
+      boxes: [
+        { name: "spike-core", image: "node:22-bookworm", status: "running", createdAt: "2026-10-29 21:50:09" },
+        { name: "spike-relay", image: "node:22-bookworm", status: "stopped", createdAt: "2026-10-29 21:57:52" },
+      ],
+      error: null,
+    };
+    const text = renderBoxes([
+      { hostName: "Jeff's box", connected: true, snapshot: view(rows) },
+      { hostName: "p14s", connected: false, snapshot: null },
+    ]);
+    expect(text).toContain("Jeff's box — 2 sandbox(es)");
+    expect(text).toContain("  spike-core  running  node:22-bookworm  created 2026-10-29 21:50:09");
+    expect(text).toContain("p14s — no box view stored yet (run with --refresh)");
+  });
+
+  test("--running filters, errors and views surface honestly", () => {
+    const rows: BoxesView = { boxes: [{ name: "x", image: "img", status: "stopped", createdAt: null }], error: null };
+    const filtered = renderBoxes([{ hostName: "M", connected: true, snapshot: view(rows) }], { running: true });
+    expect(filtered).toContain("M — 0 sandbox(es)");
+    const failed = renderBoxes([{ hostName: "M", connected: true, snapshot: view({ boxes: null, error: "agentd unreachable" }) }]);
+    expect(failed).toContain("M — unavailable: agentd unreachable");
+  });
+});
+
+describe("renderBoxesRow", () => {
+  test("a machine line summarises totals with running names", () => {
+    const rows = renderBoxesRow({
+      boxes: [
+        { name: "a", image: null, status: "running", createdAt: null },
+        { name: "b", image: null, status: "stopped", createdAt: null },
+      ],
+      error: null,
+    });
+    expect(rows.join("\n")).toContain("boxes   2 total · 1 running: a (running)");
+    expect(renderBoxesRow({ boxes: [], error: null })).toEqual([]);
+    expect(renderBoxesRow({ boxes: null, error: "deep problem" })[0]).toContain("unavailable — deep problem");
   });
 });
 

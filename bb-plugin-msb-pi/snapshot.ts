@@ -9,7 +9,8 @@
 import { z } from "zod";
 
 /** One toolchain probed on one machine. Absence is data, not an error:
- * `version: null` + `error: null` means "not found". */
+ * `version: null` + `error: null` means "not found". Optional fields
+ * stay optional so snapshots persisted by 0.1.0 still validate. */
 export const toolStatusSchema = z
   .object({
     version: z.string().nullable(),
@@ -23,9 +24,32 @@ export const toolStatusSchema = z
     installedVersions: z.array(z.string()).nullable(),
     /** Non-null when the tool was found but probing it failed. */
     error: z.string().nullable(),
+    /** npm package name this install maps to, when derivable. */
+    packageName: z.string().nullable().optional(),
   })
   .strict();
 export type ToolStatus = z.infer<typeof toolStatusSchema>;
+
+/** One sandbox of the machine's msb runtime (`msb list`).*/
+export const boxEntrySchema = z
+  .object({
+    name: z.string(),
+    image: z.string().nullable(),
+    status: z.string(),
+    createdAt: z.string().nullable(),
+  })
+  .strict();
+export type BoxEntry = z.infer<typeof boxEntrySchema>;
+
+/** Boxes view of the machine's msb runtime; null means no msb or an
+ * unreadable runtime. `error` carries the reason when present. */
+export const boxesViewSchema = z
+  .object({
+    boxes: z.array(boxEntrySchema).nullable(),
+    error: z.string().nullable(),
+  })
+  .strict();
+export type BoxesView = z.infer<typeof boxesViewSchema>;
 
 export const machineSnapshotSchema = z
   .object({
@@ -33,6 +57,8 @@ export const machineSnapshotSchema = z
     platform: z.string(),
     pi: toolStatusSchema,
     msb: toolStatusSchema,
+    /** In-box view: the machine's own msb runtime inventory. */
+    boxes: boxesViewSchema.optional(),
   })
   .strict();
 export type MachineSnapshot = z.infer<typeof machineSnapshotSchema>;
@@ -76,11 +102,25 @@ export const historyEntrySchema = z
 export type HistoryEntry = z.infer<typeof historyEntrySchema>;
 export type HistoryKind = HistoryEntry["kind"];
 
+/** Cached npm registry answer for one package. `stale` marks data
+ * kept past its TTL because a refetch failed. */
+export const npmLatestEntrySchema = z
+  .object({
+    packageName: z.string(),
+    version: z.string().nullable(),
+    fetchedAt: z.number(),
+    stale: z.boolean(),
+  })
+  .strict();
+export type NpmLatestEntry = z.infer<typeof npmLatestEntrySchema>;
+
 export const watchOutputSchema = z
   .object({
     generatedAt: z.number(),
     machines: z.array(machineStateSchema),
     history: z.array(historyEntrySchema),
+    /** npm registry "latest" for the packages the fleet actually has. */
+    npmLatest: z.array(npmLatestEntrySchema).optional(),
   })
   .strict();
 export type WatchOutput = z.infer<typeof watchOutputSchema>;

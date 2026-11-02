@@ -1,13 +1,16 @@
-import { chmod, mkdir, mkdtemp, symlink } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   collectSnapshot,
   compareVersions,
+  discoverNpmPackageName,
   expandHome,
+  parseMsbListTable,
   parseVersion,
   probeMsb,
+  probeMsbBoxes,
   probePi,
   resolveOnPath,
   sortVersionsDesc,
@@ -134,6 +137,7 @@ describe("probeMsb", () => {
       detail: "not found on PATH",
       installedVersions: null,
       error: null,
+      packageName: "microsandbox",
     });
   });
 
@@ -273,5 +277,166 @@ describe("collectSnapshot", () => {
       { runner: stubRunner({}), pathEnv: "/nonexistent", home: homedir() },
     );
     expect(snapshot.pi.installedVersions).toEqual(["2.0.0"]);
+  });
+});
+
+describe("discoverNpmPackageName", () => {
+  test.skipIf(process.platform === "win32")("a private lockfile root maps to its single dependency", async () => {
+    const root = await tempRoot();
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({
+        name: "@earendil-works/pi-coding-agent-install",
+        version: "1.3.0",
+        private: true,
+        dependencies: { "@earendil-works/pi-coding-agent": "1.3.0" },
+      }),
+    );
+    expect(await discoverNpmPackageName(root)).toBe("@earendil-works/pi-coding-agent");
+  });
+
+  test.skipIf(process.platform === "win32")("an ordinary package keeps its name", async () => {
+    const root = await tempRoot();
+    await writeFile(join(root, "package.json"), JSON.stringify({ name: "microsandbox", version: "0.7.11" }));
+    expect(await discoverNpmPackageName(root)).toBe("microsandbox");
+  });
+
+  test.skipIf(process.platform === "win32")("no manifest anywhere: null, not a guess", async () => {
+    const root = await tempRoot();
+    await mkdir(join(root, "deep", "deeper"), { recursive: true });
+    expect(await discoverNpmPackageName(join(root, "deep", "deeper"))).toBeNull();
+  });
+});
+
+describe("parseMsbListTable", () => {
+  test("reads the fixed-width table and drops the header", () => {
+    const rows = parseMsbListTable(
+      [
+        "NAME             IMAGE               STATUS     CREATED",
+        "spike-secrets    node:22-bookworm    running    2026-10-29 22:20:14",
+        "spike-relay      node:22-bookworm    stopped    2026-10-29 21:57:52",
+      ].join("\n"),
+    );
+    expect(rows).toEqual([
+      { name: "spike-secrets", image: "node:22-bookworm", status: "running", createdAt: "2026-10-29 22:20:14" },
+      { name: "spike-relay", image: "node:22-bookworm", status: "stopped", createdAt: "2026-10-29 21:57:52" },
+    ]);
+  });
+
+  test("empty state and odd shapes are handled without lying", () => {
+    expect(parseMsbListTable("NAME             IMAGE               STATUS     CREATED")).toEqual([]);
+    expect(parseMsbListTable("")).toEqual([]);
+    // A lone unparseable token is not a sandbox row — never invent a name/status.
+    expect(parseMsbListTable("solitary-row")).toEqual([]);
+  });
+});
+
+describe("probeMsbBoxes", () => {
+  test("runs `msb list` through the resolved binary and parses rows", async () => {
+    const binDir = await tempRoot();
+    const bin = join(binDir, "msb");
+    await writeFile(bin, "#!/bin/sh\necho list\n");
+    await chmod(bin, 0o755);
+    const env: ProbeEnv = {
+      runner: async (runBin, args) => {
+        expect(args).toEqual(["list"]);
+        return {
+          ok: true,
+          stdout: [
+            "NAME             IMAGE               STATUS     CREATED",
+            "spike-core       node:22-bookworm    running    2026-10-29 21:50:09",
+            "spike-relay      node:22-bookworm    stopped    2026-10-29 21:57:52",
+          ].join("\n"),
+          stderr: "",
+        };
+      },
+      pathEnv: binDir,
+      home: "/home/fixture",
+      managedRootEnv: undefined,
+    };
+    const view = await probeMsbBoxes(env, []);
+    expect(view.boxes).toEqual([
+      { name: "spike-core", image: "node:22-bookworm", status: "running", createdAt: "2026-10-29 21:50:09" },
+      { name: "spike-relay", image: "node:22-bookworm", status: "stopped", createdAt: "2026-10-29 21:57:52" },
+    ]);
+    expect(view.error).toBeNull();
+  });
+
+  test("no msb runtime is a quiet absence", async () => {
+    const view = await probeMsbBoxes(emptyProbe, []);
+    expect(view).toEqual({ boxes: null, error: null });
+  });
+
+  test.skipIf(process.platform === "win32")("a failing runtime surfaces its error", async () => {
+    const binDir = await tempRoot();
+    const bin = join(binDir, "msb");
+    await writeFile(bin, "#!/bin/sh\nexit 1\n");
+    await chmod(bin, 0o755);
+    const view = await probeMsbBoxes(
+      {
+        runner: async () => ({ ok: false, stdout: "", stderr: "agentd unreachable" }),
+        pathEnv: binDir,
+        home: "/home/fixture",
+        managedRootEnv: undefined,
+      },
+      [],
+    );
+    expect(view.boxes).toBeNull();
+    expect(view.error).toBe("agentd unreachable");
+  });
+});
+
+describe("packageName discovery wiring", () => {
+  test.skipIf(process.platform === "win32")("the msb status always carries the npm name", async () => {
+    const home = await tempRoot();
+    const status = await probeMsb({ runner: stubRunner({}), pathEnv: "/nonexistent", home, managedRootEnv: undefined }, []);
+    expect(status.packageName).toBe("microsandbox");
+  });
+
+  test.skipIf(process.platform === "win32")("a managed pi install maps to its agent package", async () => {
+    const home = await tempRoot();
+    const root = join(home, ".pi", "agent", "install");
+    await mkdir(join(root, "releases", "1.3.0"), { recursive: true });
+    await writeFile(
+      join(root, "releases", "1.3.0", "package.json"),
+      JSON.stringify({
+        name: "@earendil-works/pi-coding-agent-install",
+        private: true,
+        dependencies: { "@earendil-works/pi-coding-agent": "1.3.0" },
+      }),
+    );
+    const status = await probePi({ runner: stubRunner({}), pathEnv: "/nonexistent", home, managedRootEnv: undefined }, "");
+    expect(status.packageName).toBe("@earendil-works/pi-coding-agent");
+  });
+});
+
+describe("pi shim wrapper case", () => {
+  test.skipIf(process.platform === "win32")("a PATH-shim wrapper still discovers the release's package name", async () => {
+    const home = await tempRoot();
+    const root = join(home, ".pi", "agent", "install");
+    const releases = join(root, "releases");
+    await mkdir(join(releases, "1.3.0"), { recursive: true });
+    await mkdir(join(releases, "1.2.9"), { recursive: true });
+    // The bin shim is a plain wrapper script; its realpath stays at
+    // ~/.pi/agent/bin/pi and does NOT live inside the install tree.
+    await mkdir(join(home, ".pi", "agent", "bin"), { recursive: true });
+    await writeFile(join(home, ".pi", "agent", "bin", "pi"), "#!/bin/sh\nexec dummy\n");
+    await chmod(join(home, ".pi", "agent", "bin", "pi"), 0o755);
+    await writeFile(
+      join(releases, "1.3.0", "package.json"),
+      JSON.stringify({
+        name: "@earendil-works/pi-coding-agent-install",
+        private: true,
+        dependencies: { "@earendil-works/pi-coding-agent": "1.3.0" },
+      }),
+    );
+
+    const status = await probePi(
+      { runner: stubRunner({ pi: "1.3.0" }), pathEnv: join(home, ".pi", "agent", "bin"), home, managedRootEnv: undefined },
+      "",
+    );
+    expect(status.version).toBe("1.3.0");
+    expect(status.origin).toBe("managed install (PATH shim)");
+    expect(status.packageName).toBe("@earendil-works/pi-coding-agent");
   });
 });

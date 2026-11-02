@@ -15,10 +15,22 @@
 // a transition.
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { buildMsbPiCli, type MsbPiBackend } from "./cli-msb-pi";
+import { buildMsbPiCli, gatherState, renderHistory, renderWatch, renderBoxes, type MsbPiBackend } from "./cli-msb-pi";
 import { hostContract } from "./host-contract";
 import { rpcContract, REALTIME_CHANNEL } from "./contract";
 import { loadMonitorState, saveMonitorState, withHistory, type MonitorState } from "./store";
+import {
+  applyNpmResult,
+  dueForRefetch,
+  loadNpmLatest,
+  packageNamesOf,
+  parseDistTags,
+  projectNpmLatest,
+  saveNpmLatest,
+  NPM_FETCH_TIMEOUT_MS,
+  type NpmLatestCache,
+} from "./npm-latest";
+import { pruneHistory } from "./prune";
 import {
   type HistoryEntry,
   type MachineSnapshot,
@@ -35,6 +47,8 @@ interface ProbeReport {
   failed: string[];
   missing: string[];
 }
+
+const NPM_FETCH_BUDGET_PER_CYCLE = 4; // bound cycles to four registry hits
 
 interface ProbeOutcome {
   hostId: string;
@@ -69,6 +83,13 @@ export default async function plugin(bb: BbPluginApi) {
       label: "pi managed-install root",
       description: "Override for ~/.pi/agent/install (or PI_MANAGED_INSTALL_ROOT) when checking for installed pi releases. Leave empty for auto-detect.",
       default: "",
+    },
+    checkNpm: {
+      type: "boolean",
+      label: "Check npm for the newest release",
+      description:
+        "Compare installed versions against the npm registry (dist-tags) for packages the fleet installs. Cached answers refresh every 6 hours; an offline host degrades to a stale note, never an error.",
+      default: true,
     },
   });
 
@@ -162,7 +183,7 @@ export default async function plugin(bb: BbPluginApi) {
         }
       }
 
-      state.history = withHistory(state.history, freshChanges);
+      state.history = pruneHistory(withHistory(state.history, freshChanges), { now: Date.now() });
       await saveMonitorState(bb, state);
 
       bb.realtime.publish(REALTIME_CHANNEL, { kind: "probed", probed });
@@ -176,6 +197,47 @@ export default async function plugin(bb: BbPluginApi) {
         missing,
       };
     });
+  }
+
+  // ------------------------------------------------------------------
+  // npm "latest available" answers, refetched in the background.
+  // Runs after (not inside) the cycle's mutex so a slow registry can't
+  // block the next probe.
+
+  async function refreshNpmLatest(signal?: AbortSignal): Promise<void> {
+    if (!(await settings.get()).checkNpm) return;
+    const state = await present();
+    const packageNames = packageNamesOf(state.machines.flatMap((machine) => (machine.snapshot ? [machine.snapshot] : [])));
+    if (packageNames.length === 0) return;
+    const cache = await loadNpmLatest(bb);
+    const due = dueForRefetch(cache, packageNames, Date.now()).slice(0, NPM_FETCH_BUDGET_PER_CYCLE);
+    let cacheMut = cache;
+    let changed = false;
+    const now = Date.now();
+    for (const packageName of due) {
+      const result = await fetchLatestDistTag(packageName, signal);
+      const before = cacheMut[packageName];
+      cacheMut = applyNpmResult(cacheMut, packageName, result, now);
+      if ((before?.version ?? undefined) !== (cacheMut[packageName]?.version ?? undefined)) changed = true;
+    }
+    if (due.length === 0) return;
+    await saveNpmLatest(bb, cacheMut);
+    if (changed) bb.realtime.publish(REALTIME_CHANNEL, { kind: "npm" });
+  }
+
+  async function fetchLatestDistTag(packageName: string, signal: AbortSignal | undefined): Promise<{ latest: string | null; error: string | null }> {
+    const url = `https://registry.npmjs.org/-/package/${encodeURIComponent(packageName)}/dist-tags`;
+    const timeout = AbortSignal.timeout(NPM_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) return { latest: null, error: `registry responded ${response.status}` };
+      return parseDistTags(await response.text());
+    } catch (cause) {
+      return { latest: null, error: cause instanceof Error ? shortError(cause) : String(cause) };
+    }
   }
 
   // ------------------------------------------------------------------
@@ -197,7 +259,13 @@ export default async function plugin(bb: BbPluginApi) {
         host,
       );
     });
-    return { generatedAt: Date.now(), machines, history: state.history };
+    const npmLatest = (await settings.get()).checkNpm
+      ? projectNpmLatest(
+          await loadNpmLatest(bb),
+          packageNamesOf(machines.flatMap((machine) => (machine.snapshot ? [machine.snapshot] : []))),
+        )
+      : undefined;
+    return { generatedAt: Date.now(), machines, history: state.history, npmLatest };
   }
 
   function mergeOutcome(host: HostRow, prev: MachineState | undefined, outcome: ProbeOutcome): MachineState {
@@ -259,6 +327,7 @@ export default async function plugin(bb: BbPluginApi) {
       bb.log.info("watch started");
       await cycleLogging(probeAll({ signal }), "initial");
       while (!signal.aborted) {
+        await npmLogging(refreshNpmLatest(signal));
         const { intervalMinutes } = await settings.get();
         await sleep(intervalMinutes * 60_000 + Math.floor(Math.random() * 3_000), signal);
         if (signal.aborted) break;
@@ -277,6 +346,81 @@ export default async function plugin(bb: BbPluginApi) {
       bb.log.error(`${label} cycle failed: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
   }
+
+  async function npmLogging(step: Promise<void>): Promise<void> {
+    try {
+      await step;
+    } catch (cause) {
+      bb.log.warn(`npm check failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // agent tools: dynamic, schema'd answers for threads — including the
+  // in-box view of each machine's msb runtime.
+
+  bb.agents.registerTool({
+    name: "msb_pi_versions",
+    description:
+      "Installed versions of msb (microsandbox) and the pi coding agent across every enrolled bb machine — the MSB + pi watcher's stored results, with install origins and npm update hints. Use this instead of shelling out to `msb --version`/`pi --version`.",
+    presentation: {
+      label: { pending: "Checking installed msb/pi versions", completed: "Checked installed msb/pi versions" },
+    },
+    parameters: z.object({ machine: z.string().optional() }).strict(),
+    async execute({ machine }) {
+      const { state } = await gatherState(backend, machine, false);
+      return renderWatch(state);
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "msb_pi_probe",
+    description:
+      "Force a fresh probe of installed msb and pi versions right now (defaults to every connected machine; pass a machine id/name to target one). Takes a few seconds.",
+    presentation: {
+      label: { pending: "Probing installed msb/pi versions", completed: "Probed installed msb/pi versions" },
+    },
+    parameters: z.object({ machine: z.string().optional() }).strict(),
+    async execute({ machine }) {
+      const resolvedIds = machine
+        ? (await gatherState(backend, machine, false)).state.machines.map((row) => row.hostId)
+        : undefined;
+      await backend.refresh(resolvedIds);
+      const { state } = await gatherState(backend, machine, false);
+      return renderWatch(state);
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "msb_pi_boxes",
+    description:
+      "The in-box view: which sandboxes exist in each machine's msb runtime (name, image, state), straight from `msb list` at the last probe. Machines without msb report none.",
+    presentation: {
+      label: { pending: "Listing msb runtime sandboxes", completed: "Listed msb runtime sandboxes" },
+    },
+    parameters: z.object({ machine: z.string().optional() }).strict(),
+    async execute({ machine }) {
+      const { state } = await gatherState(backend, machine, false);
+      return (
+        renderBoxes(state.machines) ||
+        "No msb runtime found on any machine — nothing to list."
+      );
+    },
+  });
+
+  bb.agents.registerTool({
+    name: "msb_pi_history",
+    description:
+      "Version changes the MSB + pi watcher has recorded (newest first): when msb/pi appeared, changed or vanished on each machine.",
+    presentation: {
+      label: { pending: "Reading version-change history", completed: "Read version-change history" },
+    },
+    parameters: z.object({ machine: z.string().optional() }).strict(),
+    async execute({ machine }) {
+      const { state } = await gatherState(backend, machine, false);
+      return renderHistory(state.history, 50);
+    },
+  });
 
   settings.onChange(() => {
     // Extra paths / managed root changed: refresh promptly so the page

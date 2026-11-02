@@ -10,13 +10,18 @@
 // the machine without spawning anything.
 import { spawn } from "node:child_process";
 import { access, constants as fsConstants, readdir, realpath, stat } from "node:fs/promises";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import type { MachineSnapshot, SnapshotArgs, ToolStatus } from "./snapshot";
+import type { BoxEntry, BoxesView, MachineSnapshot, SnapshotArgs, ToolStatus } from "./snapshot";
+import { compareVersions as cmpVersions, parseVersion, toSemver } from "./lib/versions";
 
 const VERSION_TIMEOUT_MS = 8_000;
+const BOXES_TIMEOUT_MS = 10_000;
 const CAP_CHARS = 8_192;
 const ERROR_CAP_CHARS = 300;
+
+/** msb's npm package is fixed; it's what `npm i microsandbox` installs. */
+const MSB_PACKAGE_NAME = "microsandbox";
 
 export interface RunResult {
   ok: boolean;
@@ -73,73 +78,7 @@ function capError(text: string): string {
   return oneLine.length <= ERROR_CAP_CHARS ? oneLine : `${oneLine.slice(0, ERROR_CAP_CHARS - 1)}…`;
 }
 
-/** First semver-ish token in a CLI's version output — "1.3.0" from
- * "pi 1.3.0", "0.7.11" from "msb-cli 0.7.11", prerelease aware. */
-export function parseVersion(output: string): string | null {
-  // The lookbehind keeps a letter prefix ("v1.3.0") usable but refuses
-  // to start mid-run ("x10.1.2") or after a decimal point of a longer
-  // undotted run.
-  const match = /(?<![\d.])\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z._-]*)?(?:\+[0-9A-Za-z._-]+)?/.exec(output);
-  if (!match) return null;
-  const after = output.slice(match.index + match[0].length);
-  // "1.2.34.56": the greedy number run absorbed a fourth numeric
-  // section — refuse rather than misreport a prefix.
-  if (/^\.\d/.test(after)) return null;
-  return match[0];
-}
-
-interface SemverChunks {
-  core: [number, number, number];
-  pre: readonly (number | string)[];
-}
-
-/** One semver for ordering. Loose: accepts a leading "v"/"=" and
- * dotted prerelease identifiers. */
-export function toSemver(version: string): SemverChunks | null {
-  const match = version
-    .replace(/^[v=\s]+/, "")
-    .match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+.*)?$/);
-  if (!match) return null;
-  const core: [number, number, number] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const pre =
-    match[4] === undefined ? [] : match[4].split(".").map((part) => (/^\d+$/.test(part) ? Number(part) : part));
-  return { core, pre };
-}
-
-/** Semver ordering: pre-release below its release, build metadata
- * ignored. Real semver outranks junk; junk falls back to lexical order,
- * so sorting never throws. */
-export function compareVersions(a: string, b: string): number {
-  const sa = toSemver(a);
-  const sb = toSemver(b);
-  if (sa === null && sb === null) return a === b ? 0 : a < b ? -1 : 1;
-  if (sa === null) return -1; // junk sorts below real semver
-  if (sb === null) return 1;
-  {
-    for (let i = 0; i < 3; i += 1) {
-      if (sa.core[i] !== sb.core[i]) return sa.core[i] - sb.core[i];
-    }
-    const fa = sa.pre.length === 0;
-    const fb = sb.pre.length === 0;
-    if (fa !== fb) return fa ? 1 : -1;
-    for (let i = 0; i < Math.min(sa.pre.length, sb.pre.length); i += 1) {
-      const pa = sa.pre[i];
-      const pb = sb.pre[i];
-      if (pa === pb) continue;
-      if (typeof pa === "number" && typeof pb === "number") return pa - pb;
-      if (typeof pa === "number") return -1;
-      if (typeof pb === "number") return 1;
-      return pa < pb ? -1 : 1;
-    }
-    // Same shared prefix: more identifiers outrank fewer (1.0.0-alpha.1
-    // > 1.0.0-alpha).
-    return sa.pre.length - sb.pre.length;
-  }
-}
-
-export function sortVersionsDesc(versions: readonly string[]): string[] {
-  return [...versions].sort((a, b) => compareVersions(b, a));
-}
+export { parseVersion, toSemver, compareVersions, sortVersionsDesc } from "./lib/versions";
 
 async function isExecutable(path: string): Promise<boolean> {
   try {
@@ -229,7 +168,7 @@ async function readManagedReleases(root: string): Promise<ManagedRelease[]> {
       if (!entry.isDirectory()) continue;
       if (toSemver(entry.name)) releases.push({ version: entry.name, dir: join(root, "releases", entry.name) });
     }
-    releases.sort((a, b) => compareVersions(b.version, a.version));
+    releases.sort((a, b) => cmpVersions(b.version, a.version));
     return releases;
   } catch {
     return [];
@@ -279,6 +218,17 @@ export async function probePi(env: ProbeEnv, managedRootOverride: string): Promi
       /* best effort */
     }
     const managed = binPath.startsWith(root + "/") || binPath === shimReal || binPath === homeShimReal;
+    // The shim is a wrapper exec'ing the active release's binary, so a
+    // path-prefix match may not find the release dir; the probed
+    // version names it exactly, newest release is the fallback.
+    const activeDir = managed
+      ? releases.find((release) => binPath.startsWith(release.dir + "/"))?.dir ??
+        (version ? releases.find((release) => release.version === version)?.dir : undefined) ??
+        releases[0]?.dir
+      : undefined;
+    const packageName = activeDir
+      ? await discoverNpmPackageName(activeDir)
+      : await discoverNpmPackageName(resolve(dirname(binPath)));
     return {
       version,
       path: binPath,
@@ -286,6 +236,7 @@ export async function probePi(env: ProbeEnv, managedRootOverride: string): Promi
       detail: `managed root: ${root}${releases.length > 0 ? ` · ${releases.length} release(s)` : ""}`,
       installedVersions: installedVersions.length > 0 ? installedVersions : null,
       error: version ? null : capError(parseError ?? "unknown error"),
+      packageName,
     };
   }
 
@@ -293,6 +244,7 @@ export async function probePi(env: ProbeEnv, managedRootOverride: string): Promi
   if (releases.length > 0) {
     const active =
       (shimReal ? releases.find((release) => shimReal.startsWith(release.dir + "/")) : undefined) ?? releases[0];
+    const packageName = await discoverNpmPackageName(active.dir);
     return {
       version: active.version,
       path: shimReal ?? active.dir,
@@ -300,22 +252,75 @@ export async function probePi(env: ProbeEnv, managedRootOverride: string): Promi
       detail: `managed root: ${root} · ${releases.length} release(s)`,
       installedVersions,
       error: null,
+      packageName,
     };
   }
 
   return { version: null, path: null, origin: null, detail: null, installedVersions: null, error: null };
 }
 
-export async function probeMsb(env: ProbeEnv, extraMsbPaths: readonly string[]): Promise<ToolStatus> {
+/** Which msb binary this machine resolves; shared by the version probe
+ * and the in-box `msb list` view. */
+export async function resolveMsbBin(
+  env: ProbeEnv,
+  extraMsbPaths: readonly string[],
+): Promise<{ bin: string | null; origin: string | null; extraCount: number }> {
   const extras = await resolveExtraBins("msb", extraMsbPaths, env);
   const onPath = await resolveOnPath("msb", env.pathEnv);
+  if (onPath) return { bin: onPath, origin: "PATH", extraCount: extras.length };
+  if (extras.length > 0) return { bin: extras[0].bin, origin: "extra path", extraCount: extras.length };
+  return { bin: null, origin: null, extraCount: extras.length };
+}
 
-  let bin: string | null = onPath;
-  let origin: string | null = onPath ? "PATH" : null;
-  if (!bin && extras.length > 0) {
-    bin = extras[0].bin;
-    origin = "extra path";
+/** npm name mapping. For a "private lockfile root" install (pi's managed
+ * tree), the package the user cares about is the single dependency —
+ * the root's own name is the installer wrapper. */
+export async function discoverNpmPackageName(startDir: string): Promise<string | null> {
+  let dir = startDir;
+  for (let depth = 0; depth < 6; depth += 1) {
+    const manifest = join(dir, "package.json");
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const parsed = JSON.parse(await readFile(manifest, "utf8")) as {
+        name?: unknown;
+        private?: unknown;
+        dependencies?: Record<string, unknown>;
+      };
+      const deps = parsed.dependencies && typeof parsed.dependencies === "object" ? Object.keys(parsed.dependencies) : [];
+      if (parsed.private === true && deps.length === 1) return deps[0];
+      if (typeof parsed.name === "string" && parsed.name && !parsed.name.startsWith("?")) return parsed.name;
+    } catch {
+      /* no manifest here — walk up */
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
   }
+  return null;
+}
+
+/** Parse the `msb list` fixed-width table. Fields are separated by
+ * runs of spaces; CREATED keeps its single-space date-time. */
+export function parseMsbListTable(output: string): BoxEntry[] {
+  const lines = output.split(/\r?\n/).filter((line) => line.trim() !== "");
+  const rows: BoxEntry[] = [];
+  for (const line of lines.slice(0, 100)) {
+    if (/^NAME\s+IMAGE\s+STATUS/i.test(line)) continue;
+    const columns = line.trim().split(/ {2,}/);
+    if (columns.length < 2) continue;
+    const [name, image, status, createdAt] = [columns[0], columns[1] ?? null, columns[2] ?? "unknown", createdAt0(columns.slice(3))];
+    if (!name) continue;
+    rows.push({ name, image, status, createdAt });
+  }
+  return rows;
+}
+
+function createdAt0(rest: readonly string[]): string | null {
+  return rest.length > 0 ? rest.join(" ") : null;
+}
+
+export async function probeMsb(env: ProbeEnv, extraMsbPaths: readonly string[]): Promise<ToolStatus> {
+  const { bin, origin, extraCount } = await resolveMsbBin(env, extraMsbPaths);
 
   const home = env.home;
   const stateDir = join(home, ".msb");
@@ -331,6 +336,7 @@ export async function probeMsb(env: ProbeEnv, extraMsbPaths: readonly string[]):
         : "not found on PATH",
       installedVersions: null,
       error: null,
+      packageName: MSB_PACKAGE_NAME,
     };
   }
 
@@ -343,7 +349,7 @@ export async function probeMsb(env: ProbeEnv, extraMsbPaths: readonly string[]):
   }
   const detailBits = [
     hasStateDir ? "state dir: ~/.msb" : null,
-    extras.length > 0 ? `${extras.length} extra path(s) configured` : null,
+    extraCount > 0 ? `${extraCount} extra path(s) configured` : null,
   ].filter((bit): bit is string => bit !== null);
   return {
     version,
@@ -352,22 +358,53 @@ export async function probeMsb(env: ProbeEnv, extraMsbPaths: readonly string[]):
     detail: detailBits.length > 0 ? detailBits.join(" · ") : null,
     installedVersions: null,
     error: version ? null : capError(parseError ?? "unknown error"),
+    packageName: MSB_PACKAGE_NAME,
   };
+}
+
+/** The in-box view: the machine's msb runtime inventory (`msb list`),
+ * parsed from the fixed-width table the CLI prints. */
+export async function probeMsbBoxes(env: ProbeEnv, extraMsbPaths: readonly string[]): Promise<BoxesView> {
+  const { bin } = await resolveMsbBin(env, extraMsbPaths);
+  if (!bin) return { boxes: null, error: null };
+  const result = await env.runner(bin, ["list"], { timeoutMs: BOXES_TIMEOUT_MS });
+  const text = (result.stdout || result.stderr).trim();
+  if (!result.ok) return { boxes: null, error: capError(result.stderr || "msb list failed") };
+  if (!text) return { boxes: [], error: null };
+  const rows = parseMsbListTable(text);
+  if (rows.length === 0 && !/^NAME\s+IMAGE/i.test(text)) {
+    // An unknown surface means the CLI changed shape: keep it visible.
+    return { boxes: null, error: capError(`could not read ${text.split(/\r?\n/, 1)[0]}`) };
+  }
+  return { boxes: rows, error: null };
 }
 
 /** Probe every watched toolchain; per-tool failures degrade into a
  * ToolStatus with an error rather than failing the whole snapshot. */
 export async function collectSnapshot(args: SnapshotArgs, env: ProbeEnv): Promise<MachineSnapshot> {
-  const [pi, msb] = await Promise.all([
+  const [pi, msb, boxes] = await Promise.all([
     guard(() => probePi(env, args.piManagedRoot), "pi"),
     guard(() => probeMsb(env, args.extraMsbPaths), "msb"),
+    guardBoxes(() => probeMsbBoxes(env, args.extraMsbPaths)),
   ]);
   return {
     checkedAt: Date.now(),
     platform: `${process.platform}/${process.arch}`,
     pi,
     msb,
+    boxes,
   };
+}
+
+async function guardBoxes(run: () => Promise<BoxesView>): Promise<BoxesView> {
+  try {
+    return await run();
+  } catch (cause) {
+    return {
+      boxes: null,
+      error: capError(cause instanceof Error ? cause.message : String(cause)),
+    };
+  }
 }
 
 async function guard(run: () => Promise<ToolStatus>, tool: "pi" | "msb"): Promise<ToolStatus> {

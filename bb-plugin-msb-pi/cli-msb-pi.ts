@@ -5,7 +5,33 @@
 // fact, not an error: a machine without msb prints "not found".
 import { PluginCliError, cliCommand, defineCli, type PluginCliRegistration } from "@get-bb/plugin-sdk";
 import { formatAgo } from "./lib/ago";
-import { HISTORY_CAP, type HistoryEntry, type MachineState, type ToolStatus, type WatchOutput } from "./snapshot";
+import { compareVersions } from "./probe";
+import {
+  HISTORY_CAP,
+  type BoxEntry,
+  type BoxesView,
+  type HistoryEntry,
+  type MachineState,
+  type NpmLatestEntry,
+  type ToolStatus,
+  type WatchOutput,
+} from "./snapshot";
+
+export type LatestByPackage = ReadonlyMap<string, NpmLatestEntry>;
+
+function latestMap(state: WatchOutput): LatestByPackage {
+  return new Map((state.npmLatest ?? []).map((entry) => [entry.packageName, entry]));
+}
+
+/** One npm-check line: nothing when there is no package answer at all. */
+export function npmLine(status: ToolStatus, latest: NpmLatestEntry | undefined): string | null {
+  if (!status.packageName || !latest || latest.version === null) return null;
+  if (status.version && compareVersions(status.version, latest.version) < 0) {
+    return `npm      update available — latest ${latest.version}`;
+  }
+  if (status.version) return `npm      up to date (registry latest ${latest.version})`;
+  return `npm      registry latest ${latest.version} (not installed here)`;
+}
 
 export interface MsbPiBackend {
   /** Current state with the machine list synced from bb. */
@@ -85,13 +111,14 @@ export function renderWatch(
       (refreshed.missing.length > 0 ? `, ${refreshed.missing.length} unknown` : "")
     : "";
   lines.push(`${state.machines.length} machine(s)${suffix}`);
+  const latest = latestMap(state);
   for (const machine of state.machines) {
-    lines.push(...renderMachine(machine, now));
+    lines.push(...renderMachine(machine, now, latest));
   }
   return lines.join("\n");
 }
 
-export function renderMachine(machine: MachineState, now: number): string[] {
+export function renderMachine(machine: MachineState, now: number, latest: LatestByPackage = new Map()): string[] {
   const lines: string[] = [];
   const connection = machine.connected ? "connected" : "disconnected";
   const checked = machine.snapshot
@@ -101,12 +128,54 @@ export function renderMachine(machine: MachineState, now: number): string[] {
   lines.push(
     `${machine.hostName} — ${connection} · ${machine.snapshot?.platform ?? "—"} · ${checked}${error}`,
   );
-  lines.push(...renderTool("pi ", machine.snapshot?.pi ?? null));
-  lines.push(...renderTool("msb", machine.snapshot?.msb ?? null));
+  lines.push(...renderTool("pi ", machine.snapshot?.pi ?? null, latest));
+  lines.push(...renderTool("msb", machine.snapshot?.msb ?? null, latest));
+  lines.push(...renderBoxesRow(machine.snapshot?.boxes ?? null));
   return lines;
 }
 
-export function renderTool(label: "pi " | "msb", status: ToolStatus | null): string[] {
+/** The in-box view as one machine-level line: totals, running names. */
+export function renderBoxesRow(view: BoxesView | null | undefined): string[] {
+  if (view === null || view === undefined) return [];
+  if (view.error) return [`         boxes   unavailable — ${view.error}`];
+  const boxes = view.boxes ?? [];
+  if (boxes.length === 0) return [];
+  const running = boxes.filter((box) => box.status === "running");
+  const names = running.length > 0 ? running : boxes;
+  const scope = `boxes   ${boxes.length} total · ${running.length} running`;
+  const list = names.slice(0, 8).map((box) => `${box.name} (${box.status})`);
+  const more = names.length > list.length ? ` +${names.length - list.length} more` : "";
+  return [`         ${scope}: ${list.join(", ")}${more}`];
+}
+
+/** Text table for the `boxes` subcommand. */
+export function renderBoxes(
+  machines: readonly { hostName: string; connected: boolean; snapshot: MachineState["snapshot"] }[],
+  opts: { running: boolean } = { running: false },
+): string {
+  const lines: string[] = [];
+  for (const machine of machines) {
+    const view = machine.snapshot?.boxes;
+    const label = `${machine.hostName}`;
+    if (!view) {
+      lines.push(`${label} — no box view stored yet (run with --refresh)`);
+      continue;
+    }
+    if (view.error) {
+      lines.push(`${label} — unavailable: ${view.error}`);
+      continue;
+    }
+    const all = view.boxes ?? [];
+    const shown = opts.running ? all.filter((box) => box.status === "running") : all;
+    lines.push(`${label} — ${shown.length} sandbox(es)`);
+    for (const box of shown) {
+      lines.push(`  ${box.name}  ${box.status}  ${box.image ?? "?"}${box.createdAt ? `  created ${box.createdAt}` : ""}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+export function renderTool(label: "pi " | "msb", status: ToolStatus | null, latest: LatestByPackage = new Map()): string[] {
   const parts: string[] = [];
   if (status?.version) parts.push(status.version);
   else if (status?.error) parts.push("probe failed");
@@ -119,6 +188,8 @@ export function renderTool(label: "pi " | "msb", status: ToolStatus | null): str
   if (status?.installedVersions && status.installedVersions.length > 1) {
     tail.push(`releases: ${status.installedVersions.join(", ")}`);
   }
+  const npm = status ? npmLine(status, status.packageName ? latest.get(status.packageName) : undefined) : null;
+  if (npm) tail.push(npm);
   if (status?.error) tail.push(`error: ${status.error}`);
   const lines = [head];
   for (const segment of tail) lines.push(`         ${segment}`);
@@ -184,6 +255,41 @@ export function buildMsbPiCli(backend: MsbPiBackend): PluginCliRegistration {
             return { exitCode: 0, stdout: JSON.stringify({ ...state, refreshed }, null, 2) };
           }
           return { exitCode: 0, stdout: renderWatch(state, { refreshed }) };
+        },
+      }),
+      boxes: cliCommand({
+        summary: "List each machine's msb runtime sandboxes (its in-box view) as recorded at the last probe",
+        description:
+          "Runs through the stored snapshot; pass --refresh to probe before listing. Machines without msb report no sandboxes.",
+        options: {
+          machine: { type: "string", description: "Only this machine (host id or name prefix)" },
+          refresh: { type: "boolean", description: "Probe before listing instead of showing the last result" },
+          running: { type: "boolean", description: "Only running sandboxes" },
+          json: { type: "boolean", description: "Emit machine-readable JSON" },
+        },
+        async run(input) {
+          const machineRef = typeof input.options.machine === "string" ? input.options.machine : undefined;
+          const { state } = await gatherState(backend, machineRef, input.options.refresh);
+          if (input.options.json) {
+            return {
+              exitCode: 0,
+              stdout: JSON.stringify(
+                {
+                  boxes: state.machines.map((machine) => ({
+                    hostId: machine.hostId,
+                    hostName: machine.hostName,
+                    ...(machine.snapshot?.boxes ?? { boxes: null, error: null }),
+                  })),
+                },
+                null,
+                2,
+              ),
+            };
+          }
+          return {
+            exitCode: 0,
+            stdout: renderBoxes(state.machines, { running: input.options.running }) || "no msb runtimes found",
+          };
         },
       }),
       history: cliCommand({

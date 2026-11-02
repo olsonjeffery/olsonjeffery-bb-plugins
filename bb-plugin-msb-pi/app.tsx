@@ -14,8 +14,9 @@ import {
   useSettings,
 } from "@get-bb/plugin-sdk/app";
 import { formatAgo } from "./lib/ago";
+import { compareVersions } from "./lib/versions";
 import { rpcContract, REALTIME_CHANNEL } from "./contract";
-import type { MachineState, ToolStatus, WatchOutput } from "./snapshot";
+import type { BoxesView, MachineState, NpmLatestEntry, ToolStatus, WatchOutput } from "./snapshot";
 import "./app.css";
 
 const INTERVAL = { min: 1, max: 720, fallback: 15 } as const;
@@ -75,6 +76,7 @@ function MsbPiPage() {
                 <MachineCard
                   key={machine.hostId}
                   machine={machine}
+                  latest={new Map((state.npmLatest ?? []).map((entry) => [entry.packageName, entry]))}
                   refreshing={refreshAll.isPending}
                   onRefresh={() => void refreshAll.mutate({ hostIds: [machine.hostId] })}
                 />
@@ -107,7 +109,17 @@ function describeWatch(state: WatchOutput, interval: number): string {
   return parts.join("  ·  ");
 }
 
-function MachineCard({ machine, refreshing, onRefresh }: { machine: MachineState; refreshing: boolean; onRefresh: () => void }) {
+function MachineCard({
+  machine,
+  latest,
+  refreshing,
+  onRefresh,
+}: {
+  machine: MachineState;
+  latest: ReadonlyMap<string, NpmLatestEntry>;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
   return (
     <section className="msp-card">
       <header className="msp-card-head">
@@ -121,8 +133,9 @@ function MachineCard({ machine, refreshing, onRefresh }: { machine: MachineState
           <IconSpin name="RotateCw" spin={refreshing} />
         </button>
       </header>
-      <ToolBlock label="pi" status={machine.snapshot?.pi ?? null} />
-      <ToolBlock label="msb" status={machine.snapshot?.msb ?? null} />
+      <ToolBlock label="pi" status={machine.snapshot?.pi ?? null} latest={latest} />
+      <ToolBlock label="msb" status={machine.snapshot?.msb ?? null} latest={latest} />
+      <BoxesRow view={machine.snapshot?.boxes ?? null} />
       {machine.lastError ? (
         <div className="msp-machine-error">
           Last refresh attempt failed {machine.lastErrorAt ? formatAgo(machine.lastErrorAt) : ""}: {machine.lastError}
@@ -132,7 +145,45 @@ function MachineCard({ machine, refreshing, onRefresh }: { machine: MachineState
   );
 }
 
-function ToolBlock({ label, status }: { label: "pi" | "msb"; status: ToolStatus | null }) {
+function BoxesRow({ view }: { view: BoxesView | null }) {
+  if (!view) return null;
+  const boxes = view.boxes ?? [];
+  const running = boxes.filter((box) => box.status === "running");
+  return (
+    <div className="msp-tool msp-boxes-row">
+      <div className="msp-tool-line">
+        <span className="msp-tool-label">boxes</span>
+        {view.error ? (
+          <span className="msp-ver-none">unavailable — {view.error}</span>
+        ) : boxes.length === 0 ? (
+          <span className="msp-ver-none">no sandboxes</span>
+        ) : (
+          <>
+            <span className="msp-meta-inline">
+              {boxes.length} total · {running.length} running
+            </span>
+            {boxes.slice(0, 6).map((box) => (
+              <span key={box.name} className="msp-box-chip" title={`${box.image ?? "?"} · ${box.status}`}>
+                {box.name}
+              </span>
+            ))}
+            {boxes.length > 6 ? <span className="msp-ver-none">+{boxes.length - 6} more</span> : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ToolBlock({
+  label,
+  status,
+  latest,
+}: {
+  label: "pi" | "msb";
+  status: ToolStatus | null;
+  latest: ReadonlyMap<string, NpmLatestEntry>;
+}) {
   if (!status) {
     return (
       <div className="msp-tool">
@@ -141,6 +192,9 @@ function ToolBlock({ label, status }: { label: "pi" | "msb"; status: ToolStatus 
       </div>
     );
   }
+  const npm = status.packageName ? latest.get(status.packageName) : undefined;
+  const npmOutdated = npm?.version !== undefined && npm.version !== null && status.version !== null && compareVersions(status.version, npm.version) < 0;
+  const npmCurrent = npm?.version !== undefined && npm.version !== null && status.version !== null && !npmOutdated;
   const state = status.version
     ? "found"
     : status.error
@@ -158,6 +212,20 @@ function ToolBlock({ label, status }: { label: "pi" | "msb"; status: ToolStatus 
           <span className="msp-ver msp-ver-none">not found</span>
         )}
         {status.origin ? <span className="msp-chip">{status.origin}</span> : null}
+        {npmOutdated ? (
+          <span className="msp-chip msp-chip-update" title={`Installed ${status.version}, npm registry latest ${npm.version}`}>
+            update available · {npm?.version}
+          </span>
+        ) : npmCurrent ? (
+          <span className="msp-chip" title={`Matches npm registry latest ${npm?.version}`}>
+            up to date
+          </span>
+        ) : null}
+        {!status.version && npm?.version ? (
+          <span className="msp-chip" title="Registry latest while nothing is installed here">
+            npm latest · {npm.version}
+          </span>
+        ) : null}
       </div>
       {status.path ? <div className="msp-tool-sub">{status.path}</div> : null}
       {status.installedVersions && status.installedVersions.length > 1 ? (
