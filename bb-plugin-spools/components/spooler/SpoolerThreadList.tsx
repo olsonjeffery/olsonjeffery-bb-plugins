@@ -468,12 +468,20 @@ export function SpoolerThreadList({
   const [filtersCollapsed, setFiltersCollapsed] = useState(
     () => readStored(FILTERS_COLLAPSED_KEY, "off", ["off", "on"]) === "on",
   );
+  /** Collapsed, the filter INPUT is the first thing to fold away: the one
+   *  line is the Grouping widget (left) with the chevron right-justified. */
   const toggleFiltersCollapsed = useCallback(() => {
     setFiltersCollapsed((previous) => {
       const next = !previous;
       writeStored(FILTERS_COLLAPSED_KEY, next ? "on" : "off");
       return next;
     });
+  }, []);
+  /** '/' with the header collapsed: expand first, then focus the filter
+   *  input once it remounts. */
+  const showFilters = useCallback(() => {
+    setFiltersCollapsed(false);
+    writeStored(FILTERS_COLLAPSED_KEY, "off");
   }, []);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
@@ -1279,8 +1287,18 @@ export function SpoolerThreadList({
 
       if (event.key === "/") {
         event.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+          searchInputRef.current.select();
+        } else {
+          // The collapsed header hides the filter field: uncollapse, then
+          // focus once the remount lands.
+          showFilters();
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+            searchInputRef.current?.select();
+          }, 0);
+        }
         return;
       }
 
@@ -1396,6 +1414,7 @@ export function SpoolerThreadList({
     handleBulkArchive,
     handleBulkPin,
     rowById,
+    showFilters,
   ]);
 
   const markFamilyRead = useCallback(
@@ -2134,41 +2153,56 @@ export function SpoolerThreadList({
       }
     >
       <div className="spooler-list-header">
-        {/* One search row: the filter input, then the show/hide chevron its
-            right edge carries. Collapsed, the Grouping widget joins the row.
-            */}
+        {/* One header row. Expanded: the filter input with the show/hide
+            chevron on its right edge. Collapsed: the filter input is the
+            FIRST thing hidden — the Grouping widget anchors the row's left,
+            the chevron right-justifies, and the chevron's glyph follows the
+            disclosure convention (right = collapsed, down = expanded). */}
         <div className="spooler-search-row">
-          <div className="spooler-search">
-            <Icon
-              name="Search"
-              aria-hidden="true"
-              className="spooler-search-icon"
-            />
-            <Input
-              ref={searchInputRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter threads…"
-              aria-label="Filter threads"
-              role="searchbox"
-              className="spooler-search-input"
-            />
-            {query !== "" ? (
-              <button
-                type="button"
-                aria-label="Clear filter"
-                title="Clear filter"
-                className="spooler-search-clear"
-                onClick={() => setQuery("")}
-              >
-                <Icon name="X" aria-hidden="true" />
-              </button>
-            ) : (
-              <kbd className="spooler-search-shortcut" title="Press / to focus search">
-                /
-              </kbd>
-            )}
-          </div>
+          {!filtersCollapsed ? (
+            <div className="spooler-search">
+              <Icon
+                name="Search"
+                aria-hidden="true"
+                className="spooler-search-icon"
+              />
+              <Input
+                ref={searchInputRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Filter threads…"
+                aria-label="Filter threads"
+                role="searchbox"
+                className="spooler-search-input"
+              />
+              {query !== "" ? (
+                <button
+                  type="button"
+                  aria-label="Clear filter"
+                  title="Clear filter"
+                  className="spooler-search-clear"
+                  onClick={() => setQuery("")}
+                >
+                  <Icon name="X" aria-hidden="true" />
+                </button>
+              ) : (
+                <kbd className="spooler-search-shortcut" title="Press / to focus search">
+                  /
+                </kbd>
+              )}
+            </div>
+          ) : null}
+          {filtersCollapsed ? (
+            // Collapsed form: JUST the Grouping widget (Section / Time /
+            // Project) — left-aligned; the chevron right-justifies via CSS.
+            <div
+              role="group"
+              aria-label="Grouping"
+              className="spooler-segmented spooler-filters-mini"
+            >
+              {groupingModeButtons}
+            </div>
+          ) : null}
           <button
             type="button"
             aria-expanded={!filtersCollapsed}
@@ -2183,21 +2217,10 @@ export function SpoolerThreadList({
             onClick={toggleFiltersCollapsed}
           >
             <Icon
-              name={filtersCollapsed ? "ChevronDown" : "ChevronUp"}
+              name={filtersCollapsed ? "ChevronRight" : "ChevronDown"}
               aria-hidden="true"
             />
           </button>
-          {filtersCollapsed ? (
-            // Collapsed form: JUST the Grouping widget (Section / Time /
-            // Project), sharing the search row.
-            <div
-              role="group"
-              aria-label="Grouping"
-              className="spooler-segmented spooler-filters-mini"
-            >
-              {groupingModeButtons}
-            </div>
-          ) : null}
         </div>
         {!filtersCollapsed ? (
         <div id="spooler-filters-extras" className="spooler-filters-extras">

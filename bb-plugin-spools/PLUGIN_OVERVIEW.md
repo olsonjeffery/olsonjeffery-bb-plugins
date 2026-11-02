@@ -32,8 +32,10 @@ A thread list you can read at a glance, for BB.
   bar in section view that duplicates every running thread above the list,
   sticks while you scroll, and never moves the originals out of their own
   sections or spools.
-- **A filter header that folds.** A chevron beside the search bar collapses
-  the filter area to one line that keeps only the Grouping widget.
+- **A filter header that folds.** A chevron beside the search bar (right
+  collapsed, down expanded) collapses the filter area to one line that keeps
+  only the Grouping widget — the filter field folds away first; `/` from the
+  collapsed state re-opens it focused.
 
 ## How it works
 

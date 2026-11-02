@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   loadPluginApp,
@@ -89,14 +89,57 @@ describe("collapsible filter header", () => {
     ).toBeTruthy();
   });
 
-  it("the toggle chevron shares the search row", () => {
+  it("expanded: the toggle rides the search row; collapsed: the filter field is hidden", () => {
     const slot = renderThreads(runnerAndQuiet());
-    const row = slot.container.querySelector(".spooler-search-row");
+    let row = slot.container.querySelector(".spooler-search-row");
     expect(row?.querySelector(".spooler-search")).not.toBeNull();
     expect(row?.querySelector(".spooler-filters-toggle")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Hide filter controls" }));
+    row = slot.container.querySelector(".spooler-search-row");
+    expect(row?.querySelector(".spooler-search")).toBeNull();
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
-  it("collapses to one line: only the Grouping widget rides beside the search", () => {
+  it("collapsed: the Grouping widget anchors the left, the chevron right-justifies", () => {
+    const slot = renderThreads(runnerAndQuiet());
+    fireEvent.click(screen.getByRole("button", { name: "Hide filter controls" }));
+    const row = slot.container.querySelector(".spooler-search-row");
+    expect(row?.querySelector(".spooler-search")).toBeNull();
+    expect(row?.firstElementChild?.classList.contains("spooler-filters-mini"))
+      .toBe(true);
+    expect(row?.lastElementChild?.classList.contains("spooler-filters-toggle"))
+      .toBe(true);
+  });
+
+  it("the chevron follows the disclosure convention: right when collapsed, down when expanded", () => {
+    const slot = renderThreads(runnerAndQuiet());
+    const toggle = () =>
+      slot.container.querySelector<HTMLElement>(".spooler-filters-toggle");
+    expect(
+      toggle()?.querySelector('[data-icon="ChevronDown"]'),
+    ).not.toBeNull();
+    fireEvent.click(toggle()!);
+    expect(
+      toggle()?.querySelector('[data-icon="ChevronRight"]'),
+    ).not.toBeNull();
+    fireEvent.click(toggle()!);
+    expect(
+      toggle()?.querySelector('[data-icon="ChevronDown"]'),
+    ).not.toBeNull();
+  });
+
+  it("pressing / while collapsed expands the header and focuses the filter", async () => {
+    const slot = renderThreads(runnerAndQuiet(), { startup: "on" });
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    fireEvent.keyDown(document.body, { key: "/" });
+    await waitFor(() => {
+      expect(screen.queryByRole("searchbox")).not.toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole("searchbox"));
+    });
+    expect(localStorage.getItem(COLLAPSE_KEY)).toBe("off");
+  });
+
+  it("collapses to one line: only the Grouping widget shows of the controls", () => {
     const slot = renderThreads(runnerAndQuiet());
     fireEvent.click(screen.getByRole("button", { name: "Hide filter controls" }));
 

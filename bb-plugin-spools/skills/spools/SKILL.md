@@ -18,12 +18,15 @@ without opening the app.
   a text filter, an Active / Archived / All switch, grouping + expand-all +
   density toggles, status chips, and the smart-views bar (New thread is
   BB's own, above the list, so the list keeps no duplicate). The header
-  collapses to ONE line — a chevron at the search bar's right edge hides
-  everything but the Grouping widget (Section / Time / Project), which joins
-  the search row; persisted in `spooler-sidebar:filters-collapsed:v1`;
-  default expanded. Section view adds the fixed **Active deck** (see
-  Active section below). Preferences persist per client in `localStorage`
-  (`spools:*:v1` keys).
+  collapses to ONE line — a chevron at the search bar's right edge (right
+  glyph when collapsed, down when expanded) hides the filter INPUT first
+  and every control but the Grouping widget (Section / Time / Project);
+  collapsed, that widget anchors the row's left edge and the chevron sits
+  right-justified, and <kbd>/</kbd> expands the header and focuses the
+  field; persisted in `spooler-sidebar:filters-collapsed:v1`; default
+  expanded. Section view adds the fixed **Active deck** (see Active section
+  below). Preferences persist per client in `localStorage` (`spools:*:v1`
+  keys).
 ## Navigation
 
 BB 0.46 retired the `experimental_sidebarNavigation` slot. BB's own navigation

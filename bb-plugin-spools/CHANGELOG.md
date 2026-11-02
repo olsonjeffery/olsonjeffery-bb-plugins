@@ -4,6 +4,17 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.8.1 — 2026-11-02
+
+### Changed
+- **The collapsed filter header hides the filter input** — it is the first
+  thing to fold away. The one-line form is now the Grouping widget
+  (Section / Time / Project) anchored to the row's LEFT with the chevron
+  right-justified at the far edge, and nothing else. Pressing <kbd>/</kbd>
+  while collapsed expands the header and focuses the filter field. The
+  chevron now follows the disclosure convention — pointing RIGHT when
+  collapsed, DOWN when expanded (the up/down pair is retired).
+
 ## 0.8.0 — 2026-11-02
 
 ### Added

@@ -72,8 +72,10 @@ or use **Move to section** in a thread's right-click menu.
 Restore the section list to one glance: an optional **Active section** pins a
 bar of every running thread above it, stays on top while you scroll, and marks
 each card's home (spool, section or Inbox) — the originals never leave their
-sections. The filter header itself folds to one line: the chevron at the
-search bar's right edge hides everything but the Grouping widget.
+sections. The filter header itself folds to one line: a chevron at the search
+bar's right edge (pointing right when collapsed, down when expanded) hides
+the filter field and every control but the Grouping widget — grouped left,
+chevron right — and <kbd>/</kbd> from the collapsed state re-opens it focused.
 
 </td>
 <td width="50%" valign="top">

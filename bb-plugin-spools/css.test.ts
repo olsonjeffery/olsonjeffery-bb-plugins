@@ -481,8 +481,9 @@ describe("app.css", () => {
   });
 
   it("keeps the collapsed filter header one widget beyond the search row", () => {
-    // The collapsed form shows only the Grouping widget beside the search;
-    // the toggle chevron pins inside the same row.
+    // Collapsed hides the filter INPUT: the Grouping widget anchors the
+    // row's left edge and the auto margin right-justifies the toggle
+    // chevron; expanded, the input's flex basis makes that margin a no-op.
     const row = rules().find((rule) => rule.selector === ".spooler-search-row");
     expect(row?.body).toMatch(/display:\s*flex/);
     const search = rules().find(
@@ -492,6 +493,7 @@ describe("app.css", () => {
     expect(search?.body).toMatch(/min-width:\s*0/);
     const toggle = rules().find((rule) => rule.selector === ".spooler-filters-toggle");
     expect(toggle?.body).toMatch(/flex:\s*none/);
+    expect(toggle?.body).toMatch(/margin-left:\s*auto/);
     const mini = rules().find((rule) => rule.selector === ".spooler-filters-mini");
     expect(mini?.body).toMatch(/flex:\s*none/);
   });

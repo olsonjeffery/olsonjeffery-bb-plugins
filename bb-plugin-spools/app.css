@@ -4628,16 +4628,20 @@ a.spooler-row-main:hover {
 
 /* ===== Collapsed filter header (one-line form) ===== */
 
-/* The filter area collapses to the search row alone: the toggle chevron
-   pins to the search bar's right edge, and the Grouping widget joins the
-   row. The lifecycle switch, status chips, smart views and the new-section
-   trigger unmount until the header expands again. */
+/* The filter area collapses to ONE line and the filter input is the first
+   thing hidden: the Grouping widget anchors the row's left edge and the
+   toggle chevron right-justifies. The lifecycle switch, status chips, smart
+   views and the new-section trigger unmount until the header expands again. */
 .spooler-search-row {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+/* Expanded: the input consumes the row, so the auto margin is a no-op and
+   the chevron rides the search bar's right edge. Collapsed: the only
+   sibling is the left-anchored Grouping widget, so the auto margin
+   right-justifies the chevron. */
 .spooler-search-row .spooler-search {
   flex: 1 1 auto;
   min-width: 0;
@@ -4648,6 +4652,7 @@ a.spooler-row-main:hover {
   align-items: center;
   justify-content: center;
   flex: none;
+  margin-left: auto;
   width: 24px;
   height: 30px;
   padding: 0;
