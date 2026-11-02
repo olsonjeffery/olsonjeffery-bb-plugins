@@ -1,14 +1,15 @@
-/* MSB + pi page. All rules are prefixed `msp-` and read BB's live theme
-   tokens (with fallbacks), so custom palettes keep working. None touch
-   BB's own elements. */
+/* MSB + pi settings section. All rules are prefixed `msp-` and read BB's
+   live theme tokens (with fallbacks), so custom palettes keep working.
+   None touch BB's own elements. The rendering context is the plugin's
+   Settings detail page (below the declarative settings form), so the
+   host owns the outer padding — keep this layout narrow and quiet. */
 
 .msp-page {
-  max-width: 780px;
-  margin: 0 auto;
-  padding: 22px 24px 72px;
+  max-width: 820px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  padding-bottom: 12px;
 }
 
 .msp-header {

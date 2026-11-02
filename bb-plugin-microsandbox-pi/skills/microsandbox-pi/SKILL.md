@@ -12,8 +12,10 @@ Two halves:
    secrets substituted only on configured egress hosts (see below).
 2. **The version watcher** — every machine enrolled with bb reports installed
    versions of the microsandbox CLI (`msb`) and the pi coding agent (`pi`)
-   on one page, over `bb microsandbox-pi`, and through agent tools, with a
-   change history.
+   on the plugin's Settings detail page (Settings → Installed plugins →
+   MSB + pi → "Version watch"), over `bb microsandbox-pi`, and through
+   agent tools, with a change history. There is no navigation-page entry
+   for it; the watch is background machinery.
 
 ## The sandboxed pi provider
 

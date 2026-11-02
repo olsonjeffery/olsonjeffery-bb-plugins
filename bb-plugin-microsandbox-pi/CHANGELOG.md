@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1 — the dashboard moved out of navigation
+
+- **No nav entry.** The "MSB + pi" navigation page is gone — the version
+  watch is background machinery, and its dashboard now lives where the
+  settings already are: Settings → Installed plugins → MSB + pi, below
+  the declarative settings form (`settingsSection`: machine cards, update
+  chips, per-machine sandbox list, version history — same content, same
+  RPC read). It refetches on every probe cycle via the realtime ping
+  (previously the realtime hook was imported but never wired) and after
+  each refresh through tag invalidation. The CLI (`bb microsandbox-pi
+  versions|refresh|history|boxes`) and the four agent tools are
+  unchanged, so agents and scripts never depended on the page anyway.
+
 ## 0.3.0 — phase 3: the sandboxed pi provider works end to end
 
 - **Provider "pi (microsandbox)"** — bb threads run their whole pi agent

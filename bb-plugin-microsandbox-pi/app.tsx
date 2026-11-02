@@ -1,10 +1,11 @@
-// bb-plugin-msb-pi — the page.
+// bb-plugin-microsandbox-pi — the settings section.
 //
-// One nav panel over the shared RPC query read: a card per machine
-// (pi + msb versions, origins, release lists) and the change history.
-// Background probe cycles announce themselves over realtime, so the
-// page refetches without a manual trigger; a completed refresh also
-// refetches through tag invalidation.
+// The version watch lives on the plugin's Settings detail page (no nav
+// entry): a settingsSection over the shared RPC query read — a card per
+// machine (pi + msb versions, origins, release lists, sandbox list) and
+// the change history. Background probe cycles announce themselves over
+// realtime, so the section refetches without a manual trigger; a
+// completed refresh also refetches through tag invalidation.
 import {
   definePluginApp,
   experimental_Icon as Icon,
@@ -22,11 +23,12 @@ import "./app.css";
 const INTERVAL = { min: 1, max: 720, fallback: 15 } as const;
 
 export default definePluginApp((app) => {
-  app.slots.navPanel({
+  // No nav entry — the watch is background machinery; its dashboard
+  // belongs on the plugin's Settings detail page.
+  app.slots.settingsSection({
     id: "watch",
-    title: "MSB + pi",
-    icon: "Activity",
-    path: "microsandbox-pi",
+    title: "Version watch",
+    description: "Installed microsandbox (msb) and pi versions per enrolled machine, each machine's sandbox list, and the version-change history.",
     component: MsbPiPage,
   });
 });
@@ -35,6 +37,11 @@ function MsbPiPage() {
   const watch = experimental_useRpcQuery({ contract: rpcContract, method: "watch", input: null });
   const refreshAll = experimental_useRpcMutation({ contract: rpcContract, method: "refresh" });
   const settings = useSettings();
+
+  // Probe cycles ping this channel; completed refreshes also invalidate
+  // the query tag. Either way, the section refetches without a manual
+  // trigger.
+  useRealtime(REALTIME_CHANNEL, () => void watch.refetch());
 
   const interval = readInterval(settings.values);
   const state = watch.data;
@@ -275,7 +282,7 @@ function HistoryList({ history }: { history: WatchOutput["history"] }) {
 function EmptyMachines() {
   return (
     <div className="msp-card msp-empty">
-      No machines are enrolled with this bb server yet. Enroll one (Settings → Machines) and this page picks it up on the next probe.
+      No machines are enrolled with this bb server yet. Enroll one (Settings → Machines) and this section picks it up on the next probe.
     </div>
   );
 }

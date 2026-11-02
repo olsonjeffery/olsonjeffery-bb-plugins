@@ -5,7 +5,8 @@ A bb plugin for the [microsandbox](https://microsandbox.dev) sandbox road:
 agent inside msb microVMs, and (2) a fleet watch that shows which machines
 have which `msb` and `pi` versions right now — and when that last changed.
 
-Watch surfaces (one page, one CLI, four agent tools, one history):
+Watch surfaces (Settings section, one CLI, four agent tools, one history —
+no navigation entry; the watch is background machinery):
 
 - **Page** — "MSB + pi" in the navigation: a card per machine with each
   tool's active version, install origin, resolve path, npm update chips,
@@ -49,13 +50,13 @@ This plugin is both.
 | Where | What |
 | --- | --- |
 | **Provider "pi (microsandbox)"** | bb threads run pi entirely inside an msb microVM (see below) |
-| Navigation → MSB + pi | Machine cards (versions, update chips, sandbox list) + version history |
+| Settings → Installed plugins → MSB + pi → "Version watch" | Machine cards (versions, update chips, sandbox list) + version history |
 | Agent tools `msb_pi_versions` / `msb_pi_probe` / `msb_pi_boxes` / `msb_pi_history` | Direct answers in any thread |
 | `bb microsandbox-pi versions [--machine <ref>] [--refresh] [--json]` | Stored results with npm hints |
 | `bb microsandbox-pi refresh [--machine <ref>] [--json]` | Probe now, keep results |
 | `bb microsandbox-pi boxes [--machine <ref>] [--running] [--refresh] [--json]` | Each machine's msb runtime sandboxes |
 | `bb microsandbox-pi history [--machine <ref>] [--limit N] [--json]` | Recorded version changes |
-| Settings → Installed plugins → MSB + pi | Check interval, extra msb paths, box image/resources, mounts, secret routes, npm check, bridge journal |
+| Settings → Installed plugins → MSB + pi | Check interval, extra msb paths, box image/resources, mounts, secret routes, npm check, bridge journal — and below the form, the "Version watch" section (the former dashboard, refetching on each probe cycle) |
 
 ## How it works
 
