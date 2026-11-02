@@ -944,7 +944,9 @@
 
 .spooler-group-header {
   position: sticky;
-  top: 0;
+  /* With the Active deck above, the headers stick just beneath its bar
+     (--spooler-active-bar-h); the variable defaults to 0 elsewhere. */
+  top: var(--spooler-group-sticky-top, 0px);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -4476,6 +4478,223 @@ a.spooler-row-main:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .spooler-save-spinner {
+    animation: none;
+  }
+}
+
+/* ===== Active deck (fixed top-bar section, Group By Section) ===== */
+
+/* The deck's bar and the sticky top it forces on the other group headers
+   share one height variable, so they can never drift apart. The bar pins at
+   top 0 for the WHOLE scroll (its parent is the scroll container itself, so
+   sticky never runs out of runway), and every group header sticks beneath
+   it while the deck is present. */
+.spooler-list {
+  --spooler-active-bar-h: 28px;
+}
+
+.spooler-list-active-bar {
+  --spooler-group-sticky-top: var(--spooler-active-bar-h);
+}
+
+.spooler-active-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--spooler-active-bar-h);
+  padding: 0 8px;
+  background: var(--sidebar, var(--background));
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+/* The rail aligns the deck with the section grammar: 26px in, so the Zap
+   glyph rides the same axis as spool marks and row provider icons. */
+.spooler-active-bar-rail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  margin-left: 26px;
+}
+
+.spooler-active-bar-rail-glyph {
+  width: 14px;
+  height: 14px;
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+}
+
+.spooler-active-bar .spooler-group-label {
+  flex: none;
+}
+
+.spooler-active-bar .spooler-group-meta {
+  min-height: 1em;
+}
+
+/* The deck count pip: same grammar as the section pips, but steadier tones
+   come from the shared pip rules (`.spooler-group-count-pip` above). */
+
+/* The duplicate cards ride under the bar in one wrapping row; every card is
+   a button that opens the thread — the original row stays in its own
+   section or spool card, so this is pure glance-and-jump. */
+.spooler-active-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 8px 2px;
+}
+
+.spooler-active-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--card, var(--background)) 72%, transparent);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.spooler-active-card:hover {
+  background: var(--muted);
+  border-color: var(--border);
+}
+
+.spooler-active-card-status {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.spooler-active-card-status [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-active-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+  font-weight: 450;
+}
+
+/* The jump-home chip: spool titles carry the thread emoji, plain sections
+   just the name. It tells you where the original row lives. */
+.spooler-active-card-origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  max-width: 150px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.spooler-active-card-origin-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrow sidebars: give the title chips more room to breathe by trimming
+   the jump-home chip first. */
+@container spooler-thread-list (max-width: 224px) {
+  .spooler-active-card-origin {
+    max-width: 110px;
+  }
+}
+
+/* ===== Collapsed filter header (one-line form) ===== */
+
+/* The filter area collapses to the search row alone: the toggle chevron
+   pins to the search bar's right edge, and the Grouping widget joins the
+   row. The lifecycle switch, status chips, smart views and the new-section
+   trigger unmount until the header expands again. */
+.spooler-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spooler-search-row .spooler-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.spooler-filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.spooler-filters-toggle:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.spooler-filters-toggle [data-icon-root] {
+  width: 14px;
+  height: 14px;
+}
+
+.spooler-filters-mini {
+  flex: none;
+}
+
+.spooler-filters-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@keyframes spooler-extras-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.spooler-filters-extras > * {
+  animation: spooler-extras-reveal 140ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooler-filters-extras > * {
     animation: none;
   }
 }

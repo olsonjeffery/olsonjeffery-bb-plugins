@@ -89,6 +89,13 @@ export default async function plugin(bb: BbPluginApi) {
       options: SWIPE_ACTION_OPTION_LABELS,
       default: DEFAULT_SWIPE_LEFT,
     },
+    activeDeck: {
+      type: "boolean",
+      label: "Active section",
+      description:
+        "Pin a top bar of every running thread above the section list. Each thread stays in its own section or spool too — these are glanceable duplicates. Only in Group By Section.",
+      default: true,
+    },
     addPosition: {
       type: "select",
       label: "Behavior when adding thread to spool",

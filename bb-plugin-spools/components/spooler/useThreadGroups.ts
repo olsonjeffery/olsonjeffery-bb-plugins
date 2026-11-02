@@ -36,6 +36,9 @@ export interface SpoolGroupData {
   failed: number;
 }
 
+/** The fixed Active deck's group id (renders first, above Pinned + Inbox). */
+export const ACTIVE_GROUP_ID = "active";
+
 /** A rendered group of threads: a time bucket, a project, or a section. */
 export interface ThreadGroup {
   id: string;
@@ -126,6 +129,8 @@ export function useThreadGroups(args: {
   projects: readonly PluginSidebarProject[];
   sections: readonly PluginSidebarSection[];
   now: number;
+  /** Show the fixed Active deck above the section list (a setting). */
+  activeDeck?: boolean;
   /** Spools resolved from per-thread plugin metadata (section view only). */
   spools?: readonly Spool[];
   /** threadId → spool id, from the same metadata fold as `spools`. */
@@ -140,6 +145,7 @@ export function useThreadGroups(args: {
     projects,
     sections,
     now,
+    activeDeck = false,
     spools = [],
     spoolIdByThreadId = EMPTY_SPOOL_MAP,
   } = args;
@@ -733,6 +739,49 @@ export function useThreadGroups(args: {
     spoolSectionData,
   ]);
 
+  /** The fixed Active deck: one duplicate card per running thread, a glance
+   *  deck pinned as a top bar above Pinned and Inbox. Members keep their own
+   *  rows everywhere else (section, spool card), so the deck's group counts
+   *  describe the CARDS (one per member, subtree unfolded) — and the deck
+   *  must never join `groups`/`shownTotal`, which would count its members
+   *  twice. Runs under the same query/status filter as everything else. */
+  const activeGroup = useMemo<ThreadGroup | null>(() => {
+    if (!activeDeck) return null;
+    const running = allRows.filter(
+      (thread) =>
+        shownIds.has(thread.id) &&
+        !thread.isArchived &&
+        isRunningThread(thread),
+    );
+    if (running.length === 0) return null;
+    let unread = 0;
+    let needsUser = 0;
+    let failed = 0;
+    for (const thread of running) {
+      if (thread.isUnread) unread += 1;
+      if (thread.indicator === "waiting-for-input") needsUser += 1;
+      if (
+        thread.indicator === "unread-error" ||
+        thread.indicator === "queued-failed"
+      ) {
+        failed += 1;
+      }
+    }
+    return {
+      id: ACTIVE_GROUP_ID,
+      label: "Active",
+      icon: "Zap",
+      roots: running,
+      total: running.length,
+      unread,
+      live: running.length,
+      needsUser,
+      failed,
+      projectId: null,
+      sectionId: null,
+    };
+  }, [activeDeck, allRows, shownIds]);
+
   const shownTotal =
     (pinnedGroup?.total ?? 0) +
     groups.reduce((count, group) => count + group.total, 0);
@@ -749,6 +798,7 @@ export function useThreadGroups(args: {
     countSubtree,
     subtreeActivity,
     pinnedGroup,
+    activeGroup,
     groups,
     shownTotal,
     projectNameFor,

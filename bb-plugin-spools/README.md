@@ -69,6 +69,12 @@ project or section instead with one toggle. In section view, choose **New
 section**, enter a name, then **Create section**. Drag threads onto its header
 or use **Move to section** in a thread's right-click menu.
 
+Restore the section list to one glance: an optional **Active section** pins a
+bar of every running thread above it, stays on top while you scroll, and marks
+each card's home (spool, section or Inbox) — the originals never leave their
+sections. The filter header itself folds to one line: the chevron at the
+search bar's right edge hides everything but the Grouping widget.
+
 </td>
 <td width="50%" valign="top">
 
@@ -240,6 +246,7 @@ flowchart LR
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
 | `swipeRight` | `"Mark read / unread"` | Action for a rightward swipe: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` (BB confirms) or `Nothing`. |
 | `swipeLeft` | `"Archive / unarchive"` | Action for a leftward swipe, from the same list. |
+| `activeDeck` | `true` | Show the **Active section** top bar in Group By Section: every running thread above the list, kept visible while you scroll. Each card is a duplicate — the thread stays in its section or spool too. The header's chevron collapse (`Hide filter controls`) is remembered per client in `spooler-sidebar:filters-collapsed:v1`. |
 
 The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last

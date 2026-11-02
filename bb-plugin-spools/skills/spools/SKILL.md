@@ -17,8 +17,13 @@ without opening the app.
   group by project, or by **section** for drag-to-organise. The header holds
   a text filter, an Active / Archived / All switch, grouping + expand-all +
   density toggles, status chips, and the smart-views bar (New thread is
-  BB's own, above the list, so the list keeps no duplicate). Preferences
-  persist per client in `localStorage` (`spools:*:v1` keys).
+  BB's own, above the list, so the list keeps no duplicate). The header
+  collapses to ONE line — a chevron at the search bar's right edge hides
+  everything but the Grouping widget (Section / Time / Project), which joins
+  the search row; persisted in `spooler-sidebar:filters-collapsed:v1`;
+  default expanded. Section view adds the fixed **Active deck** (see
+  Active section below). Preferences persist per client in `localStorage`
+  (`spools:*:v1` keys).
 ## Navigation
 
 BB 0.46 retired the `experimental_sidebarNavigation` slot. BB's own navigation
@@ -51,6 +56,24 @@ both.
   flex grid under the title (`spooler-row-grid`), pills ellipsize inside
   their own boxes and the grid re-flows across rows without ever
   overflowing the entry.
+- **Active section** (`SpoolerActiveDeck.tsx`): a fixed, optional top bar
+  (plugin setting **Active section**, default on) in section grouping only —
+  the hardcoded active deck above Pinned and Inbox, with top-bar remain-
+  visible behavior on scroll: the bar is sticky at the scrollport's top for
+  the WHOLE scroll (its height variable also shifts every other group
+  header's sticky top beneath it), so running work stays glanceable however
+  deep you scroll, right alongside the filter header. It renders ONLY when
+  something runs, and ignores nothing the rest of the list respects: the
+  text/status filters shape the deck. Each member renders as a duplicate
+  pill-card (spinner · title · jump-home chip) — clicking opens the thread —
+  while the original stays in its own section and/or spool card (deck
+  members are NOT lifted: `visibleFlattenedThreadIds` never includes the
+  deck, so keyboard walk, selection and ⌘-jump stay un-crowded, and the
+  deck's group never enters `shownTotal`). Card status uses the row
+  priority failed > needs-you > running spinner; the bar's pip is the
+  running count with the same overlay, and unread pip rides beside it. The
+  jump-home chip reads the spool's title (🧵), else the section name, else
+  the unfiled Inbox.
 - **Section Settings**: the header context menu offers a single
   **Section settings…** entry (double-click the section title too) opening a
   modal with auto-save — name saves on a short debounce via
@@ -340,6 +363,7 @@ rows paint at their final height.
 | `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
 | `loudUnread` | `true` | Wash and accent bar on finished-but-unseen rows; off keeps the icon and pip only. |
 | `adaptiveCollapse` | `true` | Fold quiet read-idle rows to their title line. |
+| `activeDeck` | `true` | Show the fixed Active section top bar in Group By Section (default on). |
 | `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the header toggle is used; that choice is remembered per client. |
 | `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; metadata wraps below when needed. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. |

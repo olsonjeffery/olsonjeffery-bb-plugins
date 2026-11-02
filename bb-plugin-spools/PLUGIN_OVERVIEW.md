@@ -28,6 +28,12 @@ A thread list you can read at a glance, for BB.
   rhythm, a tri-tone per section color (darkest header, mid spool strip,
   lightest thread slabs — gray for the Inbox), per-section icons, and one
   Section Settings modal with auto-save for name, color and icon.
+- **An Active section** (off via its setting, on by default): a fixed top
+  bar in section view that duplicates every running thread above the list,
+  sticks while you scroll, and never moves the originals out of their own
+  sections or spools.
+- **A filter header that folds.** A chevron beside the search bar collapses
+  the filter area to one line that keeps only the Grouping widget.
 
 ## How it works
 

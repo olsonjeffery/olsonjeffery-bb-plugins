@@ -463,4 +463,36 @@ describe("app.css", () => {
     expect(swatch?.body).toMatch(/border-radius:\s*999px/);
     expect(swatch?.body).toMatch(/box-shadow:\s*inset/);
   });
+
+  it("pins the Active deck bar and shifts the group headers beneath it", () => {
+    // One height variable feeds both the bar and the sticky top the other
+    // group headers get while the deck is present — they cannot drift.
+    const header = rules().find((rule) => rule.selector === ".spooler-group-header");
+    expect(header?.body).toMatch(/top:\s*var\(--spooler-group-sticky-top, 0px\)/);
+    const scope = rules().find((rule) => rule.selector === ".spooler-list-active-bar");
+    expect(scope?.body).toMatch(
+      /--spooler-group-sticky-top:\s*var\(--spooler-active-bar-h\)/,
+    );
+    const bar = rules().find((rule) => rule.selector === ".spooler-active-bar");
+    expect(bar?.body).toMatch(/position:\s*sticky/);
+    expect(bar?.body).toMatch(/top:\s*0/);
+    expect(bar?.body).toMatch(/height:\s*var\(--spooler-active-bar-h\)/);
+    expect(bar?.body).toMatch(/z-index:\s*2/);
+  });
+
+  it("keeps the collapsed filter header one widget beyond the search row", () => {
+    // The collapsed form shows only the Grouping widget beside the search;
+    // the toggle chevron pins inside the same row.
+    const row = rules().find((rule) => rule.selector === ".spooler-search-row");
+    expect(row?.body).toMatch(/display:\s*flex/);
+    const search = rules().find(
+      (rule) => rule.selector === ".spooler-search-row .spooler-search",
+    );
+    expect(search?.body).toMatch(/flex:\s*1 1 auto/);
+    expect(search?.body).toMatch(/min-width:\s*0/);
+    const toggle = rules().find((rule) => rule.selector === ".spooler-filters-toggle");
+    expect(toggle?.body).toMatch(/flex:\s*none/);
+    const mini = rules().find((rule) => rule.selector === ".spooler-filters-mini");
+    expect(mini?.body).toMatch(/flex:\s*none/);
+  });
 });

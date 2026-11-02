@@ -64,10 +64,12 @@ import { UnspoolConfirmDialog } from "./UnspoolConfirmDialog";
 import { useArrivals } from "./useArrivals";
 import {
   useThreadGroups,
+  ACTIVE_GROUP_ID,
   SETTLED_GROUP_ID,
   UNFILED_GROUP_ID,
   type ThreadGroup,
 } from "./useThreadGroups";
+import { SpoolerActiveDeck, type ActiveOriginOf } from "./SpoolerActiveDeck";
 import {
   onSectionColorsChanged,
   readSectionStyleMap,
@@ -110,6 +112,7 @@ const COLLAPSED_KEY = "spooler-sidebar:collapsed:v1";
 const COLLAPSED_THREADS_KEY = "spooler-sidebar:collapsed-threads:v1";
 const PROJECT_ORDER_KEY = "spooler-sidebar:project-order:v1";
 const STATUS_FILTER_KEY = "spooler-sidebar:status-filter:v1";
+const FILTERS_COLLAPSED_KEY = "spooler-sidebar:filters-collapsed:v1";
 const DENSITY_KEY = "spooler-sidebar:density:v1";
 const LAST_DEFAULT_DENSITY_KEY = "spooler-sidebar:last-default-density:v1";
 const LAST_TWO_LINE_TITLES_KEY = "spooler-sidebar:last-two-line-titles:v1";
@@ -174,6 +177,7 @@ function useSidebarSettings() {
     motion: flag("motion", true),
     loudUnread: flag("loudUnread", true),
     adaptiveCollapse: flag("adaptiveCollapse", true),
+    activeDeck: flag("activeDeck", true),
     addPosition: values?.addPosition === "top" ? ("top" as const) : ("bottom" as const),
     defaultDensity,
     wrapTitles,
@@ -458,6 +462,19 @@ export function SpoolerThreadList({
     // sidebar is built around; an explicit stored choice still wins.
     readStored(GROUPING_KEY, "section", ["time", "project", "section"]),
   );
+  /** Collapsed filters: the header shrinks to one line — the search bar
+   *  (with the toggle chevron riding its right edge) plus the Grouping
+   *  widget alone. Persisted like the other view choices. */
+  const [filtersCollapsed, setFiltersCollapsed] = useState(
+    () => readStored(FILTERS_COLLAPSED_KEY, "off", ["off", "on"]) === "on",
+  );
+  const toggleFiltersCollapsed = useCallback(() => {
+    setFiltersCollapsed((previous) => {
+      const next = !previous;
+      writeStored(FILTERS_COLLAPSED_KEY, next ? "on" : "off");
+      return next;
+    });
+  }, []);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     readStored(STATUS_FILTER_KEY, "all", ["all", "live", "waiting", "unread"]),
@@ -693,6 +710,7 @@ export function SpoolerThreadList({
     shownChildren,
     countSubtree,
     pinnedGroup,
+    activeGroup,
     groups,
     shownTotal,
     projectNameFor,
@@ -706,9 +724,14 @@ export function SpoolerThreadList({
     projects,
     sections,
     now,
+    activeDeck: grouping === "section" && settings.activeDeck,
     spools: spoolStore.spools,
     spoolIdByThreadId,
   });
+  /** The Active deck tops the section list; everywhere else the setting is
+   *  meaningless, so the bar (and the sticky-offset it causes on the other
+   *  group headers) only exists with the deck rendered. */
+  const activeDeckPresent = activeGroup !== null;
 
   // List-wide dispatch surface (the rows bind their own per-thread hook).
   // Navigation and plain SDK mutations cover bulk and keyboard ops; the row
@@ -788,7 +811,8 @@ export function SpoolerThreadList({
       sdk.threads.update({ threadId, title }).then(() => undefined),
   }), [navigate, sdk]);
 
-  const activeGroup = useMemo(
+  // The group a project-reorder drag carries (unrelated to the Active deck).
+  const dragPreviewGroup = useMemo(
     () => (dragActiveId ? (groups.find((g) => g.id === dragActiveId) ?? null) : null),
     [groups, dragActiveId],
   );
@@ -2023,6 +2047,69 @@ export function SpoolerThreadList({
     startSwitch(() => setGrouping(next));
   };
 
+  /** Where each deck card's original row lives: spool title, else section
+   *  name, else the unfiled Inbox. The chip is a map back — the duplicate
+   *  card never leaves its original behind. */
+  const activeOriginOf = useCallback<ActiveOriginOf>((thread) => {
+    const spoolId = spoolIdByThreadId.get(thread.id);
+    if (spoolId) {
+      const spool = spoolById.get(spoolId);
+      if (spool) return { label: spool.title, isSpool: true };
+    }
+    if (thread.sectionId) {
+      const section = sectionById.get(thread.sectionId);
+      if (section) return { label: section.name, isSpool: false };
+    }
+    return { label: "Inbox", isSpool: false };
+  }, [spoolIdByThreadId, spoolById, sectionById]);
+
+  /** The Grouping widget's mode buttons — Section / Time / Project — shared
+   *  by the expanded header and the collapsed one-line form (which shows
+   *  ONLY this widget). */
+  const groupingModeButtons = (
+    <>
+      <button
+        type="button"
+        aria-pressed={grouping === "section"}
+        aria-label="Group by section (drag threads between them)"
+        title="Group by section — drag a thread onto a header to file it"
+        className={cn(
+          "spooler-segmented-button spooler-segmented-icon",
+          grouping === "section" && "spooler-segmented-button-active",
+        )}
+        onClick={() => selectGrouping("section")}
+      >
+        <Icon name="SectionMove" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-pressed={grouping === "time"}
+        aria-label="Group by time"
+        title="Group by time"
+        className={cn(
+          "spooler-segmented-button spooler-segmented-icon",
+          grouping === "time" && "spooler-segmented-button-active",
+        )}
+        onClick={() => selectGrouping("time")}
+      >
+        <Icon name="Clock" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-pressed={grouping === "project"}
+        aria-label="Group by project"
+        title="Group by project"
+        className={cn(
+          "spooler-segmented-button spooler-segmented-icon",
+          grouping === "project" && "spooler-segmented-button-active",
+        )}
+        onClick={() => selectGrouping("project")}
+      >
+        <Icon name="Folder" aria-hidden="true" />
+      </button>
+    </>
+  );
+
   return (
     <div
       ref={rootRef}
@@ -2034,6 +2121,9 @@ export function SpoolerThreadList({
         // every entry title may wrap to two rows before it ellipsizes, and
         // the pills live in their own wrapping grid beneath it.
         (settings.wrapTitles || grouping === "section") && "spooler-title-wrap",
+        // The Active deck's top bar is pinned at the scrollport's top; the
+        // ordinary group headers stick just beneath it (see app.css).
+        activeDeckPresent && "spooler-list-active-bar",
       )}
       data-spooler-motion={settings.motion ? "on" : "off"}
       data-spooler-loud-unread={settings.loudUnread ? "on" : "off"}
@@ -2044,37 +2134,73 @@ export function SpoolerThreadList({
       }
     >
       <div className="spooler-list-header">
-        <div className="spooler-search">
-          <Icon
-            name="Search"
-            aria-hidden="true"
-            className="spooler-search-icon"
-          />
-          <Input
-            ref={searchInputRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter threads…"
-            aria-label="Filter threads"
-            role="searchbox"
-            className="spooler-search-input"
-          />
-          {query !== "" ? (
-            <button
-              type="button"
-              aria-label="Clear filter"
-              title="Clear filter"
-              className="spooler-search-clear"
-              onClick={() => setQuery("")}
+        {/* One search row: the filter input, then the show/hide chevron its
+            right edge carries. Collapsed, the Grouping widget joins the row.
+            */}
+        <div className="spooler-search-row">
+          <div className="spooler-search">
+            <Icon
+              name="Search"
+              aria-hidden="true"
+              className="spooler-search-icon"
+            />
+            <Input
+              ref={searchInputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Filter threads…"
+              aria-label="Filter threads"
+              role="searchbox"
+              className="spooler-search-input"
+            />
+            {query !== "" ? (
+              <button
+                type="button"
+                aria-label="Clear filter"
+                title="Clear filter"
+                className="spooler-search-clear"
+                onClick={() => setQuery("")}
+              >
+                <Icon name="X" aria-hidden="true" />
+              </button>
+            ) : (
+              <kbd className="spooler-search-shortcut" title="Press / to focus search">
+                /
+              </kbd>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-expanded={!filtersCollapsed}
+            aria-controls="spooler-filters-extras"
+            aria-label={
+              filtersCollapsed ? "Show filter controls" : "Hide filter controls"
+            }
+            title={
+              filtersCollapsed ? "Show filter controls" : "Hide filter controls"
+            }
+            className="spooler-filters-toggle"
+            onClick={toggleFiltersCollapsed}
+          >
+            <Icon
+              name={filtersCollapsed ? "ChevronDown" : "ChevronUp"}
+              aria-hidden="true"
+            />
+          </button>
+          {filtersCollapsed ? (
+            // Collapsed form: JUST the Grouping widget (Section / Time /
+            // Project), sharing the search row.
+            <div
+              role="group"
+              aria-label="Grouping"
+              className="spooler-segmented spooler-filters-mini"
             >
-              <Icon name="X" aria-hidden="true" />
-            </button>
-          ) : (
-            <kbd className="spooler-search-shortcut" title="Press / to focus search">
-              /
-            </kbd>
-          )}
+              {groupingModeButtons}
+            </div>
+          ) : null}
         </div>
+        {!filtersCollapsed ? (
+        <div id="spooler-filters-extras" className="spooler-filters-extras">
         <div className="spooler-filters">
           <div
             role="group"
@@ -2103,45 +2229,7 @@ export function SpoolerThreadList({
             ))}
           </div>
           <div role="group" aria-label="Grouping" className="spooler-segmented">
-            <button
-              type="button"
-              aria-pressed={grouping === "section"}
-              aria-label="Group by section (drag threads between them)"
-              title="Group by section — drag a thread onto a header to file it"
-              className={cn(
-                "spooler-segmented-button spooler-segmented-icon",
-                grouping === "section" && "spooler-segmented-button-active",
-              )}
-              onClick={() => selectGrouping("section")}
-            >
-              <Icon name="SectionMove" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-pressed={grouping === "time"}
-              aria-label="Group by time"
-              title="Group by time"
-              className={cn(
-                "spooler-segmented-button spooler-segmented-icon",
-                grouping === "time" && "spooler-segmented-button-active",
-              )}
-              onClick={() => selectGrouping("time")}
-            >
-              <Icon name="Clock" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-pressed={grouping === "project"}
-              aria-label="Group by project"
-              title="Group by project"
-              className={cn(
-                "spooler-segmented-button spooler-segmented-icon",
-                grouping === "project" && "spooler-segmented-button-active",
-              )}
-              onClick={() => selectGrouping("project")}
-            >
-              <Icon name="Folder" aria-hidden="true" />
-            </button>
+            {groupingModeButtons}
             <button
               type="button"
               aria-label={
@@ -2349,6 +2437,8 @@ export function SpoolerThreadList({
           />
           {grouping === "section" ? <SpoolerNewSection compact /> : null}
         </div>
+        </div>
+        ) : null}
       </div>
 
       <div
@@ -2425,6 +2515,21 @@ export function SpoolerThreadList({
               <p className="spooler-result-count" role="status">
                 {shownTotal} of {allRows.length} threads
               </p>
+            ) : null}
+            {activeGroup ? (
+              // The deck tops everything (Pinned, Inbox, every section). Its
+              // cards duplicate rows that also render in their own buckets.
+              <SpoolerActiveDeck
+                threads={activeGroup.roots}
+                originOf={activeOriginOf}
+                unread={activeGroup.unread}
+                failed={activeGroup.failed}
+                needsUser={activeGroup.needsUser}
+                onOpen={(threadId) => {
+                  actions.open(threadId);
+                  onNavigate();
+                }}
+              />
             ) : null}
             {pinnedGroup ? renderGroup(pinnedGroup, false) : null}
             {grouping === "section" ? (
@@ -2625,28 +2730,28 @@ export function SpoolerThreadList({
                   {groups.map((group) => renderGroup(group, true))}
                 </SortableContext>
                 <DragOverlay>
-                  {activeGroup ? (
+                  {dragPreviewGroup ? (
                     <div className="spooler-group-drag-preview">
                       <span className="spooler-group-grip" aria-hidden="true">
                         <Icon name="DragDropVertical" />
                       </span>
                       <Icon
                         name={
-                          collapsedGroupIds.has(activeGroup.id)
+                          collapsedGroupIds.has(dragPreviewGroup.id)
                             ? "Folder"
                             : "FolderOpen"
                         }
                         aria-hidden="true"
                         className="spooler-group-drag-icon"
                       />
-                      <span className="spooler-group-label">{activeGroup.label}</span>
-                      {activeGroup.unread > 0 ? (
+                      <span className="spooler-group-label">{dragPreviewGroup.label}</span>
+                      {dragPreviewGroup.unread > 0 ? (
                         <span className="spooler-group-unread" aria-hidden="true">
                           <span className="spooler-unread" />
-                          {activeGroup.unread}
+                          {dragPreviewGroup.unread}
                         </span>
                       ) : null}
-                      <span className="spooler-group-count">{activeGroup.total}</span>
+                      <span className="spooler-group-count">{dragPreviewGroup.total}</span>
                       <span className="spooler-group-new-thread-preview" aria-hidden="true">
                         <Icon name="MessageSquarePlus" />
                       </span>

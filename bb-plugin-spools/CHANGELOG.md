@@ -4,6 +4,28 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.8.0 — 2026-11-02
+
+### Added
+- **The Active section** (Group By Section): a fixed, optional top bar over
+  the section list that duplicates every running thread — Pinned and Inbox
+  included underneath. Its strip has top-bar stay-visible behavior on scroll
+  (the ordinary group headers stick just beneath it for the rest of the
+  scroll), and each duplicate card carries a jump-home chip pointing at where
+  the original lives — the spool's title, the section's name, or the unfiled
+  Inbox, which is where the thread remains. Nothing is lifted; members keep
+  their rows and spool placements. Configured by the new **Active section**
+  setting (default on); the bar simply doesn't render when nothing is
+  running. Cards read the same attention priority as their row: failed >
+  needs-you > running spinner, and clicking one opens the thread.
+- **A collapsible filter header.** A show/hide chevron rides the search bar's
+  right edge (same row) and folds the filter area to ONE line that keeps only
+  the Grouping widget (Section / Time / Project). The lifecycle switch,
+  status chips, smart views, expand-all / density / spool-nav buttons and the
+  New-section trigger unmount until it is expanded again; the choice
+  persists per client in `spooler-sidebar:filters-collapsed:v1` (default
+  expanded), and the returning controls get a short settle-in.
+
 ## 0.7.1 — 2026-10-29
 
 ### Removed
