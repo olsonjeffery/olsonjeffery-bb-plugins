@@ -944,9 +944,10 @@
 
 .spooler-group-header {
   position: sticky;
-  /* With the Active deck above, the headers stick just beneath its bar
-     (--spooler-active-bar-h); the variable defaults to 0 elsewhere. */
-  top: var(--spooler-group-sticky-top, 0px);
+  /* With the Active station pinned above, headers stick beneath the whole
+     overlay (its measured height — bar + card rows — lands in
+     --spooler-active-overlap via the list); it defaults to 0 elsewhere. */
+  top: var(--spooler-active-overlap, 0px);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -4484,36 +4485,61 @@ a.spooler-row-main:hover {
 
 /* ===== Active deck (fixed top-bar section, Group By Section) ===== */
 
-/* The deck's bar and the sticky top it forces on the other group headers
-   share one height variable, so they can never drift apart. The bar pins at
-   top 0 for the WHOLE scroll (its parent is the scroll container itself, so
-   sticky never runs out of runway), and every group header sticks beneath
-   it while the deck is present. */
+/* The WHOLE station — the bar and its duplicate-card row — pins as the
+   list's overlay: it sticks at the scrollport's top for the entire scroll
+   (its parent is the scroll container itself, so sticky never runs out of
+   runway), and its contents scroll nowhere. The ordinary group headers
+   stick just beneath the station, offset by its measured height
+   (--spooler-active-overlap, set inline by the list's ResizeObserver), so
+   they can never drift into the bar. */
 .spooler-list {
   --spooler-active-bar-h: 28px;
 }
 
-.spooler-list-active-bar {
-  --spooler-group-sticky-top: var(--spooler-active-bar-h);
-}
-
-.spooler-active-bar {
+.spooler-active-station {
   position: sticky;
   top: 0;
   z-index: 2;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  height: var(--spooler-active-bar-h);
-  padding: 0 8px;
+  flex-direction: column;
+  flex: none;
   background: var(--sidebar, var(--background));
   border-bottom: 1px solid var(--border);
+}
+
+.spooler-active-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--spooler-active-bar-h);
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
   color: var(--muted-foreground);
+  font: inherit;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  cursor: pointer;
+  text-align: left;
   user-select: none;
+}
+
+.spooler-active-bar:hover {
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  color: var(--foreground);
+}
+
+.spooler-active-bar-chevron {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.spooler-active-bar [data-icon-root] {
+  width: 14px;
+  height: 14px;
 }
 
 /* The rail aligns the deck with the section grammar: 26px in, so the Zap
@@ -4541,17 +4567,18 @@ a.spooler-row-main:hover {
   min-height: 1em;
 }
 
-/* The deck count pip: same grammar as the section pips, but steadier tones
-   come from the shared pip rules (`.spooler-group-count-pip` above). */
+/* The deck count pip: same grammar as the section pips; the pip's own
+   rules (`.spooler-group-count-pip` above) give the steady spinner overlay. */
 
 /* The duplicate cards ride under the bar in one wrapping row; every card is
    a button that opens the thread — the original row stays in its own
-   section or spool card, so this is pure glance-and-jump. */
+   section or spool card, so this is pure glance-and-jump. The row travels
+   with the station, so nothing under it can clip it mid-scroll. */
 .spooler-active-cards {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 8px 2px;
+  padding: 8px 8px 8px;
 }
 
 .spooler-active-card {

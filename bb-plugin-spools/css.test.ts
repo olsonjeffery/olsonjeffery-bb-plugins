@@ -464,20 +464,23 @@ describe("app.css", () => {
     expect(swatch?.body).toMatch(/box-shadow:\s*inset/);
   });
 
-  it("pins the Active deck bar and shifts the group headers beneath it", () => {
-    // One height variable feeds both the bar and the sticky top the other
-    // group headers get while the deck is present — they cannot drift.
+  it("pins the whole Active station and offsets the group headers beneath it", () => {
+    // The overlay is bar + cards together: the station carries the sticky,
+    // its measured height lands in --spooler-active-overlap, and that
+    // custom property is what every other group header sticks beneath —
+    // so the overlay can wrap or fold without anything drifting.
+    const station = rules().find((rule) => rule.selector === ".spooler-active-station");
+    expect(station?.body).toMatch(/position:\s*sticky/);
+    expect(station?.body).toMatch(/top:\s*0/);
+    expect(station?.body).toMatch(/z-index:\s*2/);
+    expect(station?.body).toMatch(/flex-direction:\s*column/);
     const header = rules().find((rule) => rule.selector === ".spooler-group-header");
-    expect(header?.body).toMatch(/top:\s*var\(--spooler-group-sticky-top, 0px\)/);
-    const scope = rules().find((rule) => rule.selector === ".spooler-list-active-bar");
-    expect(scope?.body).toMatch(
-      /--spooler-group-sticky-top:\s*var\(--spooler-active-bar-h\)/,
-    );
+    expect(header?.body).toMatch(/top:\s*var\(--spooler-active-overlap, 0px\)/);
     const bar = rules().find((rule) => rule.selector === ".spooler-active-bar");
-    expect(bar?.body).toMatch(/position:\s*sticky/);
-    expect(bar?.body).toMatch(/top:\s*0/);
-    expect(bar?.body).toMatch(/height:\s*var\(--spooler-active-bar-h\)/);
-    expect(bar?.body).toMatch(/z-index:\s*2/);
+    expect(bar?.body).toMatch(/min-height:\s*var\(--spooler-active-bar-h\)/);
+    // No double rim: the bar's old border-bottom moved to the station.
+    expect(bar?.body).not.toMatch(/border-bottom/);
+    expect(station?.body).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
   });
 
   it("keeps the collapsed filter header one widget beyond the search row", () => {

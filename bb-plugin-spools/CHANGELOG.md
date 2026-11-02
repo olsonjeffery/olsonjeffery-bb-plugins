@@ -4,6 +4,30 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.8.2 — 2026-11-02
+
+### Changed
+- **The Active section's contents now stay pinned with its bar.** The deck
+  (bar + duplicate-card row) is one station: `position: sticky` at the
+  scrollport's top for the whole scroll, cards included — nothing in the
+  overlay can be clipped mid-scroll anymore. Every other group header sticks
+  beneath the station, offset by its MEASURED height (`--spooler-active-
+  overlap`, tracked by a ResizeObserver), so card wrapping, folding and the
+  28px bar all keep the running deck correctly in view.
+
+### Added
+- **The Active section folds like every other group.** The bar is a toggle
+  button: a chevron at the far right (down expanded, right collapsed) with
+  `aria-expanded`, and the card row collapses through the shared Fold
+  animation. The choice persists in the ordinary group-collapse state
+  (`spooler-sidebar:collapsed:v1` as the id `active`), filters force it back
+  open like the rest, and Expand-All / Collapse-All in the toolbar reach it.
+
+### Internal
+- The fold helper (grid-rows collapse + delayed unmount) moved into
+  `components/spooler/Fold.tsx` and the spool card's local copy now imports
+  it too.
+
 ## 0.8.1 — 2026-11-02
 
 ### Changed

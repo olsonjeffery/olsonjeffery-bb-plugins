@@ -29,9 +29,10 @@ A thread list you can read at a glance, for BB.
   lightest thread slabs — gray for the Inbox), per-section icons, and one
   Section Settings modal with auto-save for name, color and icon.
 - **An Active section** (off via its setting, on by default): a fixed top
-  bar in section view that duplicates every running thread above the list,
-  sticks while you scroll, and never moves the originals out of their own
-  sections or spools.
+  bar in section view that duplicates every running thread above the list —
+  bar and cards pinned together while you scroll, headers beneath them —
+  and it folds like any other section. The originals never move out of
+  their own sections or spools.
 - **A filter header that folds.** A chevron beside the search bar (right
   collapsed, down expanded) collapses the filter area to one line that keeps
   only the Grouping widget — the filter field folds away first; `/` from the

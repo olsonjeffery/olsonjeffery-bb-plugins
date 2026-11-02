@@ -62,10 +62,17 @@ both.
 - **Active section** (`SpoolerActiveDeck.tsx`): a fixed, optional top bar
   (plugin setting **Active section**, default on) in section grouping only —
   the hardcoded active deck above Pinned and Inbox, with top-bar remain-
-  visible behavior on scroll: the bar is sticky at the scrollport's top for
-  the WHOLE scroll (its height variable also shifts every other group
-  header's sticky top beneath it), so running work stays glanceable however
-  deep you scroll, right alongside the filter header. It renders ONLY when
+  visible behavior on scroll: the STATION (`spooler-active-station`) pins
+  the bar AND its card row together at the scrollport's top for the WHOLE
+  scroll (no clipping mid-scroll), and every other group header's sticky
+  top is offset by the station's MEASURED height (--spooler-active-
+  overlap, ResizeObserver-tracked), so running work stays glanceable however
+  deep you scroll, right alongside the filter header. The bar FOLDS like
+  any other group: a chevron at the far right (down expanded, right
+  collapsed) with aria-expanded, the cards collapse through the shared
+  Fold animation, the choice persists in the ordinary group-collapse set
+  (`spooler-sidebar:collapsed:v1` as id `active`), filtering forces it back
+  open, and Expand-All / Collapse-All reach it. It renders ONLY when
   something runs, and ignores nothing the rest of the list respects: the
   text/status filters shape the deck. Each member renders as a duplicate
   pill-card (spinner · title · jump-home chip) — clicking opens the thread —

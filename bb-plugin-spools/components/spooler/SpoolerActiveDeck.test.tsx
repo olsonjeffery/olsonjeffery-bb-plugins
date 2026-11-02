@@ -92,12 +92,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** The deck rides above Inbox: bar → cards → Inbox region, in that order. */
+/** The deck rides above Inbox: station (bar + cards) → Inbox region, in
+ *  that order. */
 function assertDeckAboveInbox(slot: RenderedSlot): void {
-  const bar = slot.container.querySelector(".spooler-active-bar");
-  expect(bar).not.toBeNull();
+  const station = slot.container.querySelector(".spooler-active-station");
+  expect(station).not.toBeNull();
   const inbox = screen.getByRole("region", { name: "Inbox" });
-  const after = inbox.compareDocumentPosition(bar!);
+  const after = inbox.compareDocumentPosition(station!);
   expect(after & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
 }
 
@@ -215,6 +216,74 @@ describe("active deck", () => {
       ".spooler-active-bar .spooler-group-unread",
     );
     expect(unread?.textContent).toContain("1");
+  });
+
+  it("the bar folds like any other group, and the choice persists", () => {
+    const slot = renderThreads([
+      runningThread(),
+      makeThread({ id: "quiet" }),
+    ], { sections });
+    const bar = () => screen.getByRole("button", { name: "Active, 1 running thread" });
+    expect(bar().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(bar());
+    expect(bar().getAttribute("aria-expanded")).toBe("false");
+    // The cards fold shut (aria-hidden through the closing animation) and
+    // the group id joins the persisted collapse set.
+    const fold = slot.container.querySelector("#spooler-active-cards")
+      ?.closest(".spooler-fold");
+    expect(fold?.getAttribute("aria-hidden")).toBe("true");
+    const collapsed = JSON.parse(
+      localStorage.getItem("spooler-sidebar:collapsed:v1") ?? "[]",
+    );
+    expect(collapsed).toContain("active");
+    // A remount starts with the deck folded.
+    cleanup();
+    const second = renderThreads([
+      runningThread(),
+      makeThread({ id: "quiet" }),
+    ], { sections });
+    expect(
+      second.container.querySelector("#spooler-active-cards"),
+    ).toBeNull();
+    const secondBar = screen.getByRole("button", { name: "Active, 1 running thread" });
+    expect(secondBar.getAttribute("aria-expanded")).toBe("false");
+    // And the chevron points at it.
+    expect(secondBar.querySelector('[data-icon="ChevronRight"]')).not.toBeNull();
+  });
+
+  it("expand-all and collapse-all reach the deck with the rest", () => {
+    renderThreads([runningThread(), makeThread({ id: "quiet" })], { sections });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+    expect(
+      screen.getByRole("button", { name: "Active, 1 running thread" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Expand all folders" }));
+    expect(
+      screen.getByRole("button", { name: "Active, 1 running thread" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+  });
+
+  it("feeds the header offset from the station's measured height", () => {
+    const slot = renderThreads([
+      runningThread(),
+      makeThread({ id: "quiet" }),
+    ], { sections });
+    const root = slot.container.querySelector<HTMLElement>(".spooler-list");
+    // jsdom gives no layout, but the measurement lands as soon as it can.
+    expect(root?.style.getPropertyValue("--spooler-active-overlap")).toBe("0px");
+  });
+
+  it("clears the header offset when the deck is off", () => {
+    const slot = renderThreads([runningThread(), makeThread({ id: "quiet" })], {
+      sections,
+      settings: { activeDeck: false },
+    });
+    const root = slot.container.querySelector<HTMLElement>(".spooler-list");
+    expect(
+      root?.style.getPropertyValue("--spooler-active-overlap"),
+    ).toBe("");
   });
 });
 

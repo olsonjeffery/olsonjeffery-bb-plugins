@@ -70,12 +70,15 @@ section**, enter a name, then **Create section**. Drag threads onto its header
 or use **Move to section** in a thread's right-click menu.
 
 Restore the section list to one glance: an optional **Active section** pins a
-bar of every running thread above it, stays on top while you scroll, and marks
-each card's home (spool, section or Inbox) — the originals never leave their
-sections. The filter header itself folds to one line: a chevron at the search
-bar's right edge (pointing right when collapsed, down when expanded) hides
-the filter field and every control but the Grouping widget — grouped left,
-chevron right — and <kbd>/</kbd> from the collapsed state re-opens it focused.
+bar **with its cards** above it — the whole overlay stays on top while you
+scroll, and each card marks its home (spool, section or Inbox) while the
+originals never leave their sections. The bar folds like any other section:
+a chevron at its right (down expanded, right collapsed), remembered with the
+other group-collapse choices, and Expand-All / Collapse-All reach it. The
+filter header itself folds to one line: a chevron at the search bar's right
+edge (pointing right when collapsed, down when expanded) hides the filter
+field and every control but the Grouping widget — grouped left, chevron
+right — and <kbd>/</kbd> from the collapsed state re-opens it focused.
 
 </td>
 <td width="50%" valign="top">

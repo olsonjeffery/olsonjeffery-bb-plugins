@@ -82,6 +82,7 @@ import { SectionSettingsModal } from "./SectionSettingsModal";
 import { useThemeIsDark } from "./useThemeIsDark";
 import { SpoolerSmartViews } from "./SpoolerSmartViews";
 import { SpoolerNewSection } from "./SpoolerNewSection";
+import { Fold } from "./Fold";
 import { SpoolCard } from "./SpoolCard";
 import { PaletteOverlay } from "./PaletteOverlay";
 import { onPaletteIntent, type PaletteIntent } from "./paletteBus";
@@ -326,48 +327,6 @@ function DraggableThreadRow({
       )}
     >
       {renderRow({ attributes, listeners, isDragging })}
-    </div>
-  );
-}
-
-/** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
-const FOLD_UNMOUNT_MS = 320;
-
-/**
- * A collapsible group or family body. Its rows stay mounted only while open
- * and through the closing animation, so a folded group costs nothing: no
- * rows, no per-row host subscriptions, no pull-request lookups. Opening
- * mounts them in the same commit the grid starts growing, so it animates.
- */
-function Fold({
-  collapsed,
-  role,
-  label,
-  children,
-}: {
-  collapsed: boolean;
-  role: "list" | "group";
-  label: string;
-  children: () => ReactNode;
-}) {
-  const [closed, setClosed] = useState(collapsed);
-  useEffect(() => {
-    if (!collapsed) {
-      setClosed(false);
-      return;
-    }
-    const timer = setTimeout(() => setClosed(true), FOLD_UNMOUNT_MS);
-    return () => clearTimeout(timer);
-  }, [collapsed]);
-  return (
-    <div
-      className={cn("spooler-fold", collapsed && "spooler-fold-collapsed")}
-      aria-hidden={collapsed || undefined}
-      inert={collapsed || undefined}
-    >
-      <div className="spooler-fold-inner" role={role} aria-label={label}>
-        {collapsed && closed ? null : children()}
-      </div>
     </div>
   );
 }
@@ -737,9 +696,31 @@ export function SpoolerThreadList({
     spoolIdByThreadId,
   });
   /** The Active deck tops the section list; everywhere else the setting is
-   *  meaningless, so the bar (and the sticky-offset it causes on the other
-   *  group headers) only exists with the deck rendered. */
+   *  meaningless, so the station (bar + its cards, pinned as the top-bar
+   *  overlay) only exists with the deck rendered. */
   const activeDeckPresent = activeGroup !== null;
+  /** The station's measured height, fed to every other group header's sticky
+   *  top so they stack beneath the overlay. jsdom has no ResizeObserver (and
+   *  no layout): one measure on mount, observed growth thereafter. */
+  const activeStationRef = useRef<HTMLDivElement | null>(null);
+  const [activeOverlap, setActiveOverlap] = useState<number | null>(null);
+  useEffect(() => {
+    if (!activeDeckPresent) {
+      setActiveOverlap((previous) => (previous === null ? previous : null));
+      return;
+    }
+    const station = activeStationRef.current;
+    if (!station) return;
+    const apply = () => {
+      const height = Math.ceil(station.getBoundingClientRect().height);
+      setActiveOverlap((previous) => (previous === height ? previous : height));
+    };
+    apply();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(apply);
+    observer.observe(station);
+    return () => observer.disconnect();
+  }, [activeDeckPresent]);
 
   // List-wide dispatch surface (the rows bind their own per-thread hook).
   // Navigation and plain SDK mutations cover bulk and keyboard ops; the row
@@ -837,10 +818,13 @@ export function SpoolerThreadList({
 
   const allGroupIds = useMemo(
     () => [
+      // The Active deck folds like any other group, so expand/collapse-all
+      // reaches it too.
+      ...(activeGroup ? [ACTIVE_GROUP_ID] : []),
       ...(pinnedGroup ? [pinnedGroup.id] : []),
       ...groups.map((g) => g.id),
     ],
-    [pinnedGroup, groups],
+    [activeGroup, pinnedGroup, groups],
   );
 
   const areAllGroupsCollapsed = useMemo(() => {
@@ -2132,6 +2116,13 @@ export function SpoolerThreadList({
   return (
     <div
       ref={rootRef}
+      style={
+        // The station's measured height; the ordinary group headers' sticky
+        // top stacked beneath it (app.css reads the custom property).
+        activeOverlap !== null
+          ? ({ "--spooler-active-overlap": `${activeOverlap}px` } as CSSProperties)
+          : undefined
+      }
       className={cn(
         "spooler-list",
         (density === "compact" || isCompactViewport) && "spooler-density-compact",
@@ -2540,19 +2531,26 @@ export function SpoolerThreadList({
               </p>
             ) : null}
             {activeGroup ? (
-              // The deck tops everything (Pinned, Inbox, every section). Its
-              // cards duplicate rows that also render in their own buckets.
-              <SpoolerActiveDeck
-                threads={activeGroup.roots}
-                originOf={activeOriginOf}
-                unread={activeGroup.unread}
-                failed={activeGroup.failed}
-                needsUser={activeGroup.needsUser}
-                onOpen={(threadId) => {
-                  actions.open(threadId);
-                  onNavigate();
-                }}
-              />
+              // The station is the pinned top-bar overlay: bar + cards stay
+              // on top for the WHOLE scroll (deck members never leave their
+              // own buckets, above them), and every other group header sticks
+              // beneath it via the measured overlap. The bar folds like any
+              // other group.
+              <div className="spooler-active-station" ref={activeStationRef}>
+                <SpoolerActiveDeck
+                  threads={activeGroup.roots}
+                  originOf={activeOriginOf}
+                  unread={activeGroup.unread}
+                  failed={activeGroup.failed}
+                  needsUser={activeGroup.needsUser}
+                  collapsed={collapsedGroupIds.has(ACTIVE_GROUP_ID)}
+                  onToggle={() => toggleGroup(ACTIVE_GROUP_ID)}
+                  onOpen={(threadId) => {
+                    actions.open(threadId);
+                    onNavigate();
+                  }}
+                />
+              </div>
             ) : null}
             {pinnedGroup ? renderGroup(pinnedGroup, false) : null}
             {grouping === "section" ? (

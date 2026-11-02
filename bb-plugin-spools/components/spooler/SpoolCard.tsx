@@ -21,9 +21,7 @@ import {
 } from "./SpoolerThreadRow";
 import { type SpoolGroupData } from "./useThreadGroups";
 import { useEnvironmentPullRequest } from "./usePullRequest";
-
-/** Outlasts the `.spooler-fold` collapse transition (280ms in app.css). */
-const FOLD_UNMOUNT_MS = 320;
+import { Fold } from "./Fold";
 
 /**
  * Status for the member rollup counts, derived exactly like the ordinary
@@ -95,40 +93,8 @@ function memberStatusFor(thread: PluginSidebarThread): MemberStatus {
   return thread.isUnread ? "need" : "idle";
 }
 
-/**
- * Local copy of the list's Fold (same grid-rows collapse + delayed unmount).
- * Kept here so the spool card doesn't import from SpoolerThreadList.
- */
-function Fold({
-  collapsed,
-  label,
-  children,
-}: {
-  collapsed: boolean;
-  label: string;
-  children: () => ReactNode;
-}) {
-  const [closed, setClosed] = useState(collapsed);
-  useEffect(() => {
-    if (!collapsed) {
-      setClosed(false);
-      return;
-    }
-    const timer = setTimeout(() => setClosed(true), FOLD_UNMOUNT_MS);
-    return () => clearTimeout(timer);
-  }, [collapsed]);
-  return (
-    <div
-      className={cn("spooler-fold", collapsed && "spooler-fold-collapsed")}
-      aria-hidden={collapsed || undefined}
-      inert={collapsed || undefined}
-    >
-      <div className="spooler-fold-inner" role="list" aria-label={label}>
-        {collapsed && closed ? null : children()}
-      </div>
-    </div>
-  );
-}
+/** The shared Fold: same grid-rows collapse + delayed unmount, one module
+ *  for the list, the spool roster and the Active deck. */
 
 export function SpoolCardImpl({
   data,
@@ -435,7 +401,7 @@ export function SpoolCardImpl({
         </span>
       </div>
 
-      <Fold collapsed={collapsed} label={`${data.label} members`}>
+      <Fold collapsed={collapsed} role="list" label={`${data.label} members`}>
         {() => (
           <div className="spooler-spool-members">
             {data.members.map((member, index) => (
