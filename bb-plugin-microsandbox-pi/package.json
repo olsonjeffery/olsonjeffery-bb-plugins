@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-microsandbox-pi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "engines": {
     "bb": ">=0.48",
@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "MSB + pi",
-    "description": "Keeps a version watch on every bb machine: which microsandbox (msb) and pi coding agent installs exist, what version each one is, and what changed when. One page, one CLI, one history.",
+    "description": "The sandbox road: an experimental 'pi (microsandbox)' provider that runs bb threads' whole pi agent inside msb microVMs, plus a version watch on every machine (which msb and pi installs exist, what changed when).",
     "branding": {
       "icon": "./assets/icon.svg"
     },

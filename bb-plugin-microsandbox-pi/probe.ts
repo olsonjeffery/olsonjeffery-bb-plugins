@@ -128,7 +128,7 @@ export interface ProbeEnv {
 
 /** Extra candidate lines: a directory (joined with the binary name) or
  * a path ending in the binary name itself. */
-async function resolveExtraBins(
+export async function resolveExtraBins(
   name: string,
   lines: readonly string[],
   env: ProbeEnv,

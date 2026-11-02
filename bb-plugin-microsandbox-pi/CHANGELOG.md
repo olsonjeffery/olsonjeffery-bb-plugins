@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.3.0 — phase 3: the sandboxed pi provider works end to end
+
+- **Provider "pi (microsandbox)"** — bb threads run their whole pi agent
+  inside an msb microVM through a two-hop bridge
+  (`runtime ⇄ bridge child ⇄ per-session relay ⇄ msb box (vsock) ⇄ bb's own
+  bridge-worker + provider-pi artifact in-box`). Spawn/dial/turn verified:
+  initialize capabilities, a full model catalog, and a real turn with
+  reasoning deltas, agent text and token usage all round-trip in-box.
+  Sessionless calls (`initialize`/`model/list`/`skills/configure`) run in a
+  workspace-free meta box that mounts `$HOME`; thread boxes mount the exact
+  workspace. Provider health is answered host-side from the watcher's probe.
+- **Protocol parity from the daemon, not a cache.** The in-box child is bb's
+  `plugin-host-artifacts/provider-pi/<hash>/host.mjs` run via bb's
+  `bb-provider-bridge-worker.mjs`, both located from the running daemon
+  (`worker` via this child's own argv). The artifact joins the runtime with
+  `sessionRestore: true`, `fork: checkpoint`, steer injection. Env overrides
+  `MSP_PROVIDER_ARTIFACT` / `MSP_BRIDGE_WORKER` stay for dev.
+- **Box lifecycle that can't cross wires.** Deterministic names
+  (`bbp-<threadfragment>`, `bbp-meta`); ownership-marked socket dirs
+  (`owner.json` records the owning child pid) so a live box is only reused
+  by the child that created it; every foreign/owned-gone box is removed and
+  recreated rather than reusing lanes the guest already dialed away;
+  cold relays are single-flight per key (one shared boot promise per
+  box). Boot failures are errors now (`never reached running within 120s`,
+  `msb run failed` with the CLI's stderr), never silent no-box returns.
+- **Listeners first, box second.** Relays bind their three unix lanes before
+  `msb run`, so the guest shim's one-dial-per-lane boot lands on live
+  listeners — no muxer redial churn, no silent loss of the first buffered
+  line into a probe socket.
+- **Secrets stay host-side.** Per-route msb substitution
+  (`$MSB_<ENV>` at egress, TLS interception when keys are present) with the
+  default route set matching the host providers; pi reads stored logins and
+  skills from `~/.pi/agent`, which must be mounted read-write (off = strict
+  secret-substitution-only). The pi session dir (`~/.bb/pi-bridge-sessions`)
+  is a read-write bind so sessions survive box idle-stop.
+- **In-box runner shim hardened.** The stderr tee crashed on day one (a
+  read on a write-only handle) so dying children were invisible; it now
+  pumps child stderr to both the err lane and `/w/child-stderr.log` teed
+  live, records `bridge exited <code>` in `/w/runner-final.log`, pre-creates
+  the worker's data dir, and retries vsock dials for 2 minutes.
+- **Diagnostics as settings, not litter.** "Journal the sandbox bridge
+  protocol lines" (off by default) appends a capped `bridge-journal.jsonl`
+  (in/out/lane/loss notes) under the bridge data dir; bb's own child-IO
+  recorder is documented (`BB_PROVIDER_BRIDGE_RECORD_DIR` passthrough).
+  provider/health answers from the watcher's probe (msb + pi presence).
+- Renders/breadcrumbs removed from the flow; the old `bb-pi-bridge.mjs`
+  lookup that silently mounted a bb-0.35 dialect (which is why `initialize`
+  stalled for two days) is gone.
+
 ## 0.2.0 — phase 2: dynamic tools, npm "latest", in-box view, history shaping
 
 - **Agent tools** — four schema'd tools agents can call directly from any

@@ -14,6 +14,8 @@
 // + CLI + timer) can't interleave read-modify-write or double-record
 // a transition.
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import { buildMsbPiCli, gatherState, renderHistory, renderWatch, renderBoxes, type MsbPiBackend } from "./cli-microsandbox-pi";
 import { hostContract } from "./host-contract";
@@ -41,6 +43,35 @@ import {
 import { diffSnapshots } from "./diff";
 
 type HostRow = Awaited<ReturnType<BbPluginApi["sdk"]["hosts"]["list"]>>[number];
+
+/** The provider bridge's option envelope: one JSON env var per spawn. */
+function parseMountLines(value: string): { src: string; dest: string; ro: boolean }[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .map((line) => {
+      const [src, dest, mode] = line.split(":");
+      if (!src || !dest) return null;
+      return { src: src.trim(), dest: dest.trim(), ro: mode === "ro" };
+    })
+    .filter((row): row is { src: string; dest: string; ro: boolean } => row !== null);
+}
+
+function parseSecretLines(value: string): { env: string; hosts: string[] }[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== ""
+    )
+    .flatMap((line) => {
+      const at = line.indexOf("@");
+      if (at <= 0) return [];
+      const env = line.slice(0, at).trim();
+      const hosts = line.slice(at + 1).split(",").map((h) => h.trim()).filter(Boolean);
+      return hosts.length > 0 ? [{ env, hosts }] : [];
+    });
+}
 
 interface ProbeReport {
   triggered: string[];
@@ -84,6 +115,59 @@ export default async function plugin(bb: BbPluginApi) {
       description: "Override for ~/.pi/agent/install (or PI_MANAGED_INSTALL_ROOT) when checking for installed pi releases. Leave empty for auto-detect.",
       default: "",
     },
+    boxImage: {
+      type: "string",
+      label: "Sandbox image",
+      description: "OCI image the sandboxed pi box boots from (needs node). Default node:22-bookworm; pulled once, then boots cold in ~0.4s.",
+      default: "node:22-bookworm",
+    },
+    boxCpus: {
+      type: "string",
+      label: "Sandbox CPUs",
+      description: "vCPU count per box (msb -c). Default 2.",
+      default: "2",
+    },
+    boxMemory: {
+      type: "string",
+      label: "Sandbox memory",
+      description: "Memory per box (msb -m). Default 2G.",
+      default: "2G",
+    },
+    idleStopMinutes: {
+      type: "number",
+      label: "Sandbox idle stop (minutes)",
+      description: "Per-thread boxes stop themselves after this idle period; sessions revive from the host-bound session file on the next resume.",
+      default: 30,
+      experimental_schema: z.number().int().min(1).max(720),
+    },
+    piHomeMount: {
+      type: "boolean",
+      label: "Mount ~/.pi/agent in-box (read-write)",
+      description:
+        "Inside the box, pi joins the host's agent dir read-write (skills, settings and stored logins). Turn off for strict secret-substitution-only auth — pi then has no skills and no stored credentials in-box.",
+      default: true,
+    },
+    extraMounts: {
+      type: "string",
+      label: "Extra box mounts",
+      description: 'One per line: SRC:DEST[:ro]. Binds additional host directories into every box (skills roots, scratch). "~" expands.',
+      default: "",
+      experimental_multiline: true,
+    },
+    secretRoutes: {
+      type: "string",
+      label: "Secret routes (msb substitution)",
+      description:
+        'One per line: ENV@host[,host…]. Keys present in the daemon env never enter the box; msb substitutes them on matching egress. Empty value = the built-in defaults.',
+      default: "ANTHROPIC_API_KEY@api.anthropic.com\nOPENAI_API_KEY@api.openai.com\nGEMINI_API_KEY@generativelanguage.googleapis.com\nOPENCODE_API_KEY@opencode.ai\nDEEPSEEK_API_KEY@api.deepseek.com\nCEREBRAS_API_KEY@api.cerebras.ai\nXAI_API_KEY@api.x.ai\nMOONSHOT_API_KEY@api.moonshot.cn\nZAI_API_KEY@api.z.ai",
+      experimental_multiline: true,
+    },
+    tlsIntercept: {
+      type: "boolean",
+      label: "TLS interception",
+      description: "Let msb inspect HTTPS inside the box so secret substitution can gate hosts. Off disables substitution-adjacent gating (secrets then also stop flowing).",
+      default: true,
+    },
     checkNpm: {
       type: "boolean",
       label: "Check npm for the newest release",
@@ -91,7 +175,57 @@ export default async function plugin(bb: BbPluginApi) {
         "Compare installed versions against the npm registry (dist-tags) for packages the fleet installs. Cached answers refresh every 6 hours; an offline host degrades to a stale note, never an error.",
       default: true,
     },
+    bridgeJournal: {
+      type: "boolean",
+      label: "Journal the sandbox bridge protocol lines",
+      description:
+        "While on, the provider bridge appends a short per-line record of what it received, sent, and lost in <dataDir>/bridge-data/bridge-journal.jsonl (leaf diagnostics; off by default).",
+      default: false,
+    },
   });
+
+  const settingsValues = await settings.get();  // refreshed by onChange below
+  settings.onChange((next) => {
+    Object.assign(settingsValues, next);
+    // Extra paths / managed root changed: refresh promptly so the page
+    // reflects the new probe arguments instead of waiting a cycle.
+    void probeAll({}).catch((cause) => {
+      bb.log.warn(`post-settings probe failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+    });
+  });
+
+  // The bridge child reads its box config from the plugin data dir (the
+  // bootstrap passes dataDir; the runtime does not carry plugin options
+  // into the child env). Write the file here, refresh it with settings.
+  const writeBridgeOpts = async (): Promise<void> => {
+    const dataDir = bb.server.experimental_dataDir;
+    if (dataDir === null) return;
+    const dir = join(dataDir, "plugins", bb.pluginId);
+    try {
+      await mkdir(join(dir, "boxes"), { recursive: true });
+      const values = await settings.get();
+      await writeFile(
+        join(dir, "bridge-opts.json"),
+        JSON.stringify({
+          image: values.boxImage,
+          idleStopSeconds: values.idleStopMinutes * 60,
+          piHomeMount: values.piHomeMount !== false,
+          extraMounts: parseMountLines(values.extraMounts),
+          secretRoutes: parseSecretLines(values.secretRoutes),
+          tlsIntercept: values.tlsIntercept !== false,
+          memorySpec: values.boxMemory,
+          cpus: values.boxCpus,
+          msbDirs: values.extraMsbPaths.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+          piManagedRoot: values.piManagedRoot,
+          journal: values.bridgeJournal === true,
+        }),
+      );
+    } catch (cause) {
+      bb.log.warn(`bridge-opts write failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+  };
+  void writeBridgeOpts();
+  settings.onChange(() => void writeBridgeOpts());
 
   const hostClient = bb.hosts.experimental_client({ contract: hostContract });
   const unsubscribeWorkerExit = hostClient.experimental_onWorkerExit(({ hostId }) => {
@@ -302,7 +436,89 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   // ------------------------------------------------------------------
-  // surfaces
+  // provider: pi (microsandbox)
+
+  const providerBridgeOptions = (): string =>
+    JSON.stringify({
+      image: typeof settingsValues.boxImage === "string" && settingsValues.boxImage ? settingsValues.boxImage : undefined,
+      idleStopSeconds: typeof settingsValues.idleStopMinutes === "number" ? settingsValues.idleStopMinutes * 60 : undefined,
+      piHomeMount: settingsValues.piHomeMount === false ? false : undefined,
+      extraMounts: parseMountLines(settingsValues.extraMounts),
+      secretRoutes: parseSecretLines(settingsValues.secretRoutes),
+      tlsIntercept: settingsValues.tlsIntercept === false ? false : undefined,
+      memorySpec: typeof settingsValues.boxMemory === "string" && settingsValues.boxMemory ? settingsValues.boxMemory : undefined,
+      cpus: typeof settingsValues.boxCpus === "string" && settingsValues.boxCpus ? settingsValues.boxCpus : undefined,
+    });
+
+  bb.providers.register({
+    id: "microsandbox-pi",
+    displayName: "pi (microsandbox)",
+    family: "pi",
+    icon: "./assets/provider-icon.svg",
+    strings: {
+      signInHint: "pi credentials ride the machine: either the read-only ~/.pi/agent mount or msb secret substitution (Settings -> plugin).",
+      expiredHint: "The box stopped: retry the turn - it reboots in under a second and resumes from the host session file.",
+      installUrl: "https://github.com/superradcompany/microsandbox",
+    },
+    experimental_visibility: "always",
+    maintenance: { health: true, installation: false, usage: false },
+    capabilities: {
+      supportsServiceTier: false,
+      supportsNativeUserQuestion: false,
+      fork: "none",
+      supportsManualCompaction: false,
+      supportsThreadArchive: false,
+      supportsThreadRename: false,
+      permissionModes: ["full"],
+      reasoningLevels: ["none", "low", "medium", "high", "max"],
+    },
+    reasoningLevels: [
+      { id: "none", label: "Off" },
+      { id: "low", label: "Low" },
+      { id: "medium", label: "Medium" },
+      { id: "high", label: "High" },
+      { id: "max", label: "Max" },
+    ],
+    composerActions: [],
+    models: { fallback: [], scope: "workspace" },
+    experimental_bridgeOptions: {
+      image: settingsValues.boxImage,
+      idleStopSeconds: settingsValues.idleStopMinutes * 60,
+      piHomeMount: settingsValues.piHomeMount !== false,
+      extraMounts: parseMountLines(settingsValues.extraMounts),
+      secretRoutes: parseSecretLines(settingsValues.secretRoutes),
+      tlsIntercept: settingsValues.tlsIntercept !== false,
+      memorySpec: settingsValues.boxMemory,
+      cpus: settingsValues.boxCpus,
+      msbDirs: settingsValues.extraMsbPaths.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      piManagedRoot: settingsValues.piManagedRoot,
+    },
+    deriveProviderOptions(context) {
+      void context;
+      return {
+        envVars: {
+          ...Object.fromEntries(
+            collectSecretNames(settingsValues.secretRoutes)
+              .map((name) => [name, process.env[name]])
+              .filter((row): row is [string, string] => typeof row[1] === "string" && row[1].trim() !== ""),
+          ),
+        },
+      };
+    },
+  });
+
+  // Credentials for msb substitution ride `deriveProviderOptions` (below)
+  // rather than env contributions: the bridge child env does not carry
+  // contributed values, but `providerOptions.envVars` arrives in params.
+
+  function collectSecretNames(routes: string): string[] {
+    return parseSecretLines(routes).map((route) => route.env);
+  }
+
+  async function extraMsbDirs(): Promise<string> {
+    const values = await settings.get();
+    return values.extraMsbPaths.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join("\n");
+  }
 
   const backend: MsbPiBackend = {
     read: present,
@@ -420,14 +636,6 @@ export default async function plugin(bb: BbPluginApi) {
       const { state } = await gatherState(backend, machine, false);
       return renderHistory(state.history, 50);
     },
-  });
-
-  settings.onChange(() => {
-    // Extra paths / managed root changed: refresh promptly so the page
-    // reflects the new probe arguments instead of waiting a cycle.
-    void probeAll({}).catch((cause) => {
-      bb.log.warn(`post-settings probe failed: ${cause instanceof Error ? cause.message : String(cause)}`);
-    });
   });
 
   bb.onDispose(() => {

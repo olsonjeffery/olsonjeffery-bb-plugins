@@ -1,20 +1,39 @@
 ---
 name: microsandbox-pi
-description: Check which microsandbox (msb) and pi coding agent versions are installed on each bb machine — the `bb microsandbox-pi` command, the monitor state behind it, and how to force a fresh probe.
+description: The microsandbox sandbox road — the experimental "pi (microsandbox)" provider (pi threads running inside msb microVMs: boxes, secret routing, failures) and the `bb microsandbox-pi` version watcher (versions, probe, in-box sandbox listing, history, npm update hints, fresh probes).
 ---
 
----
-name: microsandbox-pi
-description: Get installed microsandbox (msb) and pi coding agent versions per bb machine — the `bb microsandbox-pi` command, the plugin's agent tools (versions, probe, in-box sandbox listing, history), npm update hints, and how to force a fresh probe.
----
+# MSB + pi
 
-# MSB + pi version watcher
+Two halves:
 
-This plugin watches every machine enrolled with bb for installed versions of
-the microsandbox CLI (`msb`) and the pi coding agent (`pi`). It keeps one
-snapshot per machine (versions, install origins, npm updates, the machine's
-msb runtime sandbox list) plus a change history, shows everything on its
-"MSB + pi" page, and answers over `bb microsandbox-pi` or its agent tools.
+1. **The sandboxed pi provider** — threads using the provider
+   "pi (microsandbox)" run their whole agent inside an msb microVM with
+   secrets substituted only on configured egress hosts (see below).
+2. **The version watcher** — every machine enrolled with bb reports installed
+   versions of the microsandbox CLI (`msb`) and the pi coding agent (`pi`)
+   on one page, over `bb microsandbox-pi`, and through agent tools, with a
+   change history.
+
+## The sandboxed pi provider
+
+Spawn threads with the provider `pi (microsandbox)`; pi agents run inside
+msb boxes (`bbp-<threadfragment>` per thread plus a workspace-free `bbp-meta`
+box for sessionless calls). Architecture that keeps it diagnosable:
+
+- The in-box child is bb's own provider-pi artifact + bridge worker (located
+  from the running daemon) — the protocol dialect always matches the runtime.
+- `~/.pi/agent` is mounted read-write in-box (pi needs settings locks and
+  model data), so pi in-box has the host's skills and stored logins.
+- API keys never enter the box in plaintext: msb substitutes them on the
+  configured egress hosts (secret routes, TLS interception).
+- Sessions persist across box idle-stop: `~/.bb/pi-bridge-sessions` is a
+  read-write host bind and the provider declares `sessionRestore`.
+- Boxes auto-remove on bridge close/SIGTERM/relay loss; leftover shapes can
+  be listed with `bb microsandbox-pi boxes` and removed with `msb remove -f`.
+- Debugging: since 0.3.0, Settings → "Journal the sandbox bridge protocol
+  lines" writes `<dataDir>/bridge-data/bridge-journal.jsonl`; the daemon can
+  additionally record full child IO with `BB_PROVIDER_BRIDGE_RECORD_DIR`.
 
 ## Agent tools
 

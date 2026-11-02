@@ -1,13 +1,16 @@
 // bb-plugin-microsandbox-pi — host entry (bb.host).
 //
-// Runs as a full-trust Node worker on every enrolled machine. It only
-// ever answers "what msb and pi are installed here" — `--version` runs
-// and filesystem reads, nothing else. PATH comes in normalized from
-// the daemon; HOME is process.env.HOME.
+// Two exports share one full-trust artifact:
+//   default          — host RPC entry (watch: snapshot/per-machine probe)
+//   experimental_providerBridge — the sandboxed-pi provider bridge
+//
+// The bridge answers only "what's installed here" for the host RPC; the
+// provider side adds msb box control (`--version`, `msb list`, spawn).
 import { homedir } from "node:os";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { hostContract } from "./host-contract";
 import { collectSnapshot, realRunner } from "./probe";
+import { experimental_providerBridge } from "./bridge/bridge";
 
 export default experimental_defineHostEntry({
   contract: hostContract,
@@ -21,3 +24,5 @@ export default experimental_defineHostEntry({
       }),
   },
 });
+
+export { experimental_providerBridge };

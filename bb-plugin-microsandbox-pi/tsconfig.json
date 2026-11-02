@@ -18,6 +18,7 @@
   "include": [
     "*.ts",
     "*.tsx",
-    "lib"
+    "lib",
+    "bridge"
   ]
 }
