@@ -420,6 +420,79 @@ describe("app.css", () => {
     expect(first?.body).toMatch(/margin-top:\s*0/);
   });
 
+  it("paints only with host tokens — no literal colours", () => {
+    // bb owns the palette. No hex, rgb or hsl literals anywhere; tones
+    // resolve through --success/--warning/--destructive/--timeline-accent
+    // and their mixes.
+    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(css).toContain("var(--timeline-accent)");
+    expect(css).toContain("var(--pr-merged");
+    for (const banned of [/\brgb\(/, /\brgba\(/, /\bhsl\(/, /\bhsla\(/]) {
+      expect(banned.test(css)).toBe(false);
+    }
+    // Retired fallback hooks never come back.
+    expect(rules().filter((rule) => /var\(--[a-z0-9-]+,\s*#/.test(rule.body)))
+      .toEqual([]);
+  });
+
+  it("sizes type through the typography tokens only", () => {
+    // 9–10.5px reads as --text-2xs, 11–12.5px as --text-xs, 13–14px as
+    // --text-sm; nothing may hard-code a pixel or rem font size.
+    expect(css).not.toMatch(/font-size:\s*[0-9.]/);
+    for (const token of ["var(--text-2xs)", "var(--text-xs)", "var(--text-sm)"]) {
+      expect(css).toContain(`font-size: ${token}`);
+    }
+  });
+
+  it("ranks weight in three steps", () => {
+    // 400 default, 500 needs-you/failed, 600 unread/done — no other stems.
+    const weights = [...css.matchAll(/font-weight:\s*([a-z0-9]+)/g)].map(
+      (m) => m[1],
+    );
+    for (const weight of weights) {
+      expect(["inherit", "400", "500", "600"]).toContain(weight);
+    }
+  });
+
+  it("retires the redesign's replaced surfaces outright", () => {
+    for (const gone of [
+      "spooler-row-grid",
+      "spooler-row-status-badge",
+      "spooler-model-chip",
+      "spooler-thinking-chip",
+      "spooler-section-chip",
+      "spooler-host-chip",
+      "spooler-branch-btn",
+      "spooler-kids-pill",
+      "spooler-kids-line",
+      "spooler-face",
+      "spooler-row-actions",
+      "spooler-row-extra",
+      "spooler-spool-emoji",
+      "spooler-spool-grid",
+      "spooler-spool-badge",
+      "spooler-spool-rollup",
+      "spooler-settings-swatch",
+      "spooler-settings-colorstrip",
+      "spooler-menu-swatch",
+      // The status pip overlay over the section count is gone; the Active
+      // bar still hosts one, so the class survives scoped.
+      "spooler-chip-iconic",
+    ]) {
+      expect(css.includes(gone)).toBe(false);
+    }
+    // The bare 9px uppercase status word retired; only the meta-line
+    // "wording" slot survives.
+    expect(css.includes("spooler-status-word {")).toBe(false);
+    expect(css.includes("spooler-status-word.")).toBe(false);
+    // The provider icon rides Details now; the row slot is retired. The
+    // details variant is a different class and must stay.
+    expect(rules().filter((rule) =>
+      /(^|\s)\.spooler-provider-icon\b/.test(rule.selector),
+    )).toEqual([]);
+    expect(css).toContain(".spooler-details-provider-icon");
+  });
+
   it("keeps the stylesheet brace-balanced", () => {
     // Unbalanced braces turn the following selector into a nested rule in
     // browsers that support CSS nesting, silently firing its declarations
