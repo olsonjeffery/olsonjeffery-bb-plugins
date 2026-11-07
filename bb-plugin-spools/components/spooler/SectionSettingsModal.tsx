@@ -4,17 +4,12 @@ import { useSdk } from "@get-bb/plugin-sdk/app";
 import { Icon, isBuiltinIconName } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import {
-  SECTION_COLOR_NONE,
-  SECTION_COLOR_OPTIONS,
   SECTION_ICON_BUILTIN_PREFIX,
-  colorSwatchFor,
   onSectionColorsChanged,
   parseSectionIcon,
   readSectionStyleMap,
-  writeSectionColor,
   writeSectionIcon,
 } from "./sectionColors";
-import { useThemeIsDark } from "./useThemeIsDark";
 
 /** Curated builtin glyphs the picker offers (plus paste-anything below). */
 const SECTION_ICON_CHOICES = [
@@ -89,12 +84,12 @@ export function SectionIconGlyph({
 }
 
 /**
- * Section Settings: one modal for everything a section can be — name, color,
- * icon (curated set or any pasted emoji/unicode character). Every change
- * auto-saves: the name on a short debounce, color and icon the moment they
- * are picked; the single status slot beside Done reports it. Cancel discards
- * an uncommitted draft; already-saved edits stay. Done flushes a pending
- * draft and closes.
+ * Section Settings: one modal for everything a section can be — name and
+ * icon (curated set or any pasted emoji/unicode character). Colours are
+ * retired. Every change auto-saves: the name on a short debounce, the icon
+ * the moment it is picked; the single status slot beside Done reports it.
+ * Cancel discards an uncommitted draft; already-saved edits stay. Done
+ * flushes a pending draft and closes.
  */
 export function SectionSettingsModal(props: {
   sectionId: string;
@@ -103,13 +98,8 @@ export function SectionSettingsModal(props: {
 }): ReactNode {
   const { sectionId, initialName, onDone } = props;
   const sdk = useSdk();
-  const isDark = useThemeIsDark();
 
   const [name, setName] = useState(initialName);
-  const [colorId, setColorId] = useState<string>(() => {
-    const style = readSectionStyleMap()[sectionId];
-    return style?.color ?? SECTION_COLOR_NONE;
-  });
   const [iconRaw, setIconRaw] = useState<string>(() => readSectionStyleMap()[sectionId]?.icon ?? "");
   const [saveState, setSaveState] = useState<SectionSaveState>("idle");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -145,12 +135,11 @@ export function SectionSettingsModal(props: {
   };
 
   // A style write from another surface (settings page, another tab) refreshes
-  // the picks shown here.
+  // the icon shown here.
   useEffect(
     () =>
       onSectionColorsChanged(() => {
         const style = readSectionStyleMap()[sectionId];
-        setColorId(style?.color ?? SECTION_COLOR_NONE);
         setIconRaw(style?.icon ?? "");
       }),
     [sectionId],
@@ -198,20 +187,6 @@ export function SectionSettingsModal(props: {
       markSaved();
     } catch (cause) {
       markError(`Couldn’t save the name — ${problem(cause)}`);
-    }
-  };
-
-  const applyColor = (choice: string) => {
-    setColorId(choice);
-    markSaving();
-    try {
-      writeSectionColor(
-        sectionId,
-        choice === SECTION_COLOR_NONE ? null : choice,
-      );
-      markSaved();
-    } catch (cause) {
-      markError(`Couldn’t set the color — ${problem(cause)}`);
     }
   };
 
@@ -342,40 +317,6 @@ export function SectionSettingsModal(props: {
               maxLength={200}
               onKeyDown={guard}
             />
-          </div>
-          <div className="spooler-modal-field">
-            <span className="spooler-modal-label">Color</span>
-            <div className="spooler-swatch-row" role="radiogroup" aria-label="Section color">
-              {SECTION_COLOR_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={colorId === option.id}
-                  aria-label={option.label}
-                  className={cn(
-                    "spooler-swatch",
-                    colorId === option.id && "spooler-swatch-on",
-                  )}
-                  style={{ background: colorSwatchFor(option, isDark) }}
-                  onClick={() => applyColor(option.id)}
-                />
-              ))}
-              <button
-                type="button"
-                role="radio"
-                aria-checked={colorId === SECTION_COLOR_NONE}
-                aria-label="No color"
-                title="No color"
-                className={cn(
-                  "spooler-swatch spooler-swatch-none",
-                  colorId === SECTION_COLOR_NONE && "spooler-swatch-on",
-                )}
-                onClick={() => applyColor(SECTION_COLOR_NONE)}
-              >
-                <Icon name="X" aria-hidden="true" />
-              </button>
-            </div>
           </div>
           <div className="spooler-modal-field">
             <span className="spooler-modal-label">

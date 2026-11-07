@@ -2135,67 +2135,152 @@ describe("section-centered defaults and buckets", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("paints a section from Section Settings and persists the choice", () => {
+  it("keeps no colour pointing UI in Section Settings; icons persist", () => {
     const section = makeSection({ id: "sec1", name: "Research" });
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    localStorage.setItem(
+      "spooler-sidebar:section-style:v2",
+      JSON.stringify({ sec1: { icon: "🧵" } }),
+    );
     renderThreads([makeThread({ id: "t4", title: "Doc", sectionId: "sec1" })], {
       sections: [section],
     });
-
     fireEvent.contextMenu(sectionHeader("Research")!);
     fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
-    // jsdom's resolved token is transparent/white: the light variant paints.
-    fireEvent.click(screen.getByRole("radio", { name: "Red" }));
-    const bucket = document.querySelector(".spooler-group-colored");
-    expect(bucket).toBeTruthy();
-    const style = bucket!.getAttribute("style") ?? "";
-    expect(style).toContain("--spooler-sec-anchor");
-    expect(style).toContain("#f4d9d6");
-    expect(style).toContain("--spooler-sec-dot");
-    expect(style).toContain("#c2403c");
+    // The colour row is gone.
+    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    // A stored icon survives a colour-less world.
     expect(
       JSON.parse(localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}"),
-    ).toEqual({ sec1: { color: "red" } });
-
-    // No color from the same modal clears both the tint and the storage.
-    fireEvent.contextMenu(sectionHeader("Research")!);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
-    fireEvent.click(screen.getByRole("radio", { name: "No color" }));
-    expect(document.querySelector(".spooler-group-colored")).toBeNull();
-    expect(
-      JSON.parse(localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}"),
-    ).toEqual({});
+    ).toEqual({ sec1: { icon: "🧵" } });
   });
 
-  it("repaints sections when another surface (the settings page) changes styles", async () => {
+  it("repaints (icon-only) sections when another surface changes styles", async () => {
     const section = makeSection({ id: "sec1", name: "Research" });
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
     renderThreads([makeThread({ id: "t4", title: "Doc", sectionId: "sec1" })], {
       sections: [section],
     });
-    expect(document.querySelector(".spooler-group-colored")).toBeNull();
 
     // Same-document write: the settings section writes storage and the list
     // hears the change event, without a sidebar remount.
     localStorage.setItem(
       "spooler-sidebar:section-style:v2",
-      JSON.stringify({ sec1: { color: "red" } }),
+      JSON.stringify({ sec1: { icon: "🧵" } }),
     );
     window.dispatchEvent(new CustomEvent("spooler-section-colors-changed"));
-    const bucket = await waitFor(() => {
-      const found = document.querySelector(".spooler-group-colored");
-      expect(found).toBeTruthy();
-      return found;
+    await waitFor(() => {
+      const header = Array.from(
+        document.querySelectorAll(".spooler-group-header"),
+      ).find((node) => (node.textContent ?? "").includes("Research"));
+      expect(header).toBeTruthy();
+      expect(header!.querySelector(".spooler-group-rail")!.textContent).toContain("🧵");
     });
-    expect(bucket!.getAttribute("style") ?? "").toContain("--spooler-sec-anchor");
 
-    // Cross-document write (storage event): same repaint path.
-    localStorage.setItem("spooler-sidebar:section-style:v2", JSON.stringify({}));
-    window.dispatchEvent(
-      new StorageEvent("storage", { key: "spooler-sidebar:section-style:v2" }),
+    // Ignoring dropped colours happens on WRITE, not read: a raw record
+    // with a stored colour stays exactly as written until the next write
+    // (compat with out-of-date clients) — nothing ever paints it again.
+    localStorage.setItem(
+      "spooler-sidebar:section-style:v2",
+      JSON.stringify({ sec1: { color: "red", icon: "🧵" } }),
     );
+    window.dispatchEvent(new CustomEvent("spooler-section-colors-changed"));
+    const rail = await waitFor(() => {
+      const header = Array.from(
+        document.querySelectorAll(".spooler-group-header"),
+      ).find((node) => (node.textContent ?? "").includes("Research"));
+      expect(header).toBeTruthy();
+      expect(header!.getAttribute("style") ?? "").not.toContain("--spooler-sec");
+      return header!.querySelector(".spooler-group-rail");
+    });
+    expect(rail!.textContent).toContain("🧵");
+  });
+
+  it("renames a section through the SDK from Section Settings", async () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const rename = vi.fn(async () => ({ ok: true }));
+    const slot = renderThreads(
+      [makeThread({ id: "t3", title: "Doc", sectionId: "sec1" })],
+      {
+        sections: [section],
+        sdk: { ...sdkFakes(), threadSections: { update: rename } },
+      },
+    );
+
+    fireEvent.contextMenu(sectionHeader("Research")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Section settings — Research" });
+    expect(dialog).toBeTruthy();
+    const input = screen.getByRole("textbox", {
+      name: "Section name",
+    }) as HTMLInputElement;
+    expect(input.value).toBe("Research");
+    fireEvent.change(input, { target: { value: "  Lab notes  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() =>
-      expect(document.querySelector(".spooler-group-colored")).toBeNull(),
+      expect(slot.inspection.sdkCalls).toContainEqual({
+        method: "threadSections.update",
+        args: [{ id: "sec1", name: "Lab notes" }],
+      }),
     );
+    // Done closes the modal.
+    expect(screen.queryByRole("dialog", { name: "Section settings — Research" })).toBeNull();
+  });
+
+  it("renders the section icon rail from the style map and nothing when unset", () => {
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    localStorage.setItem(
+      "spooler-sidebar:section-style:v2",
+      JSON.stringify({ sec1: { icon: "builtin:Star" } }),
+    );
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [makeSection({ id: "sec1", name: "Research" })],
+    });
+    const header = sectionHeader("Research")!;
+    // The chosen icon renders through the icon pipeline; the old universal
+    // '#' glyph is retired — an unset rail renders nothing at all.
+    expect(header.querySelector(".spooler-group-rail")).toBeTruthy();
+    expect(header.querySelector("[data-icon='Star']")).toBeTruthy();
+    expect(header.querySelector("[data-icon='Hash']")).toBeNull();
+
+    cleanup();
+    localStorage.setItem("spooler-sidebar:section-style:v2", JSON.stringify({}));
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [makeSection({ id: "sec1", name: "Research" })],
+    });
+    const unsetHeader = sectionHeader("Research")!;
+    expect(unsetHeader.querySelector(".spooler-group-rail")).toBeTruthy();
+    expect(
+      unsetHeader.querySelector(".spooler-group-rail")!.childElementCount,
+    ).toBe(0);
+  });
+
+  it("saves a pasted icon character through Section Settings", async () => {
+    const section = makeSection({ id: "sec1", name: "Research" });
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    renderThreads([makeThread({ id: "t1", title: "Doc", sectionId: "sec1" })], {
+      sections: [section],
+    });
+
+    fireEvent.contextMenu(sectionHeader("Research")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Section settings…" }));
+    await screen.findByRole("dialog");
+    const input = screen.getByRole("textbox", {
+      name: "Section icon (paste any emoji or unicode character)",
+    }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "🧵" } });
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}",
+        ),
+      ).toEqual({ sec1: { icon: "🧵" } }),
+    );
+    // The chosen pip glyph lands in the file: header can apply out along the
+    // header rail; Done closes the modal.
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

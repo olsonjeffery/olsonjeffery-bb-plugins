@@ -4040,15 +4040,11 @@ a.spooler-row-main:hover {
 
 /* ===== Section buckets (Group By Section) ===== */
 
-/* Shannon style: a section's body is a flat column of stock rows on the
-   plain sidebar — no slabs, no tri-tone chain. The bucket only owns the
-   color DOT (its --spooler-sec-dot lands in the header) and the one-step
+/* A section's body is a flat column of stock rows on the plain sidebar —
+   section identity is the header's icon; the bucket owns the one-step
    indent of its rows: section threads and spool decks hang a stock depth
    step right of the section rail, with a continuous guide hairline at the
    section icon's axis, and a spool's roster hangs one step deeper still. */
-.spooler-group-bucket {
-  --spooler-sec-dot: var(--muted-foreground);
-}
 
 /* Bucket rows take the stock depth step: the row box indents 24px off the
    bucket edge, so its gutter (grip on hover) and content start one shift

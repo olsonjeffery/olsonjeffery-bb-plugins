@@ -450,41 +450,18 @@ describe("app.css", () => {
       .toEqual([]);
   });
 
-  it("carries the section color in one dot and indents the bucket flat", () => {
-    // Shannon style: no tri-tone. A bucket owns only its dot variable (gray
-    // fallback for the uncolored sections) and the flat row treatment:
-    // rows indent one stock step, the dot rides in the header, box shadows
-    // and slab backgrounds never reappear.
-    expect(css).not.toMatch(/--spooler-sec-[123]\b/);
+  it("indents the bucket flat with no section colour anywhere", () => {
+    // Colours are retired: no --spooler-sec-* variables, no dot rule.
+    expect(css).not.toMatch(/--spooler-sec-[a-z]/);
+    expect(rules().filter((rule) => /\.spooler-sec-dot\b/.test(rule.selector)))
+      .toEqual([]);
     expect(css).not.toContain("spooler-sec-fg");
-    const bucket = rules().find(
-      (rule) => rule.selector === ".spooler-group-bucket",
-    );
-    expect(bucket?.body).toMatch(/--spooler-sec-dot:\s*var\(--muted-foreground\)/);
+    expect(css).not.toContain("spooler-group-colored");
     const row = rules().find(
       (rule) => rule.selector === ":where(.spooler-group-bucket) .spooler-row",
     );
+    expect(row).toBeTruthy();
     expect(row?.body).toMatch(/margin-left:\s*24px/);
-    const dot = rules().find(
-      (rule) => rule.selector === ".spooler-group-header .spooler-sec-dot",
-    );
-    expect(dot?.body).toMatch(/width:\s*6px/);
-    expect(dot?.body).toMatch(/background:\s*var\(--spooler-sec-dot, var\(--muted-foreground\)\)/);
-    // Wrappers re-use the bare .spooler-group class, so the hide rule must
-    // gate through the header's DIRECT parent or it hides every dot.
-    const hide = rules().find(
-      (rule) =>
-        rule.selector.includes(':not(.spooler-group-bucket)') &&
-        rule.body.includes('display: none'),
-    );
-    expect(hide?.selector).toContain('> .spooler-group-header .spooler-sec-dot');
-  });
-
-  it("keeps the menu color swatch its own pill", () => {
-    // Restored after a merge ate its rule into the bucket fold-inner one.
-    const swatch = rules().find((rule) => rule.selector === ".spooler-menu-swatch");
-    expect(swatch?.body).toMatch(/border-radius:\s*999px/);
-    expect(swatch?.body).toMatch(/box-shadow:\s*inset/);
   });
 
   it("pins the whole Active station and offsets the group headers beneath it", () => {

@@ -125,41 +125,12 @@ describe("SpoolsSettingsSection — section editor", () => {
     await waitFor(() => expect(fakeSectionsList).toHaveBeenCalledTimes(2));
   });
 
-  it("paints a section color through the sidebar's shared localStorage map", async () => {
-    const setItem = vi.spyOn(Storage.prototype, "setItem");
+  it("keeps no colour editor: section identity is icon-only", async () => {
     render(<SpoolsSettingsSection />);
-    fireEvent.click(await screen.findByTestId("spooler-settings-swatch:sec-a"));
-    fireEvent.click(screen.getByTestId("spooler-settings-color:sec-a:gold"));
-    await waitFor(() => expect(setItem).toHaveBeenCalled());
-    const [key, value] = setItem.mock.calls.at(-1)!;
-    expect(key).toBe("spooler-sidebar:section-style:v2");
-    expect(JSON.parse(value)).toEqual({ "sec-a": { color: "gold" } });
-    // The swatch reflects the choice; the strip is closed after picking.
-    expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
-      "Color: Gold",
+    await waitFor(() =>
+      expect(screen.getByTestId("spooler-settings-section-name:sec-a")).toBeTruthy(),
     );
-    expect(screen.queryByTestId("spooler-settings-color:sec-a:gold")).toBeNull();
-  });
-
-  it("clears a section's color with the No color choice", async () => {
-    // Seeded in the legacy v1 file: the style map migrates it on read.
-    localStorage.setItem(
-      "spooler-sidebar:section-colors:v1",
-      JSON.stringify({ "sec-a": "gold", "sec-b": "teal" }),
-    );
-    const setItem = vi.spyOn(Storage.prototype, "setItem");
-    render(<SpoolsSettingsSection />);
-    fireEvent.click(await screen.findByTestId("spooler-settings-swatch:sec-a"));
-    expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
-      "Color: Gold",
-    );
-    fireEvent.click(screen.getByTestId("spooler-settings-color:sec-a:none"));
-    await waitFor(() => expect(setItem).toHaveBeenCalled());
-    expect(JSON.parse(setItem.mock.calls.at(-1)![1])).toEqual({
-      "sec-b": { color: "teal" },
-    });
-    expect(screen.getByTestId("spooler-settings-swatch:sec-a").getAttribute("title")).toBe(
-      "Change color",
-    );
+    expect(screen.queryByTestId("spooler-settings-swatch:sec-a")).toBeNull();
+    expect(screen.queryByTestId("spooler-settings-colorstrip:sec-a")).toBeNull();
   });
 });

@@ -74,15 +74,10 @@ import { SpoolerActiveDeck, type ActiveOriginOf } from "./SpoolerActiveDeck";
 import {
   onSectionColorsChanged,
   readSectionStyleMap,
-  sectionColorOption,
-  sectionColorVars,
   sectionIconOf,
-  SECTION_DOT_NEUTRAL_DARK,
-  SECTION_DOT_NEUTRAL_LIGHT,
   type SectionStyleMap,
 } from "./sectionColors";
 import { SectionSettingsModal } from "./SectionSettingsModal";
-import { useThemeIsDark } from "./useThemeIsDark";
 import { SpoolerSmartViews } from "./SpoolerSmartViews";
 import { SpoolerNewSection } from "./SpoolerNewSection";
 import { Fold } from "./Fold";
@@ -517,14 +512,6 @@ export function SpoolerThreadList({
     () => onSectionColorsChanged(() => setSectionStyleMap(readSectionStyleMap())),
     [],
   );
-  /** The color view of the style map, for the header/anchor lookup. */
-  const sectionColorMap = useMemo(() => {
-    const colors: Record<string, string> = {};
-    for (const [sectionId, style] of Object.entries(sectionStyleMap)) {
-      if (style.color) colors[sectionId] = style.color;
-    }
-    return colors;
-  }, [sectionStyleMap]);
   const justDragged = useRef(false);
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -602,7 +589,6 @@ export function SpoolerThreadList({
   const sdk = useSdk();
   const navigate = useBbNavigate();
   const runtimePluginId = experimental_usePluginId();
-  const isDark = useThemeIsDark();
 
   // Spool state: bulk per-thread plugin metadata (pluginId "spools"), folded
   // into resolved spools by the hook, refetching when mutations land.
@@ -2000,26 +1986,12 @@ export function SpoolerThreadList({
 
       // The fixed Inbox pseudo-section (no server sectionId) counts as a
       // section bucket for STYLING, so its fold rides the same rhythm and
-      // its spool cards and rows sit exactly like every colored section's —
-      // one uniform margin story across the whole list.
+      // its spool cards and rows sit exactly like every section's — one
+      // uniform margin story across the whole list. Section identity is
+      // icon-only now: no dots, no anchors, no hue vars.
       const isSectionBucket =
         grouping === "section" &&
         (group.sectionId != null || group.id === UNFILED_GROUP_ID);
-      const hasServerSection = grouping === "section" && group.sectionId != null;
-      const isUnfiled = isSectionBucket && group.id === UNFILED_GROUP_ID;
-      const sectionColor = hasServerSection
-        ? sectionColorOption(sectionColorMap, group.sectionId)
-        : null;
-      // Colored sections paint their header dot; the unfiled Inbox gets a
-      // neutral gray dot (a section color that isn't one). Uncolored
-      // sections fall back to the theme's muted-foreground dot in CSS (no
-      // inline override at all).
-      const sectionAnchorStyle: CSSProperties | null = sectionColor
-        ? sectionColorVars(sectionColor, isDark)
-        : isUnfiled
-          ? ({ "--spooler-sec-anchor": isDark ? "#33373d" : "#c9ccd2",
-               "--spooler-sec-dot": isDark ? SECTION_DOT_NEUTRAL_DARK : SECTION_DOT_NEUTRAL_LIGHT } as CSSProperties)
-          : null;
       const sectionRailIcon = grouping === "section"
         ? sectionIconOf(sectionStyleMap, group.sectionId)
         : null;
@@ -2033,10 +2005,8 @@ export function SpoolerThreadList({
             group.projectId && "spooler-group-project",
             isSettled && "spooler-group-settled",
             isSectionBucket && "spooler-group-bucket",
-            isSectionBucket && sectionColor && "spooler-group-colored",
             isCollapsed ? "spooler-group-collapsed" : "spooler-group-expanded",
           )}
-          style={sectionAnchorStyle ?? undefined}
           data-settled={isSettled || undefined}
         >
           <GroupHeader
@@ -2097,9 +2067,7 @@ export function SpoolerThreadList({
       projectNameFor,
       spoolMenu,
       grouping,
-      sectionColorMap,
       sectionStyleMap,
-      isDark,
       activeThreadId,
     ],
   );

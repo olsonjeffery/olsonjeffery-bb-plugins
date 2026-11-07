@@ -1,11 +1,10 @@
 // Settings page: the section editor.
 //
 // Everything the sidebar exposes piecemeal lives together here with the ops
-// the sidebar does not expose at all (rename/delete a section) — plus the
-// section color picker, mirroring the sidebar's per-section palette (the
-// colors live in the same localStorage map, so both stay in sync). Inbox (the
+// the sidebar does not expose at all (rename/delete a section). Inbox (the
 // unfiled bucket) is pinned read-only, like the sidebar. Spool management is
 // fully covered by the sidebar's spool cards, so there is no spool list here.
+// Section colours are retired; the editor keeps name, create and delete.
 //
 // Controls reuse the sidebar's shadcn Button/Input and the exact
 // SpoolerNewSection flow: hand-rolled bare <input>/<button> markup on this
@@ -17,22 +16,11 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PluginSidebarSection, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import type { PluginSidebarSection } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { SpoolerNewSection } from "./SpoolerNewSection";
-import {
-  SECTION_COLOR_NONE,
-  SECTION_COLOR_OPTIONS,
-  colorSwatchFor,
-  onSectionColorsChanged,
-  readSectionColorMap,
-  sectionColorOption,
-  writeSectionColorMap,
-  type SectionColorMap,
-} from "./sectionColors";
-import { useThemeIsDark } from "./useThemeIsDark";
+
 
 function problem(cause: unknown): string {
   return cause instanceof Error ? cause.message : "Something went wrong.";
@@ -47,16 +35,11 @@ export function SpoolsSettingsSection() {
   const sdk = useSdk();
   const sidebar = experimental_useSidebarThreads();
   const pluginId = experimental_usePluginId() || "spools";
-  const isDark = useThemeIsDark();
 
   const [sections, setSections] = useState<PluginSidebarSection[] | null>(null);
   const [draft, setDraft] = useState<RenameDraft | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [colorOpenId, setColorOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [colorMap, setColorMap] = useState<SectionColorMap>(() =>
-    readSectionColorMap(),
-  );
 
   const reloadSections = useCallback(() => {
     void (async () => {
@@ -74,13 +57,6 @@ export function SpoolsSettingsSection() {
   useEffect(() => {
     reloadSections();
   }, [reloadSections]);
-
-  // A color picked from the sidebar menu repaints the settings swatches live;
-  // our own picks reach the mounted sidebar the same way (shared map).
-  useEffect(
-    () => onSectionColorsChanged(() => setColorMap(readSectionColorMap())),
-    [],
-  );
 
   const sectionById = useMemo(
     () => new Map((sections ?? sidebar.sections).map((section) => [section.id, section])),
@@ -127,19 +103,6 @@ export function SpoolsSettingsSection() {
     [draft, runSectionWrite, sdk],
   );
 
-  /** Same storage the sidebar header menu writes; both stay in sync. */
-  const applySectionColor = useCallback((sectionId: string, colorId: string) => {
-    const next: SectionColorMap = { ...readSectionColorMap() };
-    if (colorId === SECTION_COLOR_NONE) {
-      delete next[sectionId];
-    } else {
-      next[sectionId] = colorId;
-    }
-    writeSectionColorMap(next);
-    setColorMap(next);
-    setColorOpenId(null);
-  }, []);
-
   const sectionRows: (PluginSidebarSection | "unfiled")[] = [
     "unfiled",
     ...(sections ?? sidebar.sections),
@@ -161,8 +124,6 @@ export function SpoolsSettingsSection() {
             const section = row as PluginSidebarSection;
             const renaming = draft?.sectionId === section.id;
             const deleting = confirmDeleteId === section.id;
-            const colorOpen = colorOpenId === section.id;
-            const colorOption = sectionColorOption(colorMap, section.id);
             return (
               <li key={section.id} className="spooler-settings-row">
                 {renaming ? (
@@ -201,24 +162,6 @@ export function SpoolsSettingsSection() {
                   </>
                 ) : (
                   <>
-                    <button
-                      type="button"
-                      className="spooler-settings-swatch"
-                      data-testid={`spooler-settings-swatch:${section.id}`}
-                      title={colorOption ? `Color: ${colorOption.label}` : "Change color"}
-                      aria-expanded={colorOpen}
-                      onClick={() => setColorOpenId(colorOpen ? null : section.id)}
-                    >
-                      <span
-                        className="spooler-settings-swatch-dot"
-                        data-none={colorOption ? undefined : ""}
-                        style={
-                          colorOption
-                            ? { background: colorSwatchFor(colorOption, isDark) }
-                            : undefined
-                        }
-                      />
-                    </button>
                     <button
                       type="button"
                       className="spooler-settings-section-name"
@@ -289,43 +232,6 @@ export function SpoolsSettingsSection() {
                     )}
                   </>
                 )}
-                {colorOpen ? (
-                  <div
-                    className="spooler-settings-colorstrip"
-                    data-testid={`spooler-settings-colorstrip:${section.id}`}
-                  >
-                    {SECTION_COLOR_OPTIONS.map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        className="spooler-settings-colorswatch"
-                        data-testid={`spooler-settings-color:${section.id}:${option.id}`}
-                        data-current={colorOption?.id === option.id ? "" : undefined}
-                        title={`${option.label}${colorOption?.id === option.id ? " (current)" : ""}`}
-                        aria-label={`${option.label}${colorOption?.id === option.id ? " (current)" : ""}`}
-                        aria-pressed={colorOption?.id === option.id}
-                        onClick={() => applySectionColor(section.id, option.id)}
-                      >
-                        <span
-                          className="spooler-settings-swatch-dot"
-                          style={{ background: colorSwatchFor(option, isDark) }}
-                        />
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="spooler-settings-colorswatch spooler-settings-colorswatch-none"
-                      data-testid={`spooler-settings-color:${section.id}:none`}
-                      data-current={colorOption ? undefined : ""}
-                      title="No color"
-                      aria-label="No color"
-                      aria-pressed={!colorOption}
-                      onClick={() => applySectionColor(section.id, SECTION_COLOR_NONE)}
-                    >
-                      <Icon name="Ban" aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : null}
               </li>
             );
           })}
