@@ -149,8 +149,9 @@
   row-gap: 6px;
 }
 
-/* Chips, smart-view pills and the section "+" trigger share one line;
-   the section-create form wraps onto a second line only while open. */
+/* Status chips, the section "+" trigger and (while open) its form share
+   one wrapping row: the chips wrap onto a second line on narrow lists —
+   never a horizontal scroll, never a container fold. */
 .spooler-chip-row {
   display: flex;
   align-items: center;
@@ -162,12 +163,7 @@
 .spooler-chip-row .spooler-status-chips {
   flex: 0 1 auto;
   min-width: 0;
-}
-
-.spooler-chip-row .spooler-smart-views-bar {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0;
+  flex-wrap: wrap;
 }
 
 .spooler-section-create-attached {
@@ -213,13 +209,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
   padding: 2px 0 0 0;
-}
-
-.spooler-status-chips::-webkit-scrollbar {
-  display: none;
 }
 
 .spooler-chip {
