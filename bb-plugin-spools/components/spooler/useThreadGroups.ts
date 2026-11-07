@@ -123,7 +123,7 @@ const EMPTY_SPOOL_MAP: ReadonlyMap<string, string> = new Map();
 export function useThreadGroups(args: {
   threads: readonly PluginSidebarThread[];
   query: string;
-  statusFilter: "all" | "live" | "waiting" | "unread" | "pinned";
+  statusFilter: "all" | "live" | "waiting" | "failed" | "unread" | "pinned";
   grouping: "time" | "project" | "section";
   projectOrder: readonly string[];
   projects: readonly PluginSidebarProject[];
@@ -213,6 +213,7 @@ export function useThreadGroups(args: {
   const statusCounts = useMemo(() => {
     let live = 0;
     let waiting = 0;
+    let failed = 0;
     let unread = 0;
     for (const thread of allRows) {
       if (isLiveThread(thread)) live += 1;
@@ -222,9 +223,15 @@ export function useThreadGroups(args: {
       ) {
         waiting += 1;
       }
+      if (
+        thread.indicator === "unread-error" ||
+        thread.indicator === "queued-failed"
+      ) {
+        failed += 1;
+      }
       if (thread.isUnread) unread += 1;
     }
-    return { live, waiting, unread };
+    return { live, waiting, failed, unread };
   }, [allRows]);
 
   // Query and status matching is bottom-up: a thread shows when it matches
@@ -232,12 +239,19 @@ export function useThreadGroups(args: {
   const shownIds = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const matchesStatus = (thread: PluginSidebarThread) => {
+      // `live` and `waiting` keep their stored ids; only their labels changed.
       if (statusFilter === "all") return true;
       if (statusFilter === "live") return isLiveThread(thread);
       if (statusFilter === "waiting") {
         return (
           thread.indicator === "waiting-for-input" ||
           thread.indicator === "queued-waiting"
+        );
+      }
+      if (statusFilter === "failed") {
+        return (
+          thread.indicator === "unread-error" ||
+          thread.indicator === "queued-failed"
         );
       }
       if (statusFilter === "unread") return thread.isUnread;

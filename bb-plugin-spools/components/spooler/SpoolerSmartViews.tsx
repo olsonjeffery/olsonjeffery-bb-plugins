@@ -19,6 +19,7 @@ const STATUS_FILTERS: readonly string[] = [
   "all",
   "live",
   "waiting",
+  "failed",
   "unread",
   "pinned",
 ];
@@ -85,6 +86,7 @@ export function SpoolerSmartViews({
     pinned: number;
     live: number;
     waiting: number;
+    failed: number;
     unread: number;
   };
 }) {

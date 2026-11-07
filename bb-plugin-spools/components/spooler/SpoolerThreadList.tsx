@@ -99,7 +99,15 @@ void preloadExtendedIcons().catch(() => undefined);
 
 type LifecycleFilter = "active" | "archived" | "all";
 type Grouping = "time" | "project" | "section";
-export type StatusFilter = "all" | "live" | "waiting" | "unread" | "pinned";
+/** Stored ids keep `live`/`waiting`; only the labels changed (Working/Needs
+ *  you). `failed` is new. `pinned` exists only as a smart view. */
+export type StatusFilter =
+  | "all"
+  | "live"
+  | "waiting"
+  | "failed"
+  | "unread"
+  | "pinned";
 
 /** Row drag affordance handed to a thread row's grip handle. */
 export interface RowDragHandle {
@@ -446,7 +454,13 @@ export function SpoolerThreadList({
   }, []);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
-    readStored(STATUS_FILTER_KEY, "all", ["all", "live", "waiting", "unread"]),
+    readStored(STATUS_FILTER_KEY, "all", [
+      "all",
+      "live",
+      "waiting",
+      "failed",
+      "unread",
+    ]),
   );
   const settings = useSidebarSettings();
   /**
@@ -2320,6 +2334,8 @@ export function SpoolerThreadList({
               type="button"
               role="radio"
               aria-checked={statusFilter === "all"}
+              aria-label={`All, ${allRows.length} threads`}
+              title="Show every thread"
               className={cn(
                 "spooler-chip",
                 statusFilter === "all" && "spooler-chip-active",
@@ -2330,53 +2346,24 @@ export function SpoolerThreadList({
               }}
             >
               All
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={statusFilter === "live"}
-              className={cn(
-                "spooler-chip",
-                "spooler-chip-iconic",
-                statusFilter === "live" && "spooler-chip-active",
-              )}
-              aria-label="Live"
-              onClick={() => {
-                const next = statusFilter === "live" ? "all" : "live";
-                setStatusFilter(next);
-                writeStored(STATUS_FILTER_KEY, next);
-              }}
-              title="Filter live / active threads"
-            >
-              <span
-                className={cn(
-                  "spooler-chip-indicator spooler-tone-running",
-                  statusCounts.live > 0 && "spooler-icon-pulse",
-                )}
-              >
-                <Icon name="Zap" aria-hidden="true" />
-              </span>
-              <span className="spooler-chip-label">Live</span>
-              {statusCounts.live > 0 ? (
-                <span className="spooler-chip-count">{statusCounts.live}</span>
-              ) : null}
+              <span className="spooler-chip-count">{allRows.length}</span>
             </button>
             <button
               type="button"
               role="radio"
               aria-checked={statusFilter === "waiting"}
+              aria-label="Needs you"
               className={cn(
                 "spooler-chip",
-                "spooler-chip-iconic",
                 statusFilter === "waiting" && "spooler-chip-active",
+                statusCounts.waiting > 0 && "spooler-chip-attention",
               )}
-              aria-label="Waiting"
               onClick={() => {
                 const next = statusFilter === "waiting" ? "all" : "waiting";
                 setStatusFilter(next);
                 writeStored(STATUS_FILTER_KEY, next);
               }}
-              title="Filter threads waiting for input or confirmation"
+              title="Filter threads waiting for your input"
             >
               <span
                 className={cn(
@@ -2384,21 +2371,66 @@ export function SpoolerThreadList({
                   statusCounts.waiting > 0 && "spooler-dot-pulse",
                 )}
               />
-              <span className="spooler-chip-label">Waiting</span>
-              {statusCounts.waiting > 0 ? (
-                <span className="spooler-chip-count">{statusCounts.waiting}</span>
-              ) : null}
+              Needs you
+              <span className="spooler-chip-count">{statusCounts.waiting}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "failed"}
+              aria-label="Failed"
+              className={cn(
+                "spooler-chip",
+                statusFilter === "failed" && "spooler-chip-active",
+                statusCounts.failed > 0 && "spooler-chip-destructive",
+              )}
+              onClick={() => {
+                const next = statusFilter === "failed" ? "all" : "failed";
+                setStatusFilter(next);
+                writeStored(STATUS_FILTER_KEY, next);
+              }}
+              title="Filter threads that failed"
+            >
+              <span className="spooler-dot spooler-dot-error" />
+              Failed
+              <span className="spooler-chip-count">{statusCounts.failed}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={statusFilter === "live"}
+              aria-label="Working"
+              className={cn(
+                "spooler-chip",
+                statusFilter === "live" && "spooler-chip-active",
+              )}
+              onClick={() => {
+                const next = statusFilter === "live" ? "all" : "live";
+                setStatusFilter(next);
+                writeStored(STATUS_FILTER_KEY, next);
+              }}
+              title="Filter threads running right now"
+            >
+              <span
+                className={cn(
+                  "spooler-chip-indicator spooler-chip-spinner",
+                  statusCounts.live > 0 && "spooler-icon-pulse",
+                )}
+              >
+                <Icon name="Loading" aria-hidden="true" />
+              </span>
+              Working
+              <span className="spooler-chip-count">{statusCounts.live}</span>
             </button>
             <button
               type="button"
               role="radio"
               aria-checked={statusFilter === "unread"}
+              aria-label="Unread"
               className={cn(
                 "spooler-chip",
-                "spooler-chip-iconic",
                 statusFilter === "unread" && "spooler-chip-active",
               )}
-              aria-label="Unread"
               onClick={() => {
                 const next = statusFilter === "unread" ? "all" : "unread";
                 setStatusFilter(next);
@@ -2407,10 +2439,8 @@ export function SpoolerThreadList({
               title="Filter unread threads"
             >
               <span className="spooler-unread" />
-              <span className="spooler-chip-label">Unread</span>
-              {statusCounts.unread > 0 ? (
-                <span className="spooler-chip-count">{statusCounts.unread}</span>
-              ) : null}
+              Unread
+              <span className="spooler-chip-count">{statusCounts.unread}</span>
             </button>
           </div>
 
@@ -2423,6 +2453,7 @@ export function SpoolerThreadList({
               pinned: allRows.filter((thread) => thread.isPinned).length,
               live: statusCounts.live,
               waiting: statusCounts.waiting,
+              failed: statusCounts.failed,
               unread: statusCounts.unread,
             }}
             onSelectView={(view) => {
@@ -2494,12 +2525,14 @@ export function SpoolerThreadList({
                     <p>
                       No{" "}
                       {statusFilter === "live"
-                        ? "live"
+                        ? "working"
                         : statusFilter === "waiting"
-                          ? "waiting"
-                          : statusFilter === "pinned"
-                            ? "pinned"
-                            : "unread"}{" "}
+                          ? "needs-you"
+                          : statusFilter === "failed"
+                            ? "failed"
+                            : statusFilter === "pinned"
+                              ? "pinned"
+                              : "unread"}{" "}
                       threads.
                     </p>
                     <p className="spooler-empty-hint">
