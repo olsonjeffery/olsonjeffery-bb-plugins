@@ -3633,7 +3633,7 @@ a.spooler-row-main:hover {
   z-index: 10000;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, black 45%, transparent);
+  background: var(--surface-scrim);
 }
 
 .spooler-confirm {
