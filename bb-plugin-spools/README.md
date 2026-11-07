@@ -51,7 +51,7 @@ quiet get out of the way.
 | Tell working from finished without reading | ❌ | ✅ distinct icon, word and colour per state |
 | Opening a thread changes its group | ❌ it jumps to Today | ✅ grouping keys off real activity |
 | See what a collapsed family is hiding | ❌ | ✅ count, unread rollup and loudest state |
-| Spot a thread waiting for your input | ❌ | ✅ amber wash, bar and slow pulse |
+| Spot a thread waiting for your input | ❌ | ✅ amber chip whose dot breathes |
 | Tell which provider and model a thread runs | ❌ | ✅ icon, model and thinking on the row |
 
 ## Features
@@ -67,7 +67,9 @@ keyed off last *activity* — not last read. A thread you merely opened stays
 where it belongs, and anything running or waiting surfaces to Today. Group by
 project or section instead with one toggle. In section view, choose **New
 section**, enter a name, then **Create section**. Drag threads onto its header
-or use **Move to section** in a thread's right-click menu.
+or use **Move to section** in a thread's right-click menu. Sections carry a
+chosen icon and one color dot in the header — the sidebar stays bb-app's plain
+flat rows, so color lives in pills and dots, never washes.
 
 Restore the section list to one glance: an optional **Active section** pins a
 bar **with its cards** above it — the whole overlay stays on top while you
@@ -86,9 +88,11 @@ right — and <kbd>/</kbd> from the collapsed state re-opens it focused.
 ### 🔴 Loud attention states
 
 Working, needs-you, failed and finished-unread each get their own icon, status
-word, colour and row treatment. Rows that need a decision wash amber or red and
-breathe a slow glow; finished-but-unseen threads get a green wash, accent bar
-and bold title. Motion is reserved for things that need action, so movement
+word and colour. The color stays in small pills and dots: every status is a
+**tone chip** on the title line (a tinted pill whose dot breathes for
+needs-you), headers tint their count pip, and finished-but-unseen threads keep
+an unread dot and a bolded title — row surfaces never wash.
+Motion is reserved for things that need action, so movement
 always means something.
 
 </td>
@@ -244,7 +248,7 @@ flowchart LR
 | `hoverCard` | `true` | Show the hover preview card on thread rows. |
 | `celebrate` | `true` | Pop the check badge once when a thread finishes. |
 | `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
-| `loudUnread` | `true` | Wash and accent bar on finished-but-unseen threads. Off keeps the icon and pip only. |
+| `loudUnread` | `true` | Unread dot and bold title on finished-but-unseen threads. Off keeps the DONE chip, unbolded. |
 | `adaptiveCollapse` | `true` | Fold quiet read-idle rows down to title, project and time. |
 | `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in the header, which is remembered per client. |
 | `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |

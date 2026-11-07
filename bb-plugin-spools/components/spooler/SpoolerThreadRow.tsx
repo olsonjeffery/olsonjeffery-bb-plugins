@@ -129,7 +129,7 @@ function statusVisualFor(indicator: string): StatusVisual {
       return { kind: "dot", className: "spooler-dot-running spooler-dot-pulse" };
     case "waiting-for-input":
     case "queued-waiting":
-      return { kind: "dot", className: "spooler-dot-attention" };
+      return { kind: "dot", className: "spooler-dot-attention spooler-dot-pulse" };
     case "unread-error":
     case "queued-failed":
       return { kind: "icon", name: "CircleX", className: "spooler-tone-error" };
@@ -601,22 +601,12 @@ function SpoolerThreadRowImpl({
   });
 
   const visual: StatusVisual = statusVisualFor(thread.indicator);
-  // Action states get the full wash+bar+pulse treatment whether read or not:
-  // they stay loud until resolved. Plain unread (FYI-done) keeps the green
-  // wash only while unseen.
+  // Action states still announce themselves, but the color never leaves the
+  // status chip: the tone-word chip carries it (and its dot breathes).
   const needsUser = thread.indicator === "waiting-for-input";
   const failed =
     thread.indicator === "unread-error" ||
     thread.indicator === "queued-failed";
-  // Motion is reserved for rows that need action — FYI-done stays static.
-  const actionPulseClass =
-    thread.indicator === "waiting-for-input" ||
-    thread.indicator === "queued-waiting"
-      ? "spooler-row-pulse-amber"
-      : thread.indicator === "unread-error" ||
-          thread.indicator === "queued-failed"
-        ? "spooler-row-pulse-red"
-        : null;
   const foldedSummary =
     collapse?.collapsed && collapse.hiddenTotal > 0
       ? foldedKidsText(collapse)
@@ -947,9 +937,13 @@ function SpoolerThreadRowImpl({
     </span>
   );
   const statusBadge = visual || statusWord ? (
+    // One tone chip: the badge carries the tone class so CSS colors the
+    // whole chip (tinted shell + tinted ink) off its own class instead of
+    // chasing tone classes scattered across the spinner/dot/word children.
     <span
       className={cn(
         "spooler-row-status-badge",
+        statusWord?.tone ?? null,
         celebrate && "spooler-celebrate",
       )}
       title={thread.indicatorLabel ?? undefined}
@@ -1037,7 +1031,6 @@ function SpoolerThreadRowImpl({
         thread.isUnread && !needsUser && !failed && "spooler-row-unread",
         needsUser && "spooler-row-needs-user",
         failed && "spooler-row-failed",
-        actionPulseClass,
         collapsed && "spooler-row-collapsed",
       )}
       ref={rowRef}

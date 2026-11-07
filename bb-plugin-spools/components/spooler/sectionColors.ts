@@ -9,12 +9,13 @@ import type { CSSProperties } from "react";
  * `builtin:<IconName>` or a literal pasted glyph (any single emoji/unicode
  * character); an absent icon renders no rail glyph at all.
  *
- * Each color option supplies a background anchor for both themes. The anchor
- * becomes the SECTION HEADER tone only; spool and thread tones derive from
- * it in CSS (`--spooler-sec-2` / `--spooler-sec-3`), so a color says one
- * word and gets a three-tier slab for free. Header text stays dark on light
- * anchors and light on dark ones — the contrast decision lives here, not in
- * CSS, so a color can never be picked with the wrong text on it.
+ * Each color option supplies a background anchor for both themes plus a
+ * matching DOT pair. Since the Shannon-style re-skin the sidebar carries no
+ * section slabs: the anchor now only feeds drop-target tints and legacy
+ * readers, while the DOT is the section color's one visible surface — it
+ * rides in the header, before the title (`--spooler-sec-dot`). Dot colors
+ * are saturated for their theme (lighter for dark, deeper for light) so a
+ * 6px dot reads on the plain sidebar without ever washing a surface.
  */
 
 const SECTION_STYLE_KEY = "spooler-sidebar:section-style:v2";
@@ -40,28 +41,31 @@ export interface SectionColorOption {
   light: string;
   /** Same color, dark theme. */
   dark: string;
+ /** Header dot, light theme. */
+  dotLight: string;
+  /** Header dot, dark theme. */
+  dotDark: string;
 }
 
-/** Text over a light anchor: near-black instead of pure black. */
-export const SECTION_TEXT_LIGHT = "#262626";
-/** Text over a dark anchor: soft white. */
-export const SECTION_TEXT_DARK = "#f8f8f8";
+/** The unfiled Inbox's neutral dot (a section color that isn't one). */
+export const SECTION_DOT_NEUTRAL_LIGHT = "#8e939b";
+export const SECTION_DOT_NEUTRAL_DARK = "#8f949c";
 
 /** `none` is reserved for the "no color" choice: it never appears in the map. */
 export const SECTION_COLOR_NONE = "none";
 
 export const SECTION_COLOR_OPTIONS: readonly SectionColorOption[] = [
-  { id: "slate", label: "Slate", light: "#e3e7ee", dark: "#31363f" },
-  { id: "brown", label: "Brown", light: "#eadbcc", dark: "#463527" },
-  { id: "red", label: "Red", light: "#f4d9d6", dark: "#4a2a28" },
-  { id: "orange", label: "Orange", light: "#f7e2cc", dark: "#4a3723" },
-  { id: "gold", label: "Gold", light: "#f4e8c5", dark: "#463e1e" },
-  { id: "green", label: "Green", light: "#dcead8", dark: "#2b422a" },
-  { id: "teal", label: "Teal", light: "#d0e7e3", dark: "#284b47" },
-  { id: "sky", label: "Sky", light: "#d5e5f4", dark: "#26394f" },
-  { id: "indigo", label: "Indigo", light: "#d9dcf3", dark: "#353a5c" },
-  { id: "violet", label: "Violet", light: "#e6def2", dark: "#3f2f5a" },
-  { id: "pink", label: "Pink", light: "#f2dce6", dark: "#4a303c" },
+  { id: "slate", label: "Slate", light: "#e3e7ee", dark: "#31363f", dotLight: "#64748b", dotDark: "#a1abc0" },
+  { id: "brown", label: "Brown", light: "#eadbcc", dark: "#463527", dotLight: "#8a6a45", dotDark: "#b9916b" },
+  { id: "red", label: "Red", light: "#f4d9d6", dark: "#4a2a28", dotLight: "#c2403c", dotDark: "#e26d6d" },
+  { id: "orange", label: "Orange", light: "#f7e2cc", dark: "#4a3723", dotLight: "#bf7634", dotDark: "#dc9655" },
+  { id: "gold", label: "Gold", light: "#f4e8c5", dark: "#463e1e", dotLight: "#b1852f", dotDark: "#d3a84e" },
+  { id: "green", label: "Green", light: "#dcead8", dark: "#2b422a", dotLight: "#4f8f3e", dotDark: "#71ba60" },
+  { id: "teal", label: "Teal", light: "#d0e7e3", dark: "#284b47", dotLight: "#3d7f74", dotDark: "#5cb3a5" },
+  { id: "sky", label: "Sky", light: "#d5e5f4", dark: "#26394f", dotLight: "#3b85c4", dotDark: "#6fb1e6" },
+  { id: "indigo", label: "Indigo", light: "#d9dcf3", dark: "#353a5c", dotLight: "#5a64c8", dotDark: "#8e97ea" },
+  { id: "violet", label: "Violet", light: "#e6def2", dark: "#3f2f5a", dotLight: "#7e5cb0", dotDark: "#a98fd1" },
+  { id: "pink", label: "Pink", light: "#f2dce6", dark: "#4a303c", dotLight: "#c25d8c", dotDark: "#e28fb4" },
 ];
 
 const OPTIONS_BY_ID = new Map(
@@ -282,26 +286,26 @@ export function parseSectionIcon(
 }
 
 /** Swatch helpers for the Color picker: a dot per palette entry, with the
- *  currently painted one checked. */
+ *  currently painted one checked. Shannon style: a section color paints a
+ *  header dot, so the picker previews exactly that — the dot swatch. */
 export function colorSwatchFor(
   option: SectionColorOption,
   isDark: boolean,
 ): string {
-  return isDark ? option.dark : option.light;
+  return isDark ? option.dotDark : option.dotLight;
 }
 
 /** CSS variables one colored section needs, resolved for the active theme.
- *  The anchor becomes the section header tone (`--spooler-sec-1`); spool and
- *  thread tones derive from it in CSS, so nothing below the header needs to
- *  know the theme. Returns null only for the `none` choice so uncolored
- *  sections fall back to theme-neutral gray tokens in CSS. */
+ *  The anchor is legacy (it fed the retired slab tiers) and still emitted so
+ *  old readers keep working; the dot drives the header's color dot. Returns
+ *  null only for the `none` choice so uncolored sections fall back to the
+ *  theme's muted-foreground dot in CSS. */
 export function sectionColorVars(
   option: SectionColorOption,
   isDark: boolean,
 ): CSSProperties {
-  const bg = isDark ? option.dark : option.light;
   return {
-    "--spooler-sec-anchor": bg,
-    "--spooler-sec-fg": isDark ? SECTION_TEXT_DARK : SECTION_TEXT_LIGHT,
+    "--spooler-sec-anchor": isDark ? option.dark : option.light,
+    "--spooler-sec-dot": isDark ? option.dotDark : option.dotLight,
   } as CSSProperties;
 }

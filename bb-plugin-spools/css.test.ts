@@ -191,20 +191,28 @@ describe("app.css", () => {
     expect(inner?.body).toMatch(/min-width:\s*0/);
   });
 
-  it("renders spool roster rows flush with the card, with no tree guides", () => {
-    // Members render at depth 1 for their row logic; the roster itself is
-    // flat and starts FLUSH under the header's rim — no top runway, no
-    // roster hairlines, one 2px gap between members.
+  it("renders spool rosters one step deeper with one straight guide", () => {
+    // Members render at depth 1 for their row logic; the roster hangs one
+    // stock step (48px) deeper than the bucket's own rows, with no elbow
+    // tree guides — ONE straight hairline per member dropping back to the
+    // section icon's axis, plus one 2px gap between members.
     const members = rules().find((rule) => rule.selector === ".spooler-spool-members");
     expect(members?.body).toMatch(/padding:\s*0/);
     expect(members?.body).toMatch(/margin-top:\s*0/);
     expect(members?.body).toMatch(/border-top:\s*none/);
     expect(members?.body).toMatch(/gap:\s*2px/);
     const member = rules().find((rule) => rule.selector === ".spooler-spool-member .spooler-row-child");
-    expect(member?.body).toMatch(/margin-left:\s*0/);
-    const guides = rules().filter((rule) => /\.spooler-spool-member \.spooler-row-child::(before|after)/.test(rule.selector));
-    expect(guides).toHaveLength(1);
+    expect(member?.body).toMatch(/margin-left:\s*48px/);
+    const guides = rules().filter((rule) =>
+      /\.spooler-spool-member \.spooler-row-child::(before|after)/.test(rule.selector),
+    );
+    expect(guides.map((rule) => rule.selector.split("::")[1])).toEqual(["after", "before"]);
     expect(guides[0]?.body).toMatch(/display:\s*none/);
+    const guide = rules().find((rule) =>
+      rule.selector === ".spooler-spool-member .spooler-row-child::before",
+    );
+    expect(guide?.body).toMatch(/left:\s*-15px/);
+    expect(guide?.body).toMatch(/width:\s*1px/);
   });
 
   it("gives no row a person glyph or a grid inset", () => {
@@ -329,13 +337,13 @@ describe("app.css", () => {
     expect(css).not.toContain("spooler-spool-stack-layer");
   });
 
-  it("overlays the section status on the count pip in success green", () => {
+  it("overlays the section status on a neutral pip that tones only by state", () => {
     const pip = rules().find((rule) =>
       rule.selector === ".spooler-group-count-pip",
     );
-    // Same panel recipe as spool cards, so the pip reads as belonging.
+    // Shannon style: neutral fg tint at rest — the slab mixes are gone.
     expect(pip?.body).toMatch(/border-radius:\s*999px/);
-    expect(pip?.body).toMatch(/color-mix\((?:[\s\S]*?)card/);
+    expect(pip?.body).toMatch(/color-mix\(in srgb, var\(--foreground\) 6%, transparent\)/);
     const status = rules().find(
       (rule) =>
         rule.selector === ".spooler-group-count-pip .spooler-group-status",
@@ -343,6 +351,16 @@ describe("app.css", () => {
     // The status spans the pip exactly: inset zero, not resized separately.
     expect(status?.body).toMatch(/position:\s*absolute/);
     expect(status?.body).toMatch(/inset:\s*0/);
+    // A state may only tint WHOLE pips (:has on the overlaid status), one
+    // tint per state: running green, needs-you amber, failed red.
+    const tints = rules().filter((rule) =>
+      rule.selector.startsWith(".spooler-group-count-pip:"),
+    );
+    expect(tints.map((rule) => rule.selector)).toEqual([
+      ".spooler-group-count-pip:has(.spooler-dot-error)",
+      ".spooler-group-count-pip:has(.spooler-dot-attention)",
+      ".spooler-group-count-pip:has(.spooler-tone-running)",
+    ]);
     // The spinner is success green — the same mix the WORKING badges read —
     // and does not pulse inside the pip: the numeral above it stays steady.
     const tone = rules().find(
@@ -420,41 +438,61 @@ describe("app.css", () => {
     );
   });
 
-  it("divides headers from their contents with the darkened bottom rim", () => {
-    // Section and spool header slabs carry the same darker bottom border;
-    // the spool roster starts flush under it (no interior top margin). The
-    // rim is the only divide between a spool header and its members.
-    for (const selector of [
-      ".spooler-group-bucket > .spooler-group-header-right",
-      ".spooler-spool-header",
-    ]) {
-      const rule = rules().find((candidate) => candidate.selector === selector);
-      expect(rule?.body).toMatch(
-        /border-bottom:\s*1px solid color-mix\(in srgb, #000 16%, transparent\)/,
-      );
-    }
+  it("retires the header rims: headers are translucent captions with tubes", () => {
+    // Shannon style: no slab, no darkened rim — every header paints only
+    // its own hover tube (the group header keeps its translucent sticky
+    // base under the tube, and viewed-thread spool cards add the same
+    // state wash on the header that the viewed row shows).
+    const header = rules().find((candidate) => candidate.selector === ".spooler-group-header");
+    expect(header?.body).not.toMatch(/border-bottom/);
+    expect(header?.body).toMatch(/border-radius:\s*6px/);
+    expect(header?.body).toMatch(/backdrop-filter:\s*blur\(10px\)/);
+    const headerHover = rules().find(
+      (candidate) => candidate.selector === ".spooler-group-header:hover",
+    );
+    expect(headerHover?.body).toMatch(/background:\s*var\(--accent, var\(--muted\)\)/);
+    const spoolHeader = rules().find(
+      (candidate) => candidate.selector === ".spooler-spool-header",
+    );
+    expect(spoolHeader?.body).not.toMatch(/border-bottom/);
+    expect(spoolHeader?.body).toMatch(/border-radius:\s*6px/);
+    const spoolHeaderHover = rules().find(
+      (candidate) => candidate.selector === ".spooler-spool-header:hover",
+    );
+    expect(spoolHeaderHover?.body).toMatch(/background:\s*var\(--accent, var\(--muted\)\)/);
+    const activeCard = rules().find(
+      (candidate) =>
+        candidate.selector === ".spooler-spool-card-active .spooler-spool-header",
+    );
+    expect(activeCard?.body).toMatch(
+      /background:\s*var\(--state-active, var\(--accent, var\(--muted\)\)\)/,
+    );
     const members = rules().find(
       (candidate) => candidate.selector === ".spooler-spool-members",
     );
     expect(members?.body).toMatch(/margin-top:\s*0/);
   });
 
-  it("derives the section tri-tone from one anchor", () => {
+  it("carries the section color in one dot and indents the bucket flat", () => {
+    // Shannon style: no tri-tone. A bucket owns only its dot variable (gray
+    // fallback for the uncolored sections) and the flat row treatment:
+    // rows indent one stock step, the dot rides in the header, box shadows
+    // and slab backgrounds never reappear.
+    expect(css).not.toMatch(/--spooler-sec-[123]\b/);
+    expect(css).not.toContain("spooler-sec-fg");
     const bucket = rules().find(
       (rule) => rule.selector === ".spooler-group-bucket",
     );
-    expect(bucket?.body).toMatch(/--spooler-sec-1:\s*var\(--spooler-sec-anchor\)/);
-    expect(bucket?.body).toMatch(/58%/);
-    expect(bucket?.body).toMatch(/--spooler-sec-3:/);
-    expect(bucket?.body).toMatch(/30%/);
-    expect(bucket?.body).toMatch(/--sidebar/);
-    // Bucket rows paint the lightest tier and lose their rounding; the
-    // attention washes must still out-paint the tone (single-class rule).
+    expect(bucket?.body).toMatch(/--spooler-sec-dot:\s*var\(--muted-foreground\)/);
     const row = rules().find(
       (rule) => rule.selector === ":where(.spooler-group-bucket) .spooler-row",
     );
-    expect(row?.body).toMatch(/background:\s*var\(--spooler-sec-3\)/);
-    expect(row?.body).toMatch(/border-radius:\s*0/);
+    expect(row?.body).toMatch(/margin-left:\s*24px/);
+    const dot = rules().find(
+      (rule) => rule.selector === ".spooler-group-header .spooler-sec-dot",
+    );
+    expect(dot?.body).toMatch(/width:\s*6px/);
+    expect(dot?.body).toMatch(/background:\s*var\(--spooler-sec-dot, var\(--muted-foreground\)\)/);
   });
 
   it("keeps the menu color swatch its own pill", () => {

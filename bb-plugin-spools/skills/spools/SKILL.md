@@ -41,24 +41,29 @@ both.
   project, or section. Project groups are drag-reorderable by their header
   (order persisted in `spools:project-order:v1`; right-click a header
   to reset). Each project header also carries a New-thread-in-project button.
-  Section grouping renders the redesigned slab column: edge-to-edge entries
-  (no rounded cards, no boxed panels), one 2px rhythm between every entry,
-  and a tri-tone per section color — the header anchor is darkest, spool
-  slabs mix 58% over the sidebar, thread slabs 30% (unspooled threads
-  included). **Inbox** is a sibling slab in neutral gray with the same
-  tri-tone. Section headers read title-left, controls-right: the rail
-  carries the section's chosen icon (curated builtin set or any pasted
-  emoji/unicode character — the universal `#` glyph retired), and the right
-  group runs unread pip · count-plus-working pill · collapse chevron
-  furthest right. Section + spool header slabs carry a darkened bottom rim
-  (`color-mix(#000 16%)`); a spool's roster starts flush beneath it. Threads
-  float to the top of a section with the spool deck beneath. Unspooled
-  thread titles may wrap to two rows before ellipsizing (title priority over
-  the detail pills); thread titles run weight 450, spool titles 500 always
-  italic. Spool detail pills (project/branch/PR/rollup) live in one wrapping
-  flex grid under the title (`spooler-row-grid`), pills ellipsize inside
-  their own boxes and the grid re-flows across rows without ever
-  overflowing the entry.
+  Section grouping reads like bb-app's own sidebar (Shannon style, re-skinned
+  from 0.7's slab column — colors kept in pills or dots): flat stock rows on
+  the plain sidebar, rounded accent hover tubes, caption-tone sticky headers
+  (sentence case, translucent blur), stock depth indents — section rows one
+  step off the bucket edge with one straight guide at the section-icon axis
+  (33px in; family children keep their elbow guides), spool rosters one step
+  deeper still (48px) under one continuous guide. The section color lives in
+  ONE 6px dot before the title (`--spooler-sec-dot`); status is tone chips
+  on the title line (tinted pill shells; the needs-you dot breathes), count
+  pips tint by state (`:has()` on the overlaid status), unread stays a small
+  dot + bolded title. **Inbox** is the sibling bucket with a neutral gray
+  dot. Section headers read title-left, controls-right: the rail carries the
+  section's chosen icon (curated builtin set or any pasted emoji/unicode
+  character — the universal `#` glyph retired), and the right group runs
+  unread pip · count-plus-working pill · collapse chevron furthest right.
+  Threads float to the top of a section with the spool deck beneath;
+  headers and spool headers paint only their own tubes (no slab, no rim).
+  Unspooled thread titles may wrap to two rows before ellipsizing (title
+  priority over the detail pills); thread titles run weight 450, spool
+  titles 550 upright (italics retired with the slabs). Spool detail pills
+  (project/branch/PR/rollup) live in one wrapping flex grid under the title
+  (`spooler-row-grid`), pills ellipsize inside their own boxes and the grid
+  re-flows across rows without ever overflowing the entry.
 - **Active section** (`SpoolerActiveDeck.tsx`): a fixed, optional top bar
   (plugin setting **Active section**, default on) in section grouping only —
   the hardcoded active deck above Pinned and Inbox, with top-bar remain-
@@ -139,9 +144,9 @@ both.
 ## Thread spools
 
 **Spools gather child threads under one label.** A spool is a first-class entry in section
-grouping only (other groupings keep ordinary rows): an edge-to-edge mid-tone slab with a
-30px plain header strip — grip and 🧵 share the icon rail (the grip fades in over the
-mark on hover), the italic title sits above its wrapping detail-pill grid, and the count
+grouping only (other groupings keep ordinary rows): a flat strip — grip and 🧵
+share the icon rail (the grip fades in over the mark on hover), the upright
+title sits above its wrapping detail-pill grid, and the count
 pip doubles as the actions button — stored entirely in per-thread plugin
 metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
@@ -160,11 +165,10 @@ by the spool's *lead* thread). Details:
   behind the numeral) and a stale-status rollup with a detail tooltip. The
   spool-level hover peek card is retired — expand the spool to read the
   roster; thread ROWS keep their own hover preview card.
-- Member rows are flat: they start flush under the header's darkened rim (no interior
-  top margin), share the roster's left edge (same column as ordinary thread rows), and
-  carry the section's lightest thread tone with no child indent, tree guides, or person
-  glyph. Every member still renders at depth 1 for its row logic (no branch or section
-  chip).
+- Member rows are flat: they hang one stock depth step deeper than the bucket's own
+  rows (a shared left edge), carry one straight roster guide instead of tree
+  elbows, and no person glyph. Every member still renders at depth 1 for its row
+  logic (no branch or section chip).
 - Spools behave like families for sorting and navigation: open the lead via the card's
   Layers icon, jump to members, and the header layer dropdown lists every spool and
   its members for one-click navigation.
@@ -218,13 +222,14 @@ list; disabling this plugin falls back to BB's list automatically.
   workflow, goal (target), and plan mode (checklist); amber dot =
   needs input / message waiting to send, red X icon = error / failed send,
   green check-circle = finished but unseen. Rows that need you are the
-  loudest: waiting-for-input gets an amber wash + bar + glow pulse, failed
-  gets the red equivalents — both stay until resolved, whether read or
-  not. Finished-unseen gets the green wash + bar + semibold title + blue
-  pip, clearing once opened. Auto-resolving queued states keep just the
-  dot/pulse. Motion is reserved for action items (off under
-  prefers-reduced-motion); finished-unseen and everything else stays
-  static. Drafts show no status dot
+  loud ones, but the color never leaves the title line's tone chips:
+  waiting-for-input gets an amber chip whose dot breathes, failed gets the
+  red chip — both stay until resolved, whether read or not. Finished-unseen
+  gets the DONE chip + semibold title + unread dot, clearing once opened.
+  The counted pips (section, spool, Active deck) tint by the same state.
+  Auto-resolving queued states keep just the dot/pulse. Motion is reserved
+  for action items (off under prefers-reduced-motion); finished-unseen and
+  everything else stays static. Drafts show no status dot
   (the pencil badge covers them). Unknown indicators draw nothing
   (forward-compatible), and the row's accessible name appends the host's
   status label.
@@ -236,7 +241,7 @@ list; disabling this plugin falls back to BB's list automatically.
   rows in a folded family or collapsed group are skipped), another
   plugin's row status (takes the draft slot, as BB's list does), amber pip
   for an unsent composer draft, blue pip for unread.
-- State changes animate: washes fade, badges pop in, quiet rows fold
+- State changes animate: chips tint, badges pop in, quiet rows fold
   smoothly, and groups + families expand/collapse with an animated roll
   (rows stay mounted only while the fold closes, hidden from keyboard and
   screen readers, then unmount so a folded group or family costs nothing;

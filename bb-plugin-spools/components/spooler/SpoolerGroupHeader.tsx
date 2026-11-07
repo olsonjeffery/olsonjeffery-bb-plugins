@@ -138,13 +138,17 @@ export function GroupHeader({
           </span>
         ) : null}
         {titleRight ? (
-          // The rail replaces the leading chevron: the collapse chevron lives
-          // at the far right, so the icon column can align with the spool
-          // cards and thread rows the header opens.
           <span className="spooler-group-rail" aria-hidden="true">
             <SectionIconGlyph raw={railIcon} className="spooler-group-rail-glyph" />
           </span>
-        ) : (
+        ) : null}
+        {titleRight ? (
+          // The color dot right after the rail is the section's one colored
+          // surface: the sidebar carries no slab tones, so a section color
+          // shows only here.
+          <span className="spooler-sec-dot" aria-hidden="true" />
+        ) : null}
+        {titleRight ? null : (
           <>
             <Icon
               name={isCollapsed ? "ChevronRight" : "ChevronDown"}

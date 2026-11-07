@@ -88,24 +88,29 @@ describe("section colors storage", () => {
   it("variables swap with the theme", () => {
     const gold = sectionColorOption({ g: "gold" }, "g")!;
     const light = sectionColorVars(gold, false) as Record<string, string>;
-    // One anchor: the header tone. Spool and thread tones derive in CSS.
+    // Shannon style: the dot is the color's one visible surface; the
+    // anchor stays legacy for drop tints and old readers.
     expect(light).toMatchObject({
       "--spooler-sec-anchor": gold.light,
-      "--spooler-sec-fg": "#262626",
+      "--spooler-sec-dot": gold.dotLight,
     });
     const dark = sectionColorVars(gold, true) as Record<string, string>;
     expect(dark).toMatchObject({
       "--spooler-sec-anchor": gold.dark,
-      "--spooler-sec-fg": "#f8f8f8",
+      "--spooler-sec-dot": gold.dotDark,
     });
-    expect(colorSwatchFor(gold, true)).toBe(gold.dark);
+    expect(colorSwatchFor(gold, true)).toBe(gold.dotDark);
   });
 
-  it("palette ids are unique and generous", () => {
+  it("palette ids are unique and generous, and every palette carries dot colors", () => {
     const ids = SECTION_COLOR_OPTIONS.map((option) => option.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.length).toBeGreaterThanOrEqual(10);
     expect(SECTION_COLOR_NONE).toBe("none");
+    for (const option of SECTION_COLOR_OPTIONS) {
+      expect(option.dotLight).toMatch(/^#[0-9a-f]{6}$/);
+      expect(option.dotDark).toMatch(/^#[0-9a-f]{6}$/);
+    }
   });
 });
 

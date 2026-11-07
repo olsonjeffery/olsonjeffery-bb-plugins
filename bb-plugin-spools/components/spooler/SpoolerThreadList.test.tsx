@@ -2121,7 +2121,8 @@ describe("section-centered defaults and buckets", () => {
     const style = bucket!.getAttribute("style") ?? "";
     expect(style).toContain("--spooler-sec-anchor");
     expect(style).toContain("#f4d9d6");
-    expect(style).toContain("--spooler-sec-fg");
+    expect(style).toContain("--spooler-sec-dot");
+    expect(style).toContain("#c2403c");
     expect(
       JSON.parse(localStorage.getItem("spooler-sidebar:section-style:v2") ?? "{}"),
     ).toEqual({ sec1: { color: "red" } });

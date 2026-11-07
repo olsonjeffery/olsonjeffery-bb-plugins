@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spools — Shannon style · mockup (colors in pills or dots)</title>
+<style>
+  /* ---------- page chrome ---------- */
+  :root {
+    --page-bg: #eceef1;
+    --ink: #1e2126;
+    --muted-ink: #6b7078;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 32px 48px;
+    background: var(--page-bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+    font-size: 13px;
+  }
+  .page-head { max-width: 1060px; margin: 0 auto 18px; }
+  .page-head h1 { font-size: 17px; margin: 0 0 4px; }
+  .page-head p { margin: 0; color: var(--muted-ink); }
+  .stage {
+    max-width: 1060px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    align-items: start;
+  }
+  .col-head { font-weight: 700; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-ink); margin: 6px 0 8px; }
+  .notes {
+    margin: 10px 0 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.5;
+    background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 8px; color: #3a3f46;
+  }
+  .notes b { color: var(--ink); }
+  .notes li { margin: 2px 0; }
+  .num {
+    display: inline-grid; place-items: center; width: 15px; height: 15px;
+    border-radius: 50%; background: #31363f; color: #fff; font-size: 9.5px; font-weight: 700;
+    margin-right: 3px; vertical-align: 1px;
+  }
+  .del { color: #b04343; text-decoration: line-through; text-decoration-thickness: 1px; }
+  .kept { color: #2e6b4f; }
+
+  /* ---------- sidebar mock (bb-app tokens) ---------- */
+  .mock {
+    width: 336px; border-radius: 10px; overflow: hidden;
+    border: 1px solid rgba(0,0,0,.14); box-shadow: 0 18px 40px rgba(15,18,24,.14);
+  }
+  .mock.light {
+    --sidebar: #f7f7f8; --muted: #ececef; --card: #ffffff;
+    --border: rgba(0,0,0,.12); --border-hairline: rgba(0,0,0,.08);
+    --fg: #262626; --muted-fg: #71757c; --subtle-fg: #9a9ea6;
+    --accent: rgba(15,18,24,.06);           /* hover / selected wash */
+    --primary: #3f74e8; --success: #3f9a6b; --warning: #b98533; --destructive: #d43d3d;
+  }
+  .mock.dark {
+    --sidebar: #191a1c; --muted: #232427; --card: #222226;
+    --border: rgba(255,255,255,.11); --border-hairline: rgba(255,255,255,.07);
+    --fg: #eceef0; --muted-fg: #9a9ea6; --subtle-fg: #6f747c;
+    --accent: rgba(255,255,255,.07);         /* hover / selected wash */
+    --primary: #7da2f5; --success: #4fb583; --warning: #d1a15a; --destructive: #e06565;
+  }
+
+  /* filter bar (existing chrome, unchanged — shown for context) */
+  .bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-bottom: 1px solid var(--border-hairline);
+    color: var(--muted-fg); font-size: 11px;
+    background: var(--sidebar);
+  }
+  .bar .search { display: flex; align-items: center; gap: 6px; flex: 1; color: var(--muted-fg); }
+  .bar .chip {
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted-fg); white-space: nowrap;
+  }
+  .bar .chip.on { color: var(--fg); border-color: color-mix(in srgb, var(--fg) 30%, transparent); }
+
+  .list { background: var(--sidebar); padding: 4px 0 10px; }
+  .gi { display:inline-flex; width:14px; height:14px; overflow:visible; }
+  .gi svg { width:14px; height:14px; display:block; }
+  .ic svg { width:13px; height:13px; display:block; }
+  .sp-emoji { font-size: 13px; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif; }
+  .prov-spark { color: #c26440; }
+  .mock.dark .prov-spark { color: #e59a7a; }
+  .prov-bot { color: #64748b; }
+  .mock.dark .prov-bot { color: #9fb3cf; }
+
+  /* one 20px icon rail, shared by captions / sections / spools / threads */
+  .rail { flex: none; width: 20px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .glyph { display: inline-flex; width: 15px; height: 15px; align-items: center; justify-content: center; font-size: 12px; line-height: 1; color: var(--muted-fg); }
+  .glyph svg { width: 15px; height: 15px; }
+  .rail.empty::after {
+    content: ""; width: 3px; height: 3px; border-radius: 50%;
+    background: transparent;   /* stays empty when no icon is chosen */
+  }
+
+  /* ================= SHANNON GRAMMAR =================
+     Flat, stock-bb rows on the plain sidebar. Every row = one rounded
+     hover/selected tube; NO slabs, NO tri-tone, NO row washes.
+     Color lives ONLY in pills and dots.                               */
+  .list { --row-radius: 6px; }
+
+  .row {
+    display: flex; align-items: center; gap: 6px;
+    min-height: 26px; padding: 2px 6px 2px 0;
+    margin: 1px 6px;                    /* inset so the hover tube reads */
+    border-radius: var(--row-radius);
+    position: relative;
+  }
+  .row:hover { background: var(--accent); }
+  .row.selected { background: var(--accent); box-shadow: inset 0 0 0 1px var(--border-hairline); }
+
+  /* ---------- group caption (Pinned) ---------- */
+  .caption {
+    display: flex; align-items: center; gap: 6px;
+    margin: 8px 6px 2px; padding: 0 0 0 0; min-height: 20px;
+    font-size: 11.5px; font-weight: 550; letter-spacing: 0;
+    color: var(--subtle-fg); text-transform: none;
+  }
+  .caption .rail { width: 20px; }
+
+  /* ---------- sticky section headers: caption tone + blur underlay ----------
+     The section keeps its chosen icon; its color is ONE dot before the
+     title. Sticky heads get a translucent backdrop like the stock washer. */
+  .sec {
+    position: sticky; top: 0; z-index: 1;
+    background: color-mix(in srgb, var(--sidebar) 86%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .sec-title {
+    flex: 1 1 auto; min-width: 0;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+    color: var(--muted-fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .row:hover .sec-title { color: var(--fg); }
+  .dot {
+    flex: none; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .dot.teal    { background: #3f7e78; }  .mock.dark .dot.teal    { background: #58b0a6; }
+  .dot.violet  { background: #7a5aa8; }  .mock.dark .dot.violet  { background: #a68bce; }
+  .dot.gold    { background: #b5913c; }  .mock.dark .dot.gold    { background: #d0a950; }
+  .dot.inbox   { background: var(--subtle-fg); }
+
+  /* the counted pill: the count numeral, neutral; tones only tint IT */
+  .pip {
+    flex: none; display: inline-grid; place-items: center; position: relative;
+    min-width: 17px; height: 17px; padding-inline: 5px;
+    border-radius: 999px; font-size: 9.5px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--fg) 6%, transparent);
+    color: var(--muted-fg);
+  }
+  .pip.work { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
+  .pip.need { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning); }
+  .pip.fail { background: color-mix(in srgb, var(--destructive) 16%, transparent); color: var(--destructive); }
+  .pip .numeral { position: relative; z-index: 1; line-height: 1; font-family: ui-monospace, monospace; }
+  .spinner {
+    position: absolute; inset: 0; display: block; height: 13px; width: 13px; margin: auto;
+    border-radius: 50%; border: 1.6px solid transparent;
+    border-top-color: currentColor; border-right-color: currentColor; border-left-color: color-mix(in srgb, currentColor 30%, transparent);
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .unread { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: var(--primary); }
+  .unread::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+  .chev { flex: none; display: inline-flex; opacity: .8; color: var(--subtle-fg); }
+  .chev svg { width: 12px; height: 12px; }
+
+  /* ---------- thread / member rows: stock tubes with a depth indent ---------- */
+  .entry { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .entry-row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .th-title {
+    flex: 1 1 auto; min-width: 0;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere;
+    font-size: 12.2px; font-weight: 450; color: var(--fg);
+  }
+  .row.depth-1 { margin-left: 26px; }                       /* stock depth step */
+  .row.depth-1::before {                                    /* stock family guide */
+    content: ""; position: absolute; left: -16px; top: -1px; bottom: -1px;
+    width: 1px; background: var(--border-hairline);
+  }
+  .row.depth-1 .rail { width: 20px; }
+  .row.depth-2 { margin-left: 26px; }                       /* spool roster: same column as ordinary rows */
+  .row.depth-2::before { display: none; }                   /* the spool wrapper carries one guide */
+
+  /* status words ride as TONE CHIPS in the pill grid — no washes, no
+     breathing rows; the dot inside the chip breathes instead */
+  .word-chip {
+    flex: none; display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 6px 1px 5px; border-radius: 999px;
+    font-size: 9px; font-weight: 700; letter-spacing: .05em;
+    white-space: nowrap;
+  }
+  .word-chip::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .word-chip.work { color: var(--success);   background: color-mix(in srgb, var(--success) 12%, transparent); }
+  .word-chip.need { color: var(--warning);   background: color-mix(in srgb, var(--warning) 15%, transparent); }
+  .word-chip.fail { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 13%, transparent); }
+  .word-chip.done { color: var(--muted-fg);  background: color-mix(in srgb, var(--fg) 7%, transparent); }
+  .word-chip.done.read { color: var(--subtle-fg); }
+  .word-chip .spin {
+    width: 9px; height: 9px; border-radius: 50%; flex: none;
+    border: 1.4px solid transparent;
+    border-top-color: currentColor; border-right-color: currentColor;
+    animation: spin .9s linear infinite;
+  }
+  .word-chip.work::before { display: none; }          /* running uses the spinner */
+  .word-chip.breath::before { animation: breathe 1.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .35; } }
+
+  .meta { flex: none; font-size: 10px; color: var(--subtle-fg); font-variant-numeric: tabular-nums; }
+
+  /* ONE detail pill grid per entry: neutral hairline chips. Pills, not
+     color, carry the facts. */
+  .pillgrid {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 3px 5px; min-width: 0; max-width: 100%;
+    font-size: 9.8px; color: var(--muted-fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .pillgrid > * { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pchip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 0 5px; height: 14px; border-radius: 4px;
+    border: 1px solid var(--border-hairline); color: var(--muted-fg);
+  }
+  .pillgrid .pr {
+    display: inline-flex; gap: 3px; align-items: center;
+    padding: 0 5px; height: 14px; border-radius: 4px;
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    color: var(--primary); font-weight: 650;
+  }
+  .pillgrid > .maxline { max-width: 100%; }
+  .pillgrid > .maxbranch { max-width: 58%; }
+  .pillgrid > .maxpr { max-width: 45%; }
+
+  /* unread badge on a quiet row: one dot, right edge */
+  .trailing { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-left: auto !important; }
+  .unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+
+  /* hover actions — stock grammar: fade in at the right */
+  .actions { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    display: none; gap: 2px; padding: 2px; border-radius: 6px;
+    background: var(--sidebar); box-shadow: 0 0 0 1px var(--border-hairline); }
+  .row:hover .actions { display: inline-flex; }
+  .actions span { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 4px; color: var(--muted-fg); cursor: pointer; }
+  .actions span:hover { background: var(--accent); color: var(--fg); }
+  .actions svg { width: 12px; height: 12px; }
+
+  /* ---------- spool cards: flat, upright, neutral ---------- */
+  .spool { margin: 2px 6px 2px 26px; position: relative; }
+  .spool::before {           /* one continuous family guide through the roster */
+    content: ""; position: absolute; left: 9px; top: 24px; bottom: 4px;
+    width: 1px; background: var(--border-hairline);
+  }
+  .spool + .spool { margin-top: 2px; }
+  .sp-header {
+    display: flex; align-items: center; gap: 6px;
+    min-height: 26px; padding: 2px 6px 2px 0;
+    border-radius: var(--row-radius);
+    cursor: pointer; user-select: none; position: relative;
+  }
+  .sp-header:hover { background: var(--accent); }
+  .row.depth-1.spool-row { margin-left: 26px; }
+  .sp-title {
+    flex: 1 1 auto; min-width: 0;
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere;
+    font-size: 12.2px; font-weight: 550; font-style: normal; color: var(--fg);
+  }
+  .sp-header:hover .grip { opacity: 1 !important; }
+  .sp-header:hover .sp-emoji { opacity: 0; }
+
+  /* ---------- Active deck (Shannon-dressed) ---------- */
+  .active-bar {
+    position: sticky; top: 0; z-index: 2;
+    background: color-mix(in srgb, var(--sidebar) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-hairline);
+    padding: 6px 8px 8px;
+  }
+  .active-head { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--subtle-fg); }
+  .active-cards { display: flex; gap: 5px; margin-top: 6px; }
+  .acard {
+    display: inline-flex; align-items: center; gap: 5px; max-width: 47%;
+    padding: 3px 8px; border-radius: 999px;
+    border: 1px solid var(--border-hairline); background: color-mix(in srgb, var(--fg) 4%, transparent);
+    font-size: 10.5px; color: var(--muted-fg); white-space: nowrap; overflow: hidden;
+  }
+  .acard .spin {
+    width: 10px; height: 10px; border-radius: 50%; flex: none;
+    border: 1.4px solid transparent;
+    border-top-color: var(--success); border-right-color: var(--success);
+    animation: spin .9s linear infinite;
+  }
+  .acard .t { overflow: hidden; text-overflow: ellipsis; color: var(--fg); font-weight: 500; }
+  .acard .jump { flex: none; font-size: 9px; color: var(--subtle-fg); border-left: 1px solid var(--border-hairline); padding-left: 6px; }
+
+  /* ---------- demo helpers ---------- */
+  .row.demo-hover { background: var(--accent); }
+  .prov { display: inline-flex; width: 16px; height: 16px; border-radius: 4px; align-items: center; justify-content: center; font-size: 10.5px; color: var(--muted-fg); }
+
+  /* color-grammar strip: every tone has ONE dot form + ONE chip form */
+  .grammar { max-width: 1060px; margin: 24px auto 0; }
+  .gstrip { display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 8px; padding: 10px 12px; }
+  .gcell { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #3a3f46; }
+  .gcell b { font-weight: 650; color: var(--ink); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.5v17M4.6 7.75l14.8 8.5M4.6 16.25l14.8-8.5"/>
+    </symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.5v3"/>
+      <rect x="4" y="8" width="16" height="12" rx="2.5"/>
+      <circle cx="9" cy="14" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="15" cy="14" r="1.1" fill="currentColor" stroke="none"/>
+      <path d="M9.5 17.2h5"/>
+    </symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+    </symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.5 2v17.5a2.5 2.5 0 0 1-5 0V2M8.5 2h7M9 8h6"/>
+    </symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 17v5M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 9.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v3.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>
+    </symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+    </symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/>
+    </symbol>
+    <symbol id="i-thread" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 6c-2.2 0-4 1.8-4 4v4c0 2.2 1.8 4 4 4h6c2.2 0 4-1.8 4-4v-4c0-2.2-1.8-4-4-4H9z"/><path d="M9 2h6"/>
+    </symbol>
+  </defs>
+</svg>
+
+
+<div class="page-head">
+  <h1>Spooler — Shannon style · mockup (colors in pills or dots)</h1>
+  <p>Same sections, spools, active deck and pill grid — re-skinned in bb-app's native idiom: flat rows on the plain sidebar with rounded hover tubes, caption-tone sticky headers, stock depth indents and family guides, upright titles, and every bit of color squeezed into small pills and dots. No slabs, no tri-tone washes, no row-level color fields. Open in a browser — hover any row.</p>
+</div>
+
+<div class="stage">
+
+  <!-- ================================================== LIGHT -->
+  <div class="col">
+    <div class="col-head">Light theme</div>
+    <div class="mock light">
+      <div class="bar">
+        <span class="search">⌕ Filter threads…</span>
+        <span class="chip on">Active</span><span class="chip">≡</span><span class="chip">#</span>
+        <span class="chip">⊞</span><span class="chip">☰</span>
+      </div>
+      <div class="list">
+
+        <!-- ACTIVE DECK -->
+        <div class="active-bar">
+          <div class="active-head">
+            <span class="rail" style="width:auto"><span class="spin" style="width:10px;height:10px;border-radius:50%;border:1.4px solid transparent;border-top-color:var(--success);border-right-color:var(--success);animation:spin .9s linear infinite;display:block"></span></span>
+            Active · 2 <span style="flex:1"></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+          </div>
+          <div class="active-cards">
+            <span class="acard"><span class="spin"></span><span class="t">Fix fold unmount timing</span><span class="jump">🧵 Refactor the sidebar…</span></span>
+            <span class="acard"><span class="spin"></span><span class="t">Map plugin-sdk surface</span><span class="jump">Research</span></span>
+          </div>
+        </div>
+
+        <!-- PINNED caption + rows -->
+        <div class="caption"><span class="rail"></span>Pinned</div>
+        <div class="row">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-thread"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Doodle</span></span></span>
+          <span class="actions"><span><svg><use href="#i-pin"></use></svg></span></span>
+        </div>
+        <div class="row">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Dispatch</span><span class="meta">42m</span></span></span>
+        </div>
+
+        <!-- INBOX: gray dot, same flat grammar, expanded -->
+        <div class="row sec demo-hover" style="margin-top:8px">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-inbox"></use></svg></span></span></span>
+          <span class="dot inbox" style="color:var(--subtle-fg)"></span>
+          <span class="sec-title">Inbox</span>
+          <span class="unread">3</span>
+          <span class="pip work"><span class="spinner"></span><span class="numeral">6</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+        <div class="row depth-1">
+          <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+          <span class="entry">
+            <span class="entry-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta">2h</span></span>
+            <span class="pillgrid"><span class="pchip">bb-plugin-spools</span><span class="pr">⎇ #208 · Review pending</span></span>
+          </span>
+        </div>
+        <div class="row depth-1">
+          <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Run e2e sanity pass</span></span>
+            <span class="pillgrid"><span class="word-chip fail">FAILED</span></span>
+          </span>
+          <span class="trailing"><span class="unread-dot"></span></span>
+        </div>
+
+        <!-- SPOOL: flat card, upright title, neutral pip -->
+        <div class="spool">
+          <div class="sp-header">
+            <span class="rail">
+              <span class="glyph sp-emoji">🧵</span>
+              <span class="grip" style="position:absolute;inset:0;display:grid;place-items:center;opacity:0;color:var(--muted-fg)"><span class="gi" style="width:13px;height:13px"><svg><use href="#i-grip"></use></svg></span></span>
+            </span>
+            <span class="entry">
+              <span class="entry-row"><span class="sp-title">Refactor the sidebar virtualization pass end to end</span></span>
+              <span class="pillgrid"><span class="pchip">bb-plugins</span><span class="pchip maxbranch">⎇ refactor/sidebar-virtualization-slab-grid</span><span class="pr maxpr">⎇ #214 · Changes requested</span></span>
+            </span>
+            <span class="pip work"><span class="spinner"></span><span class="numeral">3</span></span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Extract the Fold component into its own shared module</span></span>
+              <span class="pillgrid"><span class="word-chip need breath">NEEDS YOU</span></span>
+            </span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Fix fold unmount timing</span></span>
+              <span class="pillgrid"><span class="word-chip work"><span class="spin" style="width:9px;height:9px;border:1.4px solid transparent;border-top-color:currentColor;border-right-color:currentColor;animation:spin .9s linear infinite;display:block"></span>WORKING</span></span>
+            </span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Delete legacy RowVirtualizer</span></span>
+              <span class="pillgrid"><span class="word-chip done">DONE · NEW</span></span>
+            </span>
+            <span class="trailing"><span class="unread-dot"></span></span>
+          </div>
+        </div>
+
+        <!-- TEAL section, collapsed -->
+        <div class="row sec">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-rocket" style="color:var(--muted-fg)"></use></svg></span></span></span>
+          <span class="dot teal"></span>
+          <span class="sec-title">Ship Spooler 0.6</span>
+          <span class="pip"><span class="numeral">4</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+        </div>
+
+        <!-- VIOLET section, expanded: active row + spool + quiet row -->
+        <div class="row sec">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-flask" style="color:var(--muted-fg)"></use></svg></span></span></span>
+          <span class="dot violet"></span>
+          <span class="sec-title">Research — crate graph, tone system &amp; sdk audit</span>
+          <span class="unread">1</span>
+          <span class="pip work"><span class="spinner"></span><span class="numeral">5</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+        <div class="row depth-1 selected">
+          <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Compare ECS patterns</span><span class="meta">14m</span></span></span>
+        </div>
+        <div class="spool">
+          <div class="sp-header">
+            <span class="rail">
+              <span class="glyph sp-emoji">🧵</span>
+              <span class="grip" style="position:absolute;inset:0;display:grid;place-items:center;opacity:0;color:var(--muted-fg)"><span class="gi" style="width:13px;height:13px"><svg><use href="#i-grip"></use></svg></span></span>
+            </span>
+            <span class="entry">
+              <span class="entry-row"><span class="sp-title">Crate graph excavation</span></span>
+              <span class="pillgrid"><span class="pchip">bb-plugins</span><span class="pchip">⎇ spools/pip-overlay</span><span class="pr">⎇ #212 · Open</span></span>
+            </span>
+            <span class="pip work"><span class="spinner"></span><span class="numeral">2</span></span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Map plugin-sdk surface</span></span>
+              <span class="pillgrid"><span class="word-chip work"><span class="spin" style="width:9px;height:9px;border:1.4px solid transparent;border-top-color:currentColor;border-right-color:currentColor;animation:spin .9s linear infinite;display:block"></span>WORKING</span></span>
+            </span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Audit experimental_ exports</span><span class="meta">1h</span></span></span>
+          </div>
+        </div>
+        <!-- quiet row: grid = time · project (+ read done chip) -->
+        <div class="row depth-1">
+          <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry">
+            <span class="entry-row"><span class="th-title">Draft tone-system note</span></span>
+            <span class="pillgrid"><span class="pchip">3d</span><span class="pchip">olsonjeffery-bb-plugins</span><span class="word-chip done read">DONE</span></span>
+          </span>
+        </div>
+
+        <!-- no color, no icon -->
+        <div class="row sec">
+          <span class="rail empty"></span>
+          <span class="dot" style="background:transparent"></span>
+          <span class="sec-title">Archive</span>
+          <span class="pip"><span class="numeral">12</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+        </div>
+
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="num">1</span><b>Flat rows, stock tubes:</b> every entry sits on the plain sidebar; hover paints the stock rounded wash, selection the stock selected tube. <span class="del">No edge-to-edge slabs, no tri-tone, no 2px rhythm, no darkened rims, no hover brightness filters.</span></li>
+      <li><span class="num">2</span><b>Colors only in pills or dots:</b> section color = one 6px dot before the title; status = tone chips; counts = tinted pips. Nothing else ever washes.</li>
+      <li><span class="num">3</span><b>Caption-tone sticky headers:</b> section titles go sentence-case first-person muted (like bb's “Pinned/Threads” captions), sentence case, blur underlay for stickiness. <span class="del">All-caps slab headers retire.</span></li>
+      <li><span class="num">4</span><b>Titles upright:</b> spool titles weight 550, thread titles 450, <span class="del">no italics anywhere</span>.</li>
+      <li><span class="num">5</span><b>Order inside a section:</b> unspooled threads float top, spool deck beneath; spool members start flush under the header (kept from 0.7).</li>
+      <li><span class="num">6</span><b>Depth &amp; guides:</b> members and section threads indent with the stock depth step and carry the stock right-edge family guide hairline.</li>
+      <li><span class="num">7</span><b>Counted pips:</b> neutral fg-tinted pill by default; success/warning/destructive tints when working/needs-you/failed — same grammar for section and spool pips; spinner overlays the numeral.</li>
+      <li><span class="num">8</span><b>Status word chips:</b> WORKING / NEEDS YOU / DONE / FAILED as tiny tone chips in the pill grid; the dot inside breathes on needs-you — <span class="del">the amber/red/green row washes retire</span>.</li>
+      <li><span class="num">9</span><b>Unread:</b> colored dot at the row's right edge (plus the header's colored unread pip and “DONE · NEW” chip on new results).</li>
+      <li><span class="num">10</span><b>Detail pill grid:</b> the wrapping grid stays — neutral hairline chips, tinted PR chip; pills ellipsize and re-flow (unchanged from 0.7).</li>
+      <li><span class="num">11</span><b>Active deck:</b> same fixed top bar, dressed neutral: translucent blur, outlined running cards, GRAY jump chips.</li>
+      <li><span class="num">12</span><b>Hover actions:</b> fade in top-right in the stock chrome position, as today.</li>
+      <li><span class="num">13</span><b>Section icons/emoji, grip-over-icon, Section Settings modal, smart views, filters:</b> all unchanged — only the surface treatment changes.</li>
+    </ul>
+  </div>
+
+  <!-- ================================================== DARK -->
+  <div class="col">
+    <div class="col-head">Dark theme</div>
+    <div class="mock dark">
+      <div class="bar">
+        <span class="search">⌕ Filter threads…</span>
+        <span class="chip on">Active</span><span class="chip">≡</span><span class="chip">#</span>
+        <span class="chip">⊞</span><span class="chip">☰</span>
+      </div>
+      <div class="list">
+
+        <div class="active-bar">
+          <div class="active-head">
+            <span class="rail" style="width:auto"><span class="spin" style="width:10px;height:10px;border-radius:50%;border:1.4px solid transparent;border-top-color:var(--success);border-right-color:var(--success);animation:spin .9s linear infinite;display:block"></span></span>
+            Active · 2 <span style="flex:1"></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+          </div>
+          <div class="active-cards">
+            <span class="acard"><span class="spin"></span><span class="t">Fix fold unmount timing</span><span class="jump">🧵 Refactor the sidebar…</span></span>
+            <span class="acard"><span class="spin"></span><span class="t">Map plugin-sdk surface</span><span class="jump">Research</span></span>
+          </div>
+        </div>
+
+        <div class="caption"><span class="rail"></span>Pinned</div>
+        <div class="row">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-thread"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Doodle</span></span></span>
+          <span class="actions"><span><svg><use href="#i-pin"></use></svg></span></span>
+        </div>
+        <div class="row">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Dispatch</span><span class="meta">42m</span></span></span>
+        </div>
+
+        <div class="row sec" style="margin-top:8px">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-inbox"></use></svg></span></span></span>
+          <span class="dot inbox" style="color:var(--subtle-fg)"></span>
+          <span class="sec-title">Inbox</span>
+          <span class="unread">3</span>
+          <span class="pip work"><span class="spinner"></span><span class="numeral">6</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+        <div class="row depth-1">
+          <span class="rail"><span class="prov prov-bot"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+          <span class="entry">
+            <span class="entry-row"><span class="th-title">Quick question about dnd keyboard + touch sensors</span><span class="meta">2h</span></span>
+            <span class="pillgrid"><span class="pchip">bb-plugin-spools</span><span class="pr">⎇ #208 · Review pending</span></span>
+          </span>
+        </div>
+        <div class="row depth-1">
+          <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Run e2e sanity pass</span></span>
+            <span class="pillgrid"><span class="word-chip fail">FAILED</span></span>
+          </span>
+          <span class="trailing"><span class="unread-dot"></span></span>
+        </div>
+
+        <div class="spool">
+          <div class="sp-header">
+            <span class="rail">
+              <span class="glyph sp-emoji">🧵</span>
+              <span class="grip" style="position:absolute;inset:0;display:grid;place-items:center;opacity:0;color:var(--muted-fg)"><span class="gi" style="width:13px;height:13px"><svg><use href="#i-grip"></use></svg></span></span>
+            </span>
+            <span class="entry">
+              <span class="entry-row"><span class="sp-title">Refactor the sidebar virtualization pass end to end</span></span>
+              <span class="pillgrid"><span class="pchip">bb-plugins</span><span class="pchip maxbranch">⎇ refactor/sidebar-virtualization-slab-grid</span><span class="pr maxpr">⎇ #214 · Changes requested</span></span>
+            </span>
+            <span class="pip work"><span class="spinner"></span><span class="numeral">3</span></span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Extract the Fold component into its own shared module</span></span>
+              <span class="pillgrid"><span class="word-chip need breath">NEEDS YOU</span></span>
+            </span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Fix fold unmount timing</span></span>
+              <span class="pillgrid"><span class="word-chip work"><span class="spin" style="width:9px;height:9px;border:1.4px solid transparent;border-top-color:currentColor;border-right-color:currentColor;animation:spin .9s linear infinite;display:block"></span>WORKING</span></span>
+            </span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Delete legacy RowVirtualizer</span></span>
+              <span class="pillgrid"><span class="word-chip done">DONE · NEW</span></span>
+            </span>
+            <span class="trailing"><span class="unread-dot"></span></span>
+          </div>
+        </div>
+
+        <div class="row sec">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-rocket" style="color:var(--muted-fg)"></use></svg></span></span></span>
+          <span class="dot teal"></span>
+          <span class="sec-title">Ship Spooler 0.6</span>
+          <span class="pip"><span class="numeral">4</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+        </div>
+
+        <div class="row sec">
+          <span class="rail"><span class="glyph"><span class="gi"><svg><use href="#i-flask" style="color:var(--muted-fg)"></use></svg></span></span></span>
+          <span class="dot violet"></span>
+          <span class="sec-title">Research — crate graph, tone system &amp; sdk audit</span>
+          <span class="unread">1</span>
+          <span class="pip work"><span class="spinner"></span><span class="numeral">5</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+        <div class="row depth-1 selected">
+          <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry"><span class="entry-row"><span class="th-title">Compare ECS patterns</span><span class="meta">14m</span></span></span>
+        </div>
+        <div class="spool">
+          <div class="sp-header">
+            <span class="rail">
+              <span class="glyph sp-emoji">🧵</span>
+              <span class="grip" style="position:absolute;inset:0;display:grid;place-items:center;opacity:0;color:var(--muted-fg)"><span class="gi" style="width:13px;height:13px"><svg><use href="#i-grip"></use></svg></span></span>
+            </span>
+            <span class="entry">
+              <span class="entry-row"><span class="sp-title">Crate graph excavation</span></span>
+              <span class="pillgrid"><span class="pchip">bb-plugins</span><span class="pchip">⎇ spools/pip-overlay</span><span class="pr">⎇ #212 · Open</span></span>
+            </span>
+            <span class="pip work"><span class="spinner"></span><span class="numeral">2</span></span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov"><span class="gi"><svg><use href="#i-bot"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Map plugin-sdk surface</span></span>
+              <span class="pillgrid"><span class="word-chip work"><span class="spin" style="width:9px;height:9px;border:1.4px solid transparent;border-top-color:currentColor;border-right-color:currentColor;animation:spin .9s linear infinite;display:block"></span>WORKING</span></span>
+            </span>
+          </div>
+          <div class="row depth-2">
+            <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+            <span class="entry"><span class="entry-row"><span class="th-title">Audit experimental_ exports</span><span class="meta">1h</span></span></span>
+          </div>
+        </div>
+        <div class="row depth-1">
+          <span class="rail"><span class="prov prov-spark"><span class="gi"><svg><use href="#i-spark"></use></svg></span></span></span>
+          <span class="entry">
+            <span class="entry-row"><span class="th-title">Draft tone-system note</span></span>
+            <span class="pillgrid"><span class="pchip">3d</span><span class="pchip">olsonjeffery-bb-plugins</span><span class="word-chip done read">DONE</span></span>
+          </span>
+        </div>
+
+        <div class="row sec">
+          <span class="rail empty"></span>
+          <span class="sec-title">Archive</span>
+          <span class="pip"><span class="numeral">12</span></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg></span>
+        </div>
+
+      </div>
+    </div>
+    <ul class="notes">
+      <li><span class="num">1</span><b>Token-driven:</b> dark mixes washes/tints from the real tokens — wash = fg 7%, chip tints 12–18%, pips fg 6% — so any theme carries it.</li>
+      <li><span class="num">2</span><b>Section dots:</b> teal/violet/gold anchors have dedicated dark lightening; the Inbox dot is gray.</li>
+      <li><span class="num">3</span><b>Family hairlines</b> use the hairline border tone, matching bb's project rails.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- color grammar strip -->
+<div class="grammar">
+  <div class="col-head">Color grammar — everything a tone may ever produce</div>
+  <div class="gstrip">
+    <span class="gcell"><b>teal</b> <span class="dot teal" style="display:inline-block;vertical-align:1px"></span> <span class="pip" style="background:color-mix(in srgb,#3f7e78 16%,transparent);color:#3f7e78"><span class="numeral">4</span></span></span>
+    <span class="gcell"><b>violet</b> <span class="dot violet" style="display:inline-block;vertical-align:1px"></span> <span class="pip" style="background:color-mix(in srgb,#7a5aa8 16%,transparent);color:#7a5aa8"><span class="numeral">4</span></span></span>
+    <span class="gcell"><b>success</b> <span class="word-chip work" style="display:inline-flex"><span class="spin" style="width:9px;height:9px;border:1.4px solid transparent;border-top-color:currentColor;border-right-color:currentColor;animation:spin .9s linear infinite"></span>WORKING</span></span>
+    <span class="gcell"><b>warning</b> <span class="word-chip need breath" style="display:inline-flex">NEEDS YOU</span> <span class="pip need" style="display:inline-grid"><span class="numeral">2</span></span></span>
+    <span class="gcell"><b>destructive</b> <span class="word-chip fail" style="display:inline-flex">FAILED</span> <span class="pip fail" style="display:inline-grid"><span class="numeral">1</span></span></span>
+    <span class="gcell"><b>primary</b> unread dot <span style="width:7px;height:7px;border-radius:50%;background:#3f74e8;display:inline-block"></span> + pip <span class="unread">1</span></span>
+    <span class="gcell"><b>neutral</b> <span class="word-chip done read" style="display:inline-flex">DONE</span> <span class="pip" style="display:inline-grid"><span class="numeral">12</span></span></span>
+  </div>
+  <p style="font-size:11px;color:#6b7078;max-width:760px">A tone may appear in exactly four places: a section dot, a word chip, a counted pip, or an unread dot/pip. Row surfaces, headers, titles and icon rails never take tone.</p>
+</div>
+
+</body>
+</html>

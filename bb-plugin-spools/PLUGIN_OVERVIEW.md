@@ -8,10 +8,11 @@ A thread list you can read at a glance, for BB.
   never floats it to the top. Group by project or by section instead with one
   toggle, and reorder projects by dragging them.
 - **Attention states you cannot miss.** Working, needs-you, failed and
-  finished-but-unread each get their own icon, status word, colour and row
-  treatment. Rows needing a decision wash amber or red and breathe a slow
-  glow; motion is reserved for things that need action, so movement always
-  means something.
+  finished-but-unread each get their own icon, status word and colour, held
+  in small pills and dots. Every status is a tone chip beside the title
+  (needs-you's chip dot breathes), count pips tint, and unseen rows keep an
+  unread dot and a bolded title. Motion is reserved for things that need
+  action, so movement always means something.
 - **Nested families.** Child threads sit under their parent with indent
   guides, and a family sorts by its freshest activity. Fold one and the
   summary tells you how many are hidden, how many are unseen, and the loudest
@@ -24,10 +25,11 @@ A thread list you can read at a glance, for BB.
   filter, comfortable or compact density, keyboard traversal with quick
   archive and pin, multi-select bulk actions, and drag a thread onto a section
   header to file it.
-- **A redesigned section display.** Edge-to-edge tinted slabs on one 2px
-  rhythm, a tri-tone per section color (darkest header, mid spool strip,
-  lightest thread slabs — gray for the Inbox), per-section icons, and one
-  Section Settings modal with auto-save for name, color and icon.
+- **A sidebar that reads like bb-app's own.** Flat rows on the plain
+  sidebar with bb's rounded hover tubes, caption-tone sticky headers, stock
+  depth indents and family guides — and section color as ONE dot in the
+  header, never a tinted slab. Per-section icons, and one Section Settings
+  modal with auto-save for name, color and icon.
 - **An Active section** (off via its setting, on by default): a fixed top
   bar in section view that duplicates every running thread above the list —
   bar and cards pinned together while you scroll, headers beneath them —

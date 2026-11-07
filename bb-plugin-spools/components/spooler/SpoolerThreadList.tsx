@@ -76,6 +76,8 @@ import {
   sectionColorOption,
   sectionColorVars,
   sectionIconOf,
+  SECTION_DOT_NEUTRAL_DARK,
+  SECTION_DOT_NEUTRAL_LIGHT,
   type SectionStyleMap,
 } from "./sectionColors";
 import { SectionSettingsModal } from "./SectionSettingsModal";
@@ -1944,16 +1946,15 @@ export function SpoolerThreadList({
       const sectionColor = hasServerSection
         ? sectionColorOption(sectionColorMap, group.sectionId)
         : null;
-      // Colored sections paint their anchor into the header; the unfiled
-      // Inbox gets a neutral gray so the bucket reads as a sibling of the
-      // colored slabs without pretending to be one. Uncolored sections fall
-      // back to theme tokens in CSS (no inline override at all).
+      // Colored sections paint their header dot; the unfiled Inbox gets a
+      // neutral gray dot (a section color that isn't one). Uncolored
+      // sections fall back to the theme's muted-foreground dot in CSS (no
+      // inline override at all).
       const sectionAnchorStyle: CSSProperties | null = sectionColor
         ? sectionColorVars(sectionColor, isDark)
         : isUnfiled
-          ? (isDark
-              ? ({ "--spooler-sec-anchor": "#33373d", "--spooler-sec-fg": "#f8f8f8" } as CSSProperties)
-              : ({ "--spooler-sec-anchor": "#c9ccd2", "--spooler-sec-fg": "#262626" } as CSSProperties))
+          ? ({ "--spooler-sec-anchor": isDark ? "#33373d" : "#c9ccd2",
+               "--spooler-sec-dot": isDark ? SECTION_DOT_NEUTRAL_DARK : SECTION_DOT_NEUTRAL_LIGHT } as CSSProperties)
           : null;
       const sectionRailIcon = grouping === "section"
         ? sectionIconOf(sectionStyleMap, group.sectionId)

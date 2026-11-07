@@ -4,6 +4,43 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.9.0 — 2026-11-06
+
+### Changed
+- **The sidebar re-skins to bb-app's own idiom ("Shannon style"), with colors
+  kept in pills or dots.** The 0.7 slab column retires: no edge-to-edge
+  tri-tone slabs, no darkened rims, no all-caps headers, no italic spool
+  titles, no row washes, no row glows. What replaces them:
+  - **Flat rows on the plain sidebar**: the stock rounded accent tube on
+    hover, the same quiet state-active wash bb's own rows use for the
+    thread being viewed (the 2px red danger rings retire — there and on
+    active spool cards, where the viewed-thread wash now lands on the
+    spool header), bb's half-strength accent tint for open-in-split rows,
+    and stock depth indents with family guides. Section rows sit one stock
+    step off the bucket edge with ONE straight guide at the section-icon
+    axis; a spool's roster hangs one step deeper still under one continuous
+    guide (family children keep their elbow guides).
+  - **Numerals in one pip grammar**: a neutral fg-tinted 18px pill at
+    rest; a state may only tint WHOLE pips — running green,
+    needs-you amber, failed red — driven by `:has()` on the overlaid status
+    (same grammar across section headers, spool cards and the Active deck).
+  - **Status words are tone chips** on the title line: tinted pill shells
+    whose ink is the status color; the needs-you dot breathes inside its
+    chip, and row surfaces stay clean.
+  - **Section color in ONE dot**: a 6px dot before the title — saturated
+    dot palettes per palette entry per theme; the anchor colors stay as
+    legacy variables for old readers, the color pickers preview the dot
+    now, and the unfiled **Inbox** carries a neutral gray dot.
+  - **Headers are captions**: sentence-case 11.5px (the caps slabs are
+    gone), sticky translucent blur shared by every grouping mode, only
+    their own hover tube. Unread keeps its small dot + bolded title — the
+    `loudUnread` setting now gates that dot instead of the retired wash
+    bars.
+  - Unchanged: grouping affordances, drag-to-file, hover actions, the two-
+    row title clamps and the wrapping detail-pill grid, spool/grip
+    behavior, smart views, the Active station and its offset headers, the
+    swipe springs and the 284px chip-fold container.
+
 ## 0.8.2 — 2026-11-02
 
 ### Changed

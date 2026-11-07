@@ -963,26 +963,36 @@
   backdrop-filter: blur(10px);
   border-radius: 6px;
   box-shadow: none;
+  /* Shannon style: sentence-case muted captions, like bb's own
+     "Pinned / Threads" group titles — no caps slabs anywhere. */
   color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 11.5px;
+  font-weight: 550;
+  text-transform: none;
+  letter-spacing: 0.01em;
   user-select: none;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
 .spooler-group-header:hover {
-  background: color-mix(
-    in srgb,
-    var(--muted) 60%,
-    transparent
-  );
+  background: var(--accent, var(--muted));
   color: var(--foreground);
 }
 
-.spooler-group-expanded > .spooler-group-header {
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 40%, transparent);
+/* The section color's dot: one 6px dot before the title, never a wash.
+   Only buckets own a color — the Pinned group rides the same right-title
+   header in section grouping but carries no dot. */
+.spooler-group-header .spooler-sec-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--spooler-sec-dot, var(--muted-foreground));
+}
+
+:where(.spooler-group:not(.spooler-group-bucket)) .spooler-sec-dot,
+.spooler-group-project .spooler-sec-dot {
+  display: none;
 }
 
 .spooler-group-toggle {
@@ -1019,29 +1029,14 @@
 
 /* Section headers read title-left, controls-right: the rail replaces the
    chevron on the left (the collapse chevron sits at the far right), the
-   slab is opaque (scrolling rows can't show through), edge-to-edge with a
-   darkened bottom rim, and the title clamps to two rows before it
+   color dot marks the section, and the title clamps to two rows before it
    ellipsizes. The rail's 14px icon box starts 26px in, so the section icon
-   sits on the same vertical axis as spool marks and thread provider icons. */
+   sits on the same vertical axis as spool marks and thread provider icons.
+   Shannon style: the header is a translucent sticky caption like every
+   other grouping's — the tinted slab and its darkened rim are retired. */
 .spooler-group-header-right {
   gap: 4px;
   padding: 4px 6px 4px 0;
-}
-
-/* Colored sections are always buckets too, so this single rule covers both
-   groups. */
-.spooler-group-bucket > .spooler-group-header-right {
-  /* Opaque tint: rows scrolling beneath the sticky header don't show
-     through, and the slab has no rounding or blur wash. */
-  background: var(--spooler-sec-1);
-  color: var(--spooler-sec-fg);
-  border-radius: 0;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  /* Darkened bottom rim: the one divide between a header slab and its
-     contents. */
-  border-bottom: 1px solid color-mix(in srgb, #000 16%, transparent);
-  box-shadow: none;
 }
 
 .spooler-group-header-right .spooler-group-label {
@@ -1054,11 +1049,7 @@
   white-space: normal;
 }
 
-.spooler-group-bucket > .spooler-group-header-right:hover,
-.spooler-group-bucket > .spooler-group-header-right:hover .spooler-group-toggle {
-  background: color-mix(in srgb, rgb(0 0 0 / 7%), var(--spooler-sec-1));
-  color: var(--spooler-sec-fg);
-}
+
 
 /* The section icon rail: an empty rail renders nothing (the '#' glyph is
    retired); a chosen icon — curated builtin or pasted character — centers
@@ -1142,10 +1133,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Sections mode turns the count into a pip whose background matches the
-   inner spool/row panels. The live-status spinner overlays it — tick-follow-
-   the-digit, centered behind a mono numeral — in success green, one grammar
-   with the spool-card pip (see spooler-tone-success). */
+/* Sections mode turns the count into a neutral fg-tinted pill. The
+   live-status spinner overlays it — tick-follow-the-digit, centered behind
+   a mono numeral, in success green — one grammar with the spool-card pip
+   (see spooler-tone-success). Shannon style: the pip is neutral at rest
+   and only a TONE may tint it (:has below); the slab mixes are retired. */
 .spooler-group-count-pip {
   position: relative;
   display: inline-flex;
@@ -1161,14 +1153,28 @@
   padding-inline: 5px;
   flex-shrink: 0;
   border-radius: 999px;
-  background: color-mix(
-    in srgb,
-    var(--card, var(--background)) 60%,
-    color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
-  );
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--muted-foreground);
   font-size: 10px;
   font-weight: 600;
+}
+
+/* State tints for the pip: colors stay in pills, and the pip is a pill.
+   :has() reads the overlaid GroupStatus tone (dot error / breathing
+   attention dot / running spinner) without any new state plumbing. */
+.spooler-group-count-pip:has(.spooler-dot-error) {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 16%, transparent);
+  color: var(--destructive, #d43d3d);
+}
+
+.spooler-group-count-pip:has(.spooler-dot-attention) {
+  background: color-mix(in srgb, var(--warning, #b98533) 18%, transparent);
+  color: color-mix(in srgb, var(--warning, #b98533) 70%, var(--foreground));
+}
+
+.spooler-group-count-pip:has(.spooler-tone-running) {
+  background: color-mix(in srgb, var(--success, #3f9a6b) 14%, transparent);
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
 }
 
 /* Pip numerals paint above the overlay spinner: the numeral is positioned
@@ -1342,10 +1348,10 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 4px 10px -2px rgba(0, 0, 0, 0.15);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 11.5px;
+  font-weight: 550;
+  text-transform: none;
+  letter-spacing: 0.01em;
   color: var(--foreground);
   cursor: grabbing;
   pointer-events: none;
@@ -1437,7 +1443,8 @@
 }
 
 .spooler-row:hover {
-  background: var(--muted);
+  /* Shannon style: the stock rounded accent tube. */
+  background: var(--accent, var(--muted));
 }
 
 .spooler-row-keyboard-focused {
@@ -1446,21 +1453,30 @@
 }
 
 .spooler-row-active {
-  /* Danger ring instead of a gray fill: the accent wash clashed with colored
-     section drawers (and dragged the panel off its section's tint). The
-     ring outlines above children-style content without shifting layout.
-     Kept after the keyboard rule so the ring survives focus navigation. */
-  outline: 2px solid var(--destructive, #d43d3d);
-  outline-offset: -2px;
+  /* Shannon style: the viewed thread paints the same quiet wash bb's own
+     sidebar rows use (state-active), not a danger ring; the status chips
+     carry the color now. Kept after the keyboard rule so the wash survives
+     focus navigation. */
+  background: var(--state-active, var(--accent, var(--muted)));
+}
+
+.spooler-row-active:hover {
+  background: var(--state-active, var(--accent, var(--muted)));
 }
 
 .spooler-row-selected {
-  background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
-  box-shadow: inset 3px 0 0 var(--primary) !important;
+  /* Selection is interaction chrome, not status color: the same quiet
+     surface as hover, with the visible checkbox carrying the state. */
+  background: var(--muted) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 80%, transparent) !important;
 }
 
 .spooler-row-selected:hover {
-  background: color-mix(in srgb, var(--primary) 18%, transparent) !important;
+  background: var(--muted) !important;
+}
+
+.spooler-row-selected.spooler-row-active {
+  background: var(--state-active, var(--accent, var(--muted))) !important;
 }
 
 /* Swipe actions. The row itself slides; the underlay sits in the gap it
@@ -1874,8 +1890,19 @@
   height: 9px;
 }
 
+/* Open-in-split rows paint the same quiet tint bb's own sidebar uses for
+   them — half-strength sidebar accent against the sidebar. */
 .spooler-row-split {
-  box-shadow: inset 2px 0 0 var(--primary);
+  background: color-mix(
+    in oklch,
+    var(--sidebar-accent, var(--accent, var(--muted))) 50%,
+    var(--sidebar, var(--background))
+  );
+}
+
+.spooler-row-split.spooler-row-active,
+.spooler-row-split:hover {
+  background: var(--accent, var(--muted));
 }
 
 .spooler-row-main {
@@ -1909,23 +1936,74 @@ a.spooler-row-main:hover {
   min-width: 14px;
 }
 
+/* Status badges are TONE CHIPS: a tinted pill on the title line. The badge
+   carries its tone class (hoisted in TSX), so the shell tints with the
+   status's own color and every visual inside (spinner, dot, word) reads
+   that color — colors live in pills, never in row washes. */
 .spooler-row-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: none;
+  padding: 1px 6px 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--muted-foreground);
+}
+
+.spooler-row-status-badge.spooler-tone-success {
+  background: color-mix(in srgb, var(--success, #3f9a6b) 13%, transparent);
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+}
+
+.spooler-row-status-badge.spooler-tone-warning {
+  background: color-mix(in srgb, var(--warning, #b98533) 16%, transparent);
+  color: color-mix(in srgb, var(--warning, #b98533) 70%, var(--foreground));
+}
+
+.spooler-row-status-badge.spooler-tone-error {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 14%, transparent);
+  color: var(--destructive, #d43d3d);
+}
+
+.spooler-row-status-badge.spooler-tone-info {
+  background: color-mix(in srgb, var(--primary) 13%, transparent);
+  color: var(--primary);
+}
+
+/* The visual rides the chip's ink: dots, icons and the word all inherit. */
+.spooler-row-status-badge .spooler-dot {
+  margin-top: 0;
+  background: currentColor;
+}
+
+.spooler-row-status-badge .spooler-tone-success,
+.spooler-row-status-badge .spooler-tone-error,
+.spooler-row-status-badge .spooler-tone-warning,
+.spooler-row-status-badge .spooler-tone-info,
+.spooler-row-status-badge .spooler-tone-muted,
+.spooler-row-status-badge .spooler-tone-running,
+.spooler-row-status-badge .spooler-status-word,
+.spooler-row-status-badge .spooler-status-icon {
+  color: inherit;
 }
 
 .spooler-status-word {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
+.spooler-row-status-badge .spooler-spinner [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
 
-.spooler-row-status-badge .spooler-dot {
-  margin-top: 0;
+.spooler-row-status-badge .spooler-status-icon [data-icon-root] {
+  width: 12px;
+  height: 12px;
 }
 
 .spooler-provider-icon {
@@ -2559,108 +2637,14 @@ a.spooler-row-main:hover {
   font-weight: 600;
 }
 
-/* Unseen rows are unmissable: tinted wash + solid accent bar. */
-
-.spooler-row-unread {
-  background: color-mix(in srgb, var(--success, #3f9a6b) 12%, transparent);
-  box-shadow: inset 3px 0 0 var(--success, #3f9a6b);
-}
-
-.spooler-row-unread:hover {
-  background: color-mix(in srgb, var(--success, #3f9a6b) 18%, var(--muted));
-}
-
-.spooler-row-active.spooler-row-unread {
-  background: var(--accent, var(--muted));
-  box-shadow: inset 3px 0 0 var(--success, #3f9a6b);
-}
-
-.spooler-row-failed {
-  background: color-mix(in srgb, var(--destructive, #d43d3d) 12%, transparent);
-  box-shadow: inset 3px 0 0 var(--destructive, #d43d3d);
-}
-
-.spooler-row-failed:hover {
-  background: color-mix(in srgb, var(--destructive, #d43d3d) 18%, var(--muted));
-}
-
-.spooler-row-active.spooler-row-failed {
-  background: var(--accent, var(--muted));
-  box-shadow: inset 3px 0 0 var(--destructive, #d43d3d);
-}
-
-.spooler-row-needs-user {
-  background: color-mix(in srgb, var(--warning, #b98533) 14%, transparent);
-  box-shadow: inset 3px 0 0 var(--warning, #b98533);
-}
-
-.spooler-row-needs-user:hover {
-  background: color-mix(in srgb, var(--warning, #b98533) 20%, var(--muted));
-}
-
-.spooler-row-active.spooler-row-needs-user {
-  background: var(--accent, var(--muted));
-  box-shadow: inset 3px 0 0 var(--warning, #b98533);
-}
-
-.spooler-row-split.spooler-row-unread {
-  box-shadow:
-    inset 2px 0 0 var(--primary),
-    inset 5px 0 0 var(--success, #3f9a6b);
-}
-
-.spooler-row-split.spooler-row-failed {
-  box-shadow:
-    inset 2px 0 0 var(--primary),
-    inset 5px 0 0 var(--destructive, #d43d3d);
-}
-
-.spooler-row-split.spooler-row-needs-user {
-  box-shadow:
-    inset 2px 0 0 var(--primary),
-    inset 5px 0 0 var(--warning, #b98533);
-}
+/* Attention states live entirely in the title line's tone chips (needs-
+   you amber, failed red, done green) — Shannon style retired the row
+   washes, the solid accent bars and the row glows. The unread badge dot
+   still rides the badges cluster for FYI-unseen rows. */
 
 /* Gentle glow pulse, reserved for rows that need action. FYI-done rows
    (and everything else) stay static so motion always means "act". */
-
-.spooler-row-pulse-amber {
-  animation: spooler-glow-amber 2.4s ease-in-out infinite;
-}
-
-.spooler-row-pulse-red {
-  animation: spooler-glow-red 2.4s ease-in-out infinite;
-}
-
-@keyframes spooler-glow-amber {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0));
-  }
-  50% {
-    filter: drop-shadow(
-      0 0 7px color-mix(in srgb, var(--warning, #b98533) 65%, transparent)
-    );
-  }
-}
-
-@keyframes spooler-glow-red {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0));
-  }
-  50% {
-    filter: drop-shadow(
-      0 0 7px color-mix(in srgb, var(--destructive, #d43d3d) 65%, transparent)
-    );
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .spooler-row-pulse-amber,
-  .spooler-row-pulse-red {
-    animation: none;
-  }
   .spooler-row,
   .spooler-row-actions,
   .spooler-row-extra,
@@ -3371,8 +3355,6 @@ a.spooler-row-main:hover {
    data-* lives on the list root so a settings change re-styles without
    remounting rows. `off` disables the assertive visuals entirely. */
 
-[data-spooler-motion="off"] .spooler-row-pulse-amber,
-[data-spooler-motion="off"] .spooler-row-pulse-red,
 [data-spooler-motion="off"] .spooler-icon-pulse,
 [data-spooler-motion="off"] .spooler-dot-pulse,
 [data-spooler-motion="off"] .spooler-celebrate,
@@ -3380,20 +3362,15 @@ a.spooler-row-main:hover {
   animation: none;
 }
 
-/* Loud unread off: drop the wash + bar on finished-but-unseen rows, keeping
-   the check icon and unread pip. The needs-you and failed washes are NOT
-   gated here: they mean "act now", not "look at me". */
-[data-spooler-loud-unread="off"] .spooler-row-unread {
-  background: transparent;
-  box-shadow: none;
+/* Loud unread off: drop the unfinished-work frills on finished-but-unseen
+   rows — no dot in the badge cluster, no bolded title — keeping the DONE
+   chip. It only ever gated the green wash; now it gates the dot. */
+[data-spooler-loud-unread="off"] .spooler-row-unread .spooler-unread {
+  display: none;
 }
 
-[data-spooler-loud-unread="off"] .spooler-row-unread:hover {
-  background: var(--muted);
-}
-
-[data-spooler-loud-unread="off"] .spooler-row-active.spooler-row-unread {
-  box-shadow: none;
+[data-spooler-loud-unread="off"] .spooler-row-unread .spooler-row-title {
+  font-weight: inherit;
 }
 
 /* ==========================================================================
@@ -3403,46 +3380,20 @@ a.spooler-row-main:hover {
 .spooler-spool-card {
   position: relative;
   z-index: 0;
-  /* Edge-to-edge mid-tone slab: zero radius, zero padding, no inset ring.
-     The tone comes from the section's tri-tone chain; the color-mix fallback
-     is only for a card somehow outside a bucket. */
+  /* Shannon style: no card box at all. The spool is its header, its
+     roster, and one continuous family guide; the only surfaces that paint
+     are the rows' own hover tubes and the header's. */
   margin: 0;
   padding: 0;
   border-radius: 0;
-  background: var(
-    --spooler-sec-2,
-    color-mix(
-      in srgb,
-      var(--card, var(--background)) 60%,
-      color-mix(in srgb, var(--sidebar, var(--background)) 40%, transparent)
-    )
-  );
-  transition: background-color 200ms ease;
-}
-
-.spooler-spool-card:hover {
-  background: color-mix(
-    in srgb,
-    var(--spooler-sec-2) 92%,
-    var(--spooler-sec-1, var(--muted))
-  );
+  background: transparent;
 }
 
 /* The thread being viewed lives in this spool: while the card is collapsed
-   its members render no rows, so the panel itself is ringed with the same
-   danger-toned active-row outline (expanded cards keep their member-row tinting, and
-   a normal card background — no fill clashing with section colors). */
-.spooler-spool-card-active {
-  outline: 2px solid var(--destructive, #d43d3d);
-  outline-offset: -2px;
-}
-
-.spooler-spool-card-active:hover {
-  background: color-mix(
-    in srgb,
-    var(--spooler-sec-2) 92%,
-    var(--spooler-sec-1, var(--muted))
-  );
+   its members render no rows, so the header itself carries the same quiet
+   state-active wash the viewed thread row gets. */
+.spooler-spool-card-active .spooler-spool-header {
+  background: var(--state-active, var(--accent, var(--muted)));
 }
 
 /* Collapsed: only the header slab shows. */
@@ -3466,19 +3417,25 @@ a.spooler-row-main:hover {
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
-/* Header slab: mid tone over the roster, one darkened rim, grip + 🧵 mark
-   sharing the rail, title column over the detail-pill grid, count pip on the
-   right. Height collapses from the old 54px card head to a plain strip. */
+/* Header strip: grip + 🧵 mark share the rail, the upright title column
+   sits over the detail-pill grid, and the count pip rides the right edge.
+   Shannon style: no slab, no darkened rim — the roster hangs under the
+   header with one continuous family guide, and the header paints only its
+   own hover tube. */
 .spooler-spool-header {
   display: flex;
   align-items: center;
   gap: 5px;
   min-height: 30px;
   cursor: pointer;
+  border-radius: 6px;
   /* The rail's own margin aligns the icon axis; the right edge keeps one
-     inset from the slab edge. */
+     inset from the list edge. */
   padding: 3px 6px 3px 0;
-  border-bottom: 1px solid color-mix(in srgb, #000 16%, transparent);
+}
+
+.spooler-spool-header:hover {
+  background: var(--accent, var(--muted));
 }
 
 .spooler-spool-rail {
@@ -3561,8 +3518,9 @@ a.spooler-row-main:hover {
   cursor: pointer;
 }
 
-/* Spool titles: lighter than before (600 → 500), ALWAYS italic, and they
-   may take two rows before the ellipsis (title priority over the pills). */
+/* Spool titles: upright (italics retired with the slabs), weight 550 — a
+   notch above the 450 thread titles — and they may take two rows before
+   the ellipsis (title priority over the pills). */
 .spooler-spool-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -3572,8 +3530,8 @@ a.spooler-row-main:hover {
   overflow-wrap: anywhere;
   white-space: normal;
   font-size: 13px;
-  font-weight: 500;
-  font-style: italic;
+  font-weight: 550;
+  font-style: normal;
 }
 
 .spooler-spool-rename {
@@ -3584,8 +3542,8 @@ a.spooler-row-main:hover {
 
 /* The pip is the count circle, doubled as the spool-actions button (the
    old hover-swapped ellipsis never got clicks in the real app). Metrics
-   match the section count pip exactly; in buckets it takes the light
-   anchor mix so it reads off the mid-tone slab. */
+   match the section count pip exactly: neutral fg tint at rest, tone
+   tints only while a member works/fails/needs-you. */
 .spooler-spool-pip {
   flex-shrink: 0;
 }
@@ -3601,16 +3559,26 @@ a.spooler-row-main:hover {
   flex-shrink: 0;
   border: 0;
   border-radius: 999px;
-  background: color-mix(
-    in srgb,
-    var(--spooler-sec-1, var(--card, var(--background))) 55%,
-    var(--sidebar, var(--background))
-  );
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
-  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--muted-foreground);
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.spooler-spool-pip .spooler-spool-count:has(.spooler-tone-running) {
+  background: color-mix(in srgb, var(--success, #3f9a6b) 14%, transparent);
+  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+}
+
+.spooler-spool-pip .spooler-spool-count:has(.spooler-dot-attention) {
+  background: color-mix(in srgb, var(--warning, #b98533) 18%, transparent);
+  color: color-mix(in srgb, var(--warning, #b98533) 70%, var(--foreground));
+}
+
+.spooler-spool-pip .spooler-spool-count:has(.spooler-dot-error) {
+  background: color-mix(in srgb, var(--destructive, #d43d3d) 16%, transparent);
+  color: var(--destructive, #d43d3d);
 }
 
 .spooler-spool-pip .spooler-spool-count:hover {
@@ -3710,15 +3678,34 @@ a.spooler-row-main:hover {
   min-width: 0;
 }
 
-/* Members render at depth 1 for their row logic, but a spool roster is flat:
-   no child indent and no tree guides. */
+/* Members render at depth 1 for their row logic, but a spool roster is a
+   flat hanging list under its card: no tree elbows — ONE straight guide.
+   The roster hangs one stock depth step deeper than the bucket's own rows
+   (48px), so its guide drops from under the header's rail back to the
+   section icon's axis (48px - 15px = 33px in). */
 .spooler-spool-member .spooler-row-child {
-  margin-left: 0;
+  margin-left: 48px;
 }
 
-.spooler-spool-member .spooler-row-child::before,
 .spooler-spool-member .spooler-row-child::after {
   display: none;
+}
+
+.spooler-spool-member .spooler-row-child::before {
+  content: "";
+  position: absolute;
+  left: -15px;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.spooler-spool-member .spooler-row-child:hover::before,
+.spooler-spool-member .spooler-row-child.spooler-row-active::before {
+  opacity: 0;
 }
 
 .spooler-spool-member .spooler-row {
@@ -4080,76 +4067,63 @@ a.spooler-row-main:hover {
 
 /* ===== Section buckets (Group By Section) ===== */
 
-/* A section's body is a column of edge-to-edge slabs: the bucket paints
-   NOTHING itself (entries do), so the 2px gaps between entries show the
-   plain sidebar. The tri-tone chain lives here — the section header anchor
-   (from sectionColors.ts, or gray theme tokens for uncolored sections) is
-   darkest, spools mix 58% over the sidebar, threads 30%, including the
-   unspooled threads in the section. The fixed Inbox gets its own neutral
-   gray anchor inline from the list (a sibling slab, not a colored one). */
+/* Shannon style: a section's body is a flat column of stock rows on the
+   plain sidebar — no slabs, no tri-tone chain. The bucket only owns the
+   color DOT (its --spooler-sec-dot lands in the header) and the one-step
+   indent of its rows: section threads and spool decks hang a stock depth
+   step right of the section rail, with a continuous guide hairline at the
+   section icon's axis, and a spool's roster hangs one step deeper still. */
 .spooler-group-bucket {
-  --spooler-sec-anchor: var(--muted);
-  --spooler-sec-fg: var(--foreground);
-  --spooler-sec-1: var(--spooler-sec-anchor);
-  /* The two derived tones: 58% ink over the sidebar = spool slabs, 30% =
-     thread slabs. Dark themes sink toward the dark sidebar the same way. */
-  --spooler-sec-2: color-mix(
-    in srgb,
-    var(--spooler-sec-1) 58%,
-    var(--sidebar, var(--background))
-  );
-  --spooler-sec-3: color-mix(
-    in srgb,
-    var(--spooler-sec-1) 30%,
-    var(--sidebar, var(--background))
-  );
+  --spooler-sec-dot: var(--muted-foreground);
 }
 
-.spooler-group-colored {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.spooler-group-colored > .spooler-group-header {
-  color: var(--spooler-sec-fg);
-}
-
-.spooler-group-colored .spooler-group-icon,
-.spooler-group-colored .spooler-group-count,
-.spooler-group-colored .spooler-group-unread,
-.spooler-group-colored .spooler-group-new-thread {
-  color: color-mix(in srgb, var(--spooler-sec-fg) 72%, transparent);
-}
-
-.spooler-group-colored > .spooler-group-header:hover {
-  color: var(--spooler-sec-fg);
-}
-
-.spooler-group-colored > .spooler-group-header:hover .spooler-group-icon,
-.spooler-group-colored > .spooler-group-header:hover .spooler-group-toggle {
-  color: var(--spooler-sec-fg);
-}
-
-/* Every row in a bucket is a light-tone slab: spool rosters included, so
-   threads read as the lightest tier whether they live in a spool or not.
-   The :where() keeps the bucket rule at single-class specificity so the
-   attention washes (needs-you / failed / unseen) still paint over it. */
+/* Bucket rows take the stock depth step: the row box indents 24px off the
+   bucket edge, so its gutter (grip on hover) and content start one shift
+   right of the section header's rail — while the guide hairline drops
+   back to the section icon's axis (26px + 7px = 33px in, so 9px out from
+   the 24px-shifted row box). The :where() keeps this at single-class
+   specificity under the family indent rules below. */
 :where(.spooler-group-bucket) .spooler-row {
-  background: var(--spooler-sec-3);
-  border-radius: 0;
+  margin-left: 24px;
 }
 
-:where(.spooler-group-bucket) .spooler-row:hover {
-  background: color-mix(
-    in srgb,
-    var(--spooler-sec-3) 88%,
-    var(--spooler-sec-1)
-  );
+/* The family guide: one straight hairline per top-level bucket row, at
+   the section rail axis, extended through the 2px row rhythm so the line
+   reads continuous down a section. Fades while the row is hovered — the
+   grip may live there. Family CHILDREN (rows with their own elbow guides)
+   skip the straight rule and keep their tree guides. */
+:where(.spooler-group-bucket)
+  .spooler-row:not(.spooler-row-child):not(.spooler-row-deep)::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  pointer-events: none;
+  z-index: -1;
 }
 
-/* Swipe pills follow the slab's square edge inside buckets. */
+:where(.spooler-group-bucket) .spooler-row:hover::before,
+:where(.spooler-group-bucket) .spooler-row-active::before {
+  opacity: 0;
+}
+
+/* Families keep their elbow guides, but those children sit deeper by the
+   bucket's base step: child rows ride 24px on top of the family step, and
+   their elbows land exactly on the section rail axis (40px - 7px = 33px). */
+.spooler-group-bucket .spooler-row-child {
+  margin-left: 40px;
+}
+
+.spooler-group-bucket .spooler-row-deep {
+  margin-left: 52px;
+}
+
+/* Swipe pills follow the row tube inside buckets (same radius as rows). */
 .spooler-group-bucket .spooler-swipe-underlay {
-  border-radius: 0;
+  border-radius: 8px;
 }
 
 /* Tighter rows inside buckets: the entries' vertical padding drops to half
@@ -4182,15 +4156,8 @@ a.spooler-row-main:hover {
   padding-inline: 0;
 }
 
-/* Pips inside a bucket take the light anchor mix so they read off their
-   slab — one pip grammar across section headers and spool cards. */
-.spooler-group-bucket .spooler-group-count-pip {
-  background: color-mix(
-    in srgb,
-    var(--spooler-sec-1, var(--card, var(--background))) 55%,
-    var(--sidebar, var(--background))
-  );
-}
+/* Bucket pips share the one neutral fg-tint pip grammar — the slab mixes
+   are retired, so nothing overrides the pip background down here. */
 
 /* Section main body: the fold is the spacing authority. A flex column with
    the 2px entry gap lays every top-level entry — thread rows, spool deck —
