@@ -282,15 +282,6 @@ function statusMetaFor(
   }
 }
 
-/** Stable hue per project id, so chips keep identity across renames. */
-export function projectHue(projectId: string): number {
-  let hash = 0;
-  for (let i = 0; i < projectId.length; i += 1) {
-    hash = (hash * 31 + projectId.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) % 360;
-}
-
 let hoverCapable: boolean | null = null;
 
 /** Hover previews (and the hover cluster's grammars) need a real
@@ -348,7 +339,6 @@ function SpoolerThreadRowImpl({
   providerName,
   providerIcon,
   projectTag,
-  projectColorHue,
   collapse,
   primaryHostId,
   sdk,
@@ -396,8 +386,6 @@ function SpoolerThreadRowImpl({
   providerIcon: RowProviderIcon | null;
   /** Project chip text, or null when redundant with the group header. */
   projectTag: string | null;
-  /** Optional custom hue for the project chip (overrides default stable hash). */
-  projectColorHue?: number | null;
   collapse: RowCollapse | null;
   primaryHostId: string | null;
   sdk: PluginBrowserBbSdk;
