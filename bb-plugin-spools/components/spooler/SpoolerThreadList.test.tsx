@@ -1608,6 +1608,79 @@ describe("cyclic parents", () => {
   });
 });
 
+describe("status chips", () => {
+  const chipButton = (name: string) =>
+    [...document.querySelectorAll(".spooler-chip")].find(
+      (node) =>
+        (node.getAttribute("aria-label") ?? node.textContent ?? "").includes(name),
+    ) as HTMLElement;
+
+  it("runs All · Needs you · Failed · Working · Unread with counts", () => {
+    const slot = renderThreads([
+      makeThread({ id: "need", indicator: "waiting-for-input", hasPendingInteraction: true }),
+      makeThread({ id: "faild", indicator: "unread-error", isUnread: true }),
+      makeThread({ id: "work", status: "active", indicator: "runtime" }),
+      makeThread({ id: "unseen", isUnread: true, indicator: "unread-success" }),
+      makeThread({ id: "quiet" }),
+    ]);
+    const labels = [...document.querySelectorAll(".spooler-chip")].map(
+      (chip) => chip.getAttribute("aria-label"),
+    );
+    expect(labels).toEqual([
+      "All, 5 threads",
+      "Needs you",
+      "Failed",
+      "Working",
+      "Unread",
+    ]);
+    const counts = [...document.querySelectorAll(".spooler-chip-count")].map(
+      (count) => count.textContent,
+    );
+    // A needs-you thread is still live, so Working's count overlaps it:
+    // live = work + need.
+    expect(counts).toEqual(["5", "1", "1", "2", "2"]);
+    // Needs you carries the amber surface tone; Failed the destructive one.
+    expect(chipButton("Needs you").className).toContain("spooler-chip-attention");
+    expect(chipButton("Failed").className).toContain("spooler-chip-destructive");
+    expect(chipButton("Working").querySelector("[data-icon-root][data-icon=Loading]"))
+      .toBeTruthy();
+  });
+
+  it("filters by the failed chip", () => {
+    const failed = makeThread({ id: "f", indicator: "unread-error", isUnread: true });
+    const waiting = makeThread({
+      id: "n",
+      indicator: "queued-waiting",
+      hasPendingInteraction: true,
+    });
+    const slot = renderThreads([failed, waiting]);
+    expect(visibleRowIds(slot.container)).toEqual(["n", "f"]);
+    fireEvent.click(chipButton("Failed"));
+    expect(visibleRowIds(slot.container)).toEqual(["f"]);
+    expect(slot.container.querySelector(".spooler-result-count")?.textContent).toBe(
+      "1 of 2 threads",
+    );
+    // Back to All restores everything.
+    fireEvent.click(chipButton("All"));
+    expect(visibleRowIds(slot.container)).toEqual(["n", "f"]);
+  });
+
+  it("loads stored live/waiting ids and shows them as Working / Needs you", () => {
+    localStorage.setItem("spooler-sidebar:status-filter:v1", "waiting");
+    renderThreads([makeThread({ id: "n", indicator: "waiting-for-input", hasPendingInteraction: true })]);
+    const needs = chipButton("Needs you");
+    expect(needs.getAttribute("aria-checked")).toBe("true");
+    expect(visibleRowIds(document)).toEqual(["n"]);
+
+    localStorage.setItem("spooler-sidebar:status-filter:v1", "live");
+    cleanup();
+    renderThreads([makeThread({ id: "w", status: "active", indicator: "runtime" })]);
+    const working = chipButton("Working");
+    expect(working.getAttribute("aria-checked")).toBe("true");
+    expect(visibleRowIds(document)).toEqual(["w"]);
+  });
+});
+
 describe("Pinned smart view", () => {
   it("filters the list to pinned threads", async () => {
     const pinned = makeThread({ id: "pin", isPinned: true, pinnedAt: NOW });

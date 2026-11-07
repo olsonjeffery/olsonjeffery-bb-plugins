@@ -5,6 +5,7 @@ import {
   isRunningThread,
   timeAgo,
   timeGroupFor,
+  timeShort,
 } from "./time";
 import { makeThread, NOW, DAY, HOUR, MINUTE } from "./fixtures";
 
@@ -150,5 +151,31 @@ describe("timeAgo", () => {
     expect(timeAgo(NOW - 3 * HOUR, NOW)).toBe("3h ago");
     expect(timeAgo(NOW - DAY, NOW)).toBe("yesterday");
     expect(timeAgo(NOW - 3 * DAY, NOW)).toBe("3d ago");
+  });
+});
+
+describe("timeShort — the row-time short form", () => {
+  it("carries the tick granularity of timeAgo at the bottom of the scale", () => {
+    expect(timeShort(NOW, NOW)).toBe("now");
+    expect(timeShort(NOW - 30 * 1000, NOW)).toBe("now");
+    expect(timeShort(NOW - 5 * MINUTE, NOW)).toBe("5m");
+    expect(timeShort(NOW - 5 * MINUTE - 59 * 1000, NOW)).toBe("5m");
+    expect(timeShort(NOW - 5 * MINUTE - 60 * 1000, NOW)).toBe("6m");
+    expect(timeShort(NOW - 3 * HOUR, NOW)).toBe("3h");
+    expect(timeShort(NOW - DAY, NOW)).toBe("1d");
+    expect(timeShort(NOW - 7 * DAY, NOW)).toBe("7d");
+  });
+
+  it("hands old timestamps to the same short formatters", () => {
+    expect(timeShort(NOW - 8 * DAY, NOW)).toBe(
+      timeAgo(NOW - 8 * DAY, NOW),
+    );
+    expect(timeShort(Number(new Date(2025, 8, 10, 12)), NOW)).toBe(
+      timeAgo(Number(new Date(2025, 8, 10, 12)), NOW),
+    );
+  });
+
+  it("preserves the invalid-date fallback", () => {
+    expect(timeShort(NaN, NOW)).toBe("Invalid Date");
   });
 });
