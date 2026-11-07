@@ -108,3 +108,23 @@ export function timeAgo(ts: number, now: number): string {
   const sameYear = new Date(now).getFullYear() === date.getFullYear();
   return (sameYear ? shortDateFormatter : fullDateFormatter).format(date);
 }
+
+/** Short row form of an age: "now", "12m", "2h", "2d", then a short date.
+ *  The full relative text (timeAgo) rides the tooltip and Details, so the
+ *  short form deliberately loses the words. Same minute granularity at the
+ *  bottom of the scale, so a label flips within the same minute tick that
+ *  moves its full-text sibling. */
+export function timeShort(ts: number, now: number): string {
+  const diff = Math.max(0, now - ts);
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days <= 7) return `${days}d`;
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return "Invalid Date";
+  const sameYear = new Date(now).getFullYear() === date.getFullYear();
+  return (sameYear ? shortDateFormatter : fullDateFormatter).format(date);
+}

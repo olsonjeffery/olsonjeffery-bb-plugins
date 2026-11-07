@@ -39,7 +39,7 @@ All notable changes to Spools are documented here. The format follows
   - Unchanged: grouping affordances, drag-to-file, hover actions, the two-
     row title clamps and the wrapping detail-pill grid, spool/grip
     behavior, smart views, the Active station and its offset headers, the
-    swipe springs and the 284px chip-fold container.
+    swipe springs.
 
 ## 0.8.2 — 2026-11-02
 
@@ -359,7 +359,7 @@ working and leaves navigation to BB's own rail.
 - Scoped host footer and Customize layouts that release on deselection,
   setting changes, Settings, and offcanvas collapse; reduced motion and
   mobile safe-area support.
-- Narrow-list status chips fold at 284px, retaining accessible labels.
+- Narrow-list status chips wrap instead of hiding accessible labels.
 - CSS cascade guards and project-scope persistence/lifecycle regression tests.
 
 ### Fixed

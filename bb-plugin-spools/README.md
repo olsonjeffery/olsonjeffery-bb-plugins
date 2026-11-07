@@ -190,7 +190,7 @@ bb plugin install path:$PWD --yes
 
 | Where | What |
 | --- | --- |
-| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, status chips, grouping and density toggles, and expand/collapse all. Status chips fold to glyph and count when the list is 284px or less, so the filter row stays on one line. |
+| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, status chips, grouping and density toggles, and expand/collapse all. Status chips wrap onto a second row on narrow lists instead of hiding labels. |
 | **Smart views bar** | Saved query-plus-filter presets, and a shortcut to save the current one. |
 | **Row hover** | Pin, rename, archive and a fuller menu; a peek card after a short pause. |
 | **Settings → Appearance** | Choose Spooler for the thread list. |

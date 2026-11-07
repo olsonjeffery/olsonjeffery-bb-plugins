@@ -286,16 +286,16 @@ describe("thread families", () => {
     const slot = renderThreads([parent, quiet, loud]);
 
     // Nothing announced while open.
-    expect(slot.container.querySelector(".spooler-kids-pill")).toBeNull();
+    expect(slot.container.querySelector(".spooler-row-rollup")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse replies" }));
     await waitFor(() =>
       expect(slot.container.querySelector(".spooler-fold-collapsed")).toBeTruthy(),
     );
 
-    // One hidden row is unseen, so the pill appears and counts it.
-    const pill = slot.container.querySelector(".spooler-kids-pill");
-    expect(pill?.textContent).toContain("1");
+    // One hidden row is unseen, so the meta line's rollup counts it.
+    const rollup = slot.container.querySelector(".spooler-row-rollup");
+    expect(rollup?.textContent).toContain("1 unread");
   });
 
   it("unfolds back to the full family", async () => {
@@ -1255,7 +1255,7 @@ describe("settings gates", () => {
     expect(slot.container.querySelector(".spooler-title-wrap")).toBeNull();
   });
 
-  it("quiet rows fold the secondary chips but keep the grid's permanent facts", () => {
+  it("quiet rows show title, project and time only", () => {
     const quiet = makeThread({
       id: "quiet",
       title: "Idle read thread",
@@ -1263,12 +1263,12 @@ describe("settings gates", () => {
     });
     const sections = [makeSection({ id: "s1", name: "Backlog" })];
 
-    // Adaptive collapse off: the full grid renders.
+    // Adaptive collapse off: the meta line renders its facts.
     const expanded = renderThreads([quiet], {
       settings: { adaptiveCollapse: false },
       sections,
     });
-    expect(expanded.container.querySelector(".spooler-row-grid")).toBeTruthy();
+    expect(expanded.container.querySelector(".spooler-row-meta")).toBeTruthy();
     expect(
       expanded.container.querySelector(".spooler-row-collapsed"),
     ).toBeNull();
@@ -1278,15 +1278,17 @@ describe("settings gates", () => {
       settings: { adaptiveCollapse: true },
       sections,
     });
-    // The row marks itself collapsed, and the metadata grid STAYS — it
-    // never reads as empty: time (always) and the section's facts remain,
-    // only the secondary chips fold (guarded statically in css.test.ts).
+    // The row marks itself collapsed; time still rides the title line and
+    // the project stays on the meta line — the quiet row shows exactly
+    // title, project, time.
     expect(
       folded.container.querySelector(".spooler-row-collapsed"),
     ).toBeTruthy();
-    const grid = folded.container.querySelector(".spooler-row-grid");
-    expect(grid).toBeTruthy();
-    expect(grid?.querySelector(".spooler-row-time")).toBeTruthy();
+    const meta = folded.container.querySelector(".spooler-row-meta");
+    expect(meta).toBeTruthy();
+    expect(meta?.querySelector(".spooler-row-project")).toBeTruthy();
+    expect(folded.container.querySelector(".spooler-row-time")).toBeTruthy();
+    expect(meta?.querySelector(".spooler-status-pill")).toBeNull();
   });
 });
 
@@ -1391,9 +1393,10 @@ describe("folded row work", () => {
       activeThreadId: null, activeProjectId: "proj_a", isCompactViewport: false,
       onNavigate: () => {}, searchQuery: "",
     }));
-    const pill = slot.container.querySelector(".spooler-kids-pill")!;
-    expect(pill.textContent).toBe("1");
-    expect(pill.querySelector(".spooler-dot-error")).not.toBeNull();
+    // The meta line's rollup reads the loudest hidden state.
+    const rollup = slot.container.querySelector(".spooler-row-rollup")!;
+    expect(rollup.textContent).toContain("1 failed");
+    expect(rollup.querySelector(".spooler-dot-error")).not.toBeNull();
     expect(slot.container.querySelector('[data-sidebar-thread-id="reactive-child"]')).toBeNull();
   });
 });
@@ -1432,7 +1435,7 @@ describe("render cost", () => {
     expect(renderedRowIds(rows)).toEqual(new Set(["snap-3"]));
     expect(
       slot.container.querySelector(
-        '[data-sidebar-thread-id="snap-3"] .spooler-status-icon.spooler-tone-success',
+        '[data-sidebar-thread-id="snap-3"] .spooler-status-glyph.spooler-tone-success',
       ),
     ).not.toBeNull();
     expect(slot.container.querySelector('[data-sidebar-thread-id="snap-3"]'))
@@ -1518,14 +1521,19 @@ describe("model and thinking display", () => {
       expect(slot.container.querySelector(".spooler-row")).toBeTruthy(),
     );
 
+    // Model lives behind Details now; the idle row shows no model UI at all.
     expect(slot.container.querySelectorAll(".spooler-model-chip")).toHaveLength(
       0,
     );
-    // The branch chip is deliberate and stays on the idle row's grid.
-    expect(slot.container.querySelector(".spooler-branch-btn")).toBeTruthy();
+    expect(
+      slot.container.querySelector(".spooler-status-wording"),
+    ).toBeNull();
+    expect(slot.container.querySelector(".spooler-status-pill")).toBeNull();
+    // The branch is a Detail: off the glance row entirely.
+    expect(slot.container.querySelector(".spooler-branch-btn")).toBeNull();
   });
 
-  it("shows model and thinking while the thread is running", async () => {
+  it("shows model and thinking under Details while the thread is running", async () => {
     const live = makeThread({
       id: "live",
       title: "Working now",
@@ -1534,13 +1542,21 @@ describe("model and thinking display", () => {
     });
     const slot = renderThreads([live], { execution });
 
+    await waitFor(() =>
+      expect(slot.container.querySelector(".spooler-row")).toBeTruthy(),
+    );
+    // The glance row does not carry the model; the Details panel does.
+    fireEvent.click(
+      slot.container.querySelector(".spooler-action-details")!,
+    );
+    const panel = slot.container.querySelector(".spooler-row-details");
+    expect(panel).toBeTruthy();
     await waitFor(() => {
-      expect(slot.container.querySelectorAll(".spooler-model-chip").length)
-        .toBeGreaterThan(0);
+      expect(panel?.textContent).toContain("muse-spark");
     });
-    // No catalog entry in the stub, so the raw id is the documented fallback.
-    expect(slot.container.textContent).toContain("muse-spark");
-    expect(slot.container.textContent).toContain("High");
+    // No catalog entry in the stub, so the raw id is the documented fallback;
+    // the thinking level rides the same row.
+    expect(panel?.textContent).toContain("High");
   });
 });
 

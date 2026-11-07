@@ -1,24 +1,15 @@
-/* Spooler Sidebar. All rules are prefixed `spooler-` and read BB's live theme
-   tokens (with fallbacks), so custom palettes keep working. None touch BB's
-   own elements. */
+/* Spooler Sidebar. All rules are prefixed `spooler-` and read bb's live
+   theme tokens, so custom palettes keep working. None touch bb's own
+   elements. */
 
-/* Narrow list (a default-width sidebar, or the drawer on a 360px
-   phone): status chips fold to their glyph and count so the row stays on
-   one line. "All" has no glyph and keeps its word; the chips keep their
-   aria-label and title. Keyed off the list's own width, so a wide mobile
-   drawer still shows the words. */
-@container spooler-thread-list (max-width: 284px) {
-  .spooler-chip-iconic .spooler-chip-label {
-    display: none;
-  }
-  .spooler-chip-iconic {
-    padding: 0 7px;
-  }
-  .spooler-chip-iconic .spooler-chip-indicator,
-  .spooler-chip-iconic .spooler-dot,
-  .spooler-chip-iconic .spooler-unread {
-    margin-inline: 1px;
-  }
+/* bb's --success-foreground mixes the achromatic --ink in oklch, whose hue
+ * is treated as 0°: `oklch mix` of a green and a "grey" paints olive instead
+ * of a green-tinted ink (visible in Chromium 156 as hue ≈ 70°). The correct
+ * mix is oklab, so every spooler root and every portal container re-declares
+ * the token locally. Drop this once bb ships the oklab fix (theme.css). */
+.spooler-list,
+.spooler-hover-card {
+  --success-foreground: color-mix(in oklab, var(--success) 45%, var(--ink));
 }
 
 .spooler-list {
@@ -32,22 +23,6 @@
   container-name: spooler-thread-list;
 }
 
-/* Narrow sidebar: status words go first (glyphs + tooltips remain). */
-@container spooler-thread-list (max-width: 249px) {
-  .spooler-status-word {
-    display: none;
-  }
-}
-
-/* Very narrow: project chips go, badges slim to status + unread. */
-@container spooler-thread-list (max-width: 194px) {
-  .spooler-row-project {
-    display: none;
-  }
-  .spooler-row-badges > :not(.spooler-row-status-badge):not(.spooler-unread) {
-    display: none;
-  }
-}
 
 /* ---- Sticky header: New button, filter, lifecycle + grouping controls. ---- */
 
@@ -320,28 +295,12 @@
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: #2563eb;
+  background: var(--foreground);
   display: inline-block;
 }
 
 .spooler-chip-active .spooler-unread {
   background: var(--primary-foreground);
-}
-
-/* Compact (touch) viewports: no hover exists, so the ⋯ menu lives
-   inline instead of overlaying — every action stays one tap away. */
-.spooler-list-compact .spooler-row-actions {
-  position: static;
-  flex: none;
-  align-self: center;
-  background: transparent;
-  box-shadow: none;
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.spooler-list-compact .spooler-action {
-  display: none;
 }
 
 .spooler-segmented {
@@ -1437,7 +1396,7 @@
   border-radius: 8px;
   /* Typical comfortable row is now title + meta line with 8px block padding. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 54px;
+  contain-intrinsic-size: auto 50px;
   box-shadow: inset 3px 0 0 transparent;
   transition:
     background-color 250ms ease,
@@ -1445,12 +1404,13 @@
 }
 
 .spooler-row:hover {
-  /* Shannon style: the stock rounded accent tube. */
-  background: var(--accent, var(--muted));
+  /* The hover tube comes from the sidebar family of tokens, matching
+     bb's own list rows. */
+  background: var(--sidebar-accent, var(--accent, var(--muted)));
 }
 
 .spooler-row-keyboard-focused {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--sidebar-ring, var(--primary));
   outline-offset: -2px;
 }
 
@@ -1467,14 +1427,14 @@
 }
 
 .spooler-row-selected {
-  /* Selection is interaction chrome, not status color: the same quiet
-     surface as hover, with the visible checkbox carrying the state. */
-  background: var(--muted) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 80%, transparent) !important;
+  /* Selection is interaction chrome, not status color: the host's selected
+     surface with the visible checkbox carrying the state. */
+  background: var(--surface-selected, var(--muted)) !important;
+  box-shadow: inset 0 0 0 1px var(--surface-selected-border, var(--border)) !important;
 }
 
 .spooler-row-selected:hover {
-  background: var(--muted) !important;
+  background: var(--surface-selected, var(--muted)) !important;
 }
 
 .spooler-row-selected.spooler-row-active {
@@ -1666,11 +1626,11 @@
 /* Compact compresses vertically only. Inline padding and the child indent
    stay identical to comfortable, so tree guides keep lining up with text.
    `margin-block` rather than `margin`: the shorthand would zero margin-left
-   and wipe .spooler-row-child / .spooler-row-deep's indent. */
+   and wipe .spooler-row-child / .spooler-row-deep's indent. The meta line
+   stays but truncates to one unwrapped line. */
 .spooler-density-compact .spooler-row,
 .spooler-row-compact {
-  /* Title line + one unwrapped grid line (time, project, PR). */
-  contain-intrinsic-size: auto 44px;
+  contain-intrinsic-size: auto 42px;
   margin-block: 0;
   min-height: 28px;
 }
@@ -1681,20 +1641,17 @@
   padding: 2px 8px;
 }
 
-/* Compact rows keep the grid to ONE unwrapped line: time + project (+ PR
-   when present). The secondary chips and the branch yield; a squeezed line
-   clips at the row edge instead of growing taller. */
-.spooler-density-compact .spooler-row-grid,
-.spooler-row-compact .spooler-row-grid {
+/* Compact keeps the meta line but never wraps it: a squeezed line clips
+   at the row edge instead of growing taller. */
+.spooler-density-compact .spooler-row-meta,
+.spooler-row-compact .spooler-row-meta {
   flex-wrap: nowrap;
   overflow: hidden;
 }
 
-.spooler-density-compact .spooler-grid-secondary,
-.spooler-row-compact .spooler-grid-secondary,
-.spooler-density-compact .spooler-branch-btn,
-.spooler-row-compact .spooler-branch-btn {
-  display: none;
+.spooler-density-compact .spooler-tree-gutter,
+.spooler-row-compact .spooler-tree-gutter {
+  padding-top: 0;
 }
 
 .spooler-density-compact .spooler-tree-gutter,
@@ -1788,31 +1745,18 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--muted-foreground);
+  color: var(--subtle-foreground, var(--muted-foreground));
   cursor: pointer;
 }
 
 .spooler-tree-toggle:hover {
-  background: var(--muted);
+  background: var(--state-hover, var(--muted));
   color: var(--foreground);
 }
 
 .spooler-tree-toggle [data-icon-root] {
-  width: 12px;
-  height: 12px;
-}
-
-.spooler-kids-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: none;
-  align-self: center;
-  animation: spooler-badge-in 200ms ease-out;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
+  width: 14px;
+  height: 14px;
 }
 
 .spooler-fold {
@@ -1840,58 +1784,6 @@
   min-height: 0;
 }
 
-.spooler-kids-pill-unread {
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.spooler-kids-pill .spooler-dot {
-  margin-top: 0;
-}
-
-.spooler-kids-line {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  animation: spooler-badge-in 200ms ease-out;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--muted-foreground);
-}
-
-.spooler-kids-count {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.spooler-face-stack {
-  display: inline-flex;
-  align-items: center;
-}
-
-.spooler-face {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: -5px;
-  border: 1px solid var(--sidebar, var(--background));
-  border-radius: 50%;
-  background: var(--muted);
-  color: var(--muted-foreground);
-}
-
-.spooler-face:first-child {
-  margin-left: 0;
-}
-
-.spooler-face [data-icon-root] {
-  width: 9px;
-  height: 9px;
-}
-
 /* Open-in-split rows paint the same quiet tint bb's own sidebar uses for
    them — half-strength sidebar accent against the sidebar. */
 .spooler-row-split {
@@ -1911,13 +1803,12 @@
   display: flex;
   flex: 1;
   min-width: 0;
-  /* Vertical centering: the lead's icon column stretches the full row
-     height and centers its icon, and the text column (the tallest child)
-     defines the height. */
+  /* One title line, one meta line; the lead's 16px slot aligns with the
+     first text line. */
   align-items: center;
   gap: 8px;
-  padding: 8px 8px;
-  border-radius: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
   color: inherit;
   text-decoration: none;
 }
@@ -1928,102 +1819,45 @@ a.spooler-row-main:hover {
 }
 
 .spooler-row-lead {
-  /* The lead IS the left icon column: it stretches the row's full height
-     and centers its icon vertically, so a tall grid row keeps the provider
-     icon mid-line instead of pinning it to the top-left corner. */
+  /* The lead IS a 16px status slot: the status glyph, or — for a family
+     parent — the collapse chevron. It stretches the row's height and
+     centers its content so two-line rows keep it mid-line. */
   display: flex;
   flex: none;
   align-self: stretch;
   align-items: center;
-  min-width: 14px;
+  justify-content: center;
+  width: 16px;
 }
 
-/* Status badges are TONE CHIPS: a tinted pill on the title line. The badge
-   carries its tone class (hoisted in TSX), so the shell tints with the
-   status's own color and every visual inside (spinner, dot, word) reads
-   that color — colors live in pills, never in row washes. */
-.spooler-row-status-badge {
+.spooler-lead-empty {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* The 16px status slot: one glyph carries the state; the word (and the
+   pill) live on the meta line, so status is never colour-only. */
+.spooler-status-glyph {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   flex: none;
-  padding: 1px 6px 1px 5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  color: var(--muted-foreground);
 }
 
-.spooler-row-status-badge.spooler-tone-success {
-  background: color-mix(in srgb, var(--success, #3f9a6b) 13%, transparent);
-  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+.spooler-status-glyph [data-icon-root] {
+  width: 16px;
+  height: 16px;
 }
 
-.spooler-row-status-badge.spooler-tone-warning {
-  background: color-mix(in srgb, var(--warning, #b98533) 16%, transparent);
-  color: color-mix(in srgb, var(--warning, #b98533) 70%, var(--foreground));
-}
-
-.spooler-row-status-badge.spooler-tone-error {
-  background: color-mix(in srgb, var(--destructive, #d43d3d) 14%, transparent);
-  color: var(--destructive, #d43d3d);
-}
-
-.spooler-row-status-badge.spooler-tone-info {
-  background: color-mix(in srgb, var(--primary) 13%, transparent);
-  color: var(--primary);
-}
-
-/* The visual rides the chip's ink: dots, icons and the word all inherit. */
-.spooler-row-status-badge .spooler-dot {
+.spooler-status-glyph .spooler-dot {
   margin-top: 0;
-  background: currentColor;
 }
 
-.spooler-row-status-badge .spooler-tone-success,
-.spooler-row-status-badge .spooler-tone-error,
-.spooler-row-status-badge .spooler-tone-warning,
-.spooler-row-status-badge .spooler-tone-info,
-.spooler-row-status-badge .spooler-tone-muted,
-.spooler-row-status-badge .spooler-tone-running,
-.spooler-row-status-badge .spooler-status-word,
-.spooler-row-status-badge .spooler-status-icon {
-  color: inherit;
-}
-
-.spooler-status-word {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.spooler-row-status-badge .spooler-spinner [data-icon-root] {
-  width: 12px;
-  height: 12px;
-}
-
-.spooler-row-status-badge .spooler-status-icon [data-icon-root] {
-  width: 12px;
-  height: 12px;
-}
-
-.spooler-provider-icon {
-  display: inline-flex;
-  flex: none;
-  width: 14px;
-  height: 14px;
-  overflow: hidden;
-  border-radius: 3px;
-  line-height: 0;
-}
-
-.spooler-provider-icon * {
-  width: 14px !important;
-  height: 14px !important;
-  max-width: 14px;
-  max-height: 14px;
-  object-fit: contain;
+.spooler-status-glyph.spooler-celebrate {
+  animation: spooler-celebrate 600ms cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 
 .spooler-spinner {
@@ -2031,8 +1865,8 @@ a.spooler-row-main:hover {
 }
 
 .spooler-spinner [data-icon-root] {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   animation: spooler-spin 1s linear infinite;
   /* Spin about the icon's own axis: Chrome resolves a px transform-origin
      against the CSS box, not the 24-unit viewBox (12px = two thirds of an
@@ -2055,13 +1889,97 @@ a.spooler-row-main:hover {
   }
 }
 
-.spooler-status-icon {
-  display: inline-flex;
+/* The meta line: status word or pill (tone), then the project (muted,
+   first to truncate), then the pull request. One line, never a wrap. */
+.spooler-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }
 
-.spooler-status-icon [data-icon-root] {
-  width: 12px;
-  height: 12px;
+/* Working/gentle word: tinted ink (success tone), never a shell. */
+.spooler-status-wording {
+  flex: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Attention pills: the tinted surface carries the state (needs-you amber,
+   failed red), whose text stays readable ink. */
+.spooler-status-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.spooler-status-pill.spooler-pill-attention {
+  background: var(--surface-attention, color-mix(in srgb, var(--warning) 14%, transparent));
+  color: var(--foreground);
+}
+
+.spooler-status-pill.spooler-pill-failed {
+  background: var(--surface-destructive, color-mix(in srgb, var(--destructive) 14%, transparent));
+  color: var(--destructive-text, var(--destructive));
+}
+
+.spooler-row-meta-sep {
+  flex: none;
+  color: var(--subtle-foreground, var(--muted-foreground));
+}
+
+.spooler-row-project {
+  flex: 0 1 auto;
+  min-width: 28px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-row-replies {
+  flex: none;
+  font-weight: 500;
+}
+
+/* The folded-family rollup: dot + count of the loudest hidden state. */
+.spooler-row-rollup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.spooler-row-rollup .spooler-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 0;
+}
+
+.spooler-row-rollup.spooler-tone-error {
+  color: var(--destructive-text, var(--destructive));
+}
+
+.spooler-row-rollup.spooler-tone-warning {
+  color: var(--warning-text, var(--warning));
+}
+
+.spooler-row-rollup.spooler-tone-success {
+  color: var(--success-foreground);
+}
+
+.spooler-row-rollup.spooler-tone-muted {
+  color: var(--muted-foreground);
 }
 
 .spooler-row-text {
@@ -2069,16 +1987,15 @@ a.spooler-row-main:hover {
   flex: 1;
   min-width: 0;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
-/* The title line: the title and the status cluster (WORKING, spinner, pips)
-   share one row, so the cluster rides the title and never lands on the
-   metadata grid beneath it. Items align on their first baseline, which keeps
-   the cluster on line one when a two-line title wraps. */
+/* The title line: the title carries the state (400/500/600 by status), and
+   the trailing cluster holds the unread dot, the short time, other plugin
+   row status and the draft pip. The hover cluster overlays the time slot. */
 .spooler-row-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
@@ -2087,62 +2004,16 @@ a.spooler-row-main:hover {
   flex: 1 1 auto;
 }
 
-/* The metadata grid: every fact the row shows — time, project, model +
-   thinking (live only), section, host, branch, PR, folded-family summary —
-   as chips on ONE wrapping row. Elements wrap onto further lines when they
-   don't fit instead of stacking kinds on disjointed lines, and each kind
-   keeps its own max-width so one long value can never eat the grid. */
-.spooler-row-grid {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px 6px;
-  min-width: 0;
-  max-width: 100%;
-  font-size: 10px;
-  line-height: 1.6;
-}
-
-.spooler-row-grid > * {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 45%;
-}
-
-/* The branch yields the most room (names are long and matter), the folded
-   family summary may take the whole line, and the model-loading stub keeps
-   its intrinsic width. */
-.spooler-row-grid .spooler-branch-btn {
-  max-width: 60%;
-}
-
-.spooler-row-grid .spooler-kids-line {
-  max-width: 100%;
-}
-
-.spooler-row-grid .spooler-model-loading {
-  max-width: none;
-}
-
-.spooler-row-grid .spooler-pr-link > span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Backstop for squeezed rows: once the chip and time have shrunk and the
-   title is at its floor, anything left over (a year timestamp plus a
-   rollup pill beside a badge) clips at the text edge instead of painting
-   under the badge. Thread titles sit a weight notch BELOW the (italic 500)
-   spool titles. */
+/* Backstop for squeezed rows: the title keeps a floor, anything left over
+   clips at the text edge. */
 .spooler-row-title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   min-width: 0;
   overflow: clip;
   font-size: 13px;
-  font-weight: 450;
+  font-weight: 400;
   line-height: 1.35;
 }
 
@@ -2218,82 +2089,17 @@ a.spooler-row-main:hover {
   top: 3px;
 }
 
-.spooler-title-wrap .spooler-kids-pill {
-  margin-top: 1px;
-}
-
 /* Height estimates for rows not yet rendered. Comfortable rows sit on a
-   title + grid line (about 54px, 28px compact); two-line titles plus the
-   grid stack taller (about 68px, 44px compact), so estimate between the
-   ends rather than at either. The auto form remembers each row's real size
-   once it has rendered. */
+   title + meta line (about 50px, 40px compact); two-line titles stack
+   taller (about 64px, 50px compact). The auto form remembers each row's
+   real size once it has rendered. */
 .spooler-title-wrap .spooler-row {
-  contain-intrinsic-size: auto 68px;
+  contain-intrinsic-size: auto 64px;
 }
 
 .spooler-title-wrap.spooler-density-compact .spooler-row,
 .spooler-title-wrap .spooler-row-compact {
-  contain-intrinsic-size: auto 58px;
-}
-
-/* The inline ⋯ on touch layouts holds still instead of sliding. */
-.spooler-title-wrap.spooler-list-compact .spooler-row-actions {
-  transform: none;
-}
-
-/* The chip yields before the title: it shrinks behind its ellipsis instead
-   of holding full width while the title collapses. */
-.spooler-row-project {
-  --spooler-project-hue: 220;
-  flex: 0 1 auto;
-  min-width: 0;
-  align-self: center;
-  max-width: 110px;
-  padding: 0 5px;
-  border: 1px solid
-    color-mix(
-      in oklch,
-      hsl(var(--spooler-project-hue) 65% 62%) 45%,
-      var(--border)
-    );
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1.6;
-  font-weight: 500;
-  color: color-mix(
-    in oklch,
-    hsl(var(--spooler-project-hue) 65% 62%) 60%,
-    var(--foreground)
-  );
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* The time chip yields last: it shrinks behind an ellipsis (never wraps)
-   rather than overflowing the grid. The full text stays on the title
-   attribute. Outlined like every other grid chip so the kinds read
-   consistently. */
-.spooler-row-time {
-  display: inline-block;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 90px;
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1.6;
-  font-weight: 400;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.spooler-row-active .spooler-row-title {
-  font-weight: 600;
+  contain-intrinsic-size: auto 50px;
 }
 
 .spooler-pin-marker {
@@ -2321,112 +2127,38 @@ a.spooler-row-main:hover {
   flex: none;
 }
 
-.spooler-branch-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  font-size: 10px;
-  line-height: 1.6;
-  cursor: pointer;
-  min-width: 0;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-}
-
-.spooler-branch-btn [data-icon-root] {
-  width: 10px;
-  height: 10px;
-  flex: none;
-}
-
-.spooler-branch-btn .spooler-branch-text {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-  line-height: 1.6;
-}
-
-.spooler-branch-btn:hover {
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.spooler-branch-copied {
-  background: color-mix(in srgb, #2da44e 16%, transparent);
-  color: #3fb950 !important;
-}
-
-.spooler-branch-copied-badge {
-  display: inline-block;
-  font-size: 9px;
-  font-weight: 600;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: #2da44e;
-  color: #fff;
-  margin-left: 2px;
-  animation: spoolerBadgePop 160ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes spoolerBadgePop {
-  0% {
-    transform: scale(0.7);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.spooler-branch-text {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
+/* The PR link on the meta line is plain text with an icon; its tone class
+   colors it (spooler-tone-*). No shell, no GAMING badge. */
 .spooler-pr-link {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   flex: none;
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  background: var(--card);
-  padding: 1px 6px;
+  border: 0;
+  background: transparent;
+  padding: 0;
   font: inherit;
-  font-size: 10px;
-  font-weight: 550;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--muted-foreground);
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    filter 120ms ease,
-    transform 100ms ease;
 }
 
 .spooler-pr-link:hover {
   filter: brightness(1.08);
-  transform: scale(1.02);
-  text-decoration: none;
+  text-decoration: underline;
 }
 
 .spooler-pr-link [data-icon-root] {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
+  flex: none;
 }
 
+/* GitHub's PR state shells survive only on the spool card's rollup until
+   the spool card adopts the text-link meta; step 6 deletes these. */
 .spooler-pr-open {
   background: rgba(46, 160, 67, 0.12);
   color: #3fb950;
@@ -2451,99 +2183,6 @@ a.spooler-row-main:hover {
   border-color: rgba(248, 81, 73, 0.35);
 }
 
-/* The metadata grid's wrapper. It no longer folds: time and project (and
-   branch/PR/folded-summary when present) always render — the adaptive fold
-   works on the secondary chips inside the grid instead. */
-.spooler-row-extra {
-  display: grid;
-  grid-template-rows: 1fr;
-  /* Pin the track to the text column: an auto track grows to a chip's
-     min-content (a long PR label) and the grid would spill past the row. */
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 2px;
-}
-
-.spooler-row-extra-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.spooler-model-chip {
-  display: inline-block;
-  max-width: 130px;
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1.6;
-  font-weight: 600;
-  color: var(--foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.spooler-thinking-chip {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted-foreground);
-}
-
-/* A neutral outlined chip for facts without a hue of their own: the host
-   name and a provider row that has no icon to show. */
-.spooler-host-chip {
-  display: inline-block;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 120px;
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1.6;
-  font-weight: 500;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.spooler-model-chip [data-icon-root] {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 3px;
-  vertical-align: -1px;
-}
-
-.spooler-section-chip {
-  --spooler-section-hue: 220;
-  display: inline-block;
-  max-width: 110px;
-  padding: 0 5px;
-  border: 1px solid
-    color-mix(
-      in oklch,
-      hsl(var(--spooler-section-hue) 65% 62%) 45%,
-      var(--border)
-    );
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1.6;
-  font-weight: 500;
-  color: color-mix(
-    in oklch,
-    hsl(var(--spooler-section-hue) 65% 62%) 60%,
-    var(--foreground)
-  );
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .spooler-celebrate {
   animation: spooler-celebrate 600ms cubic-bezier(0.2, 1.4, 0.4, 1);
 }
@@ -2560,16 +2199,8 @@ a.spooler-row-main:hover {
   }
 }
 
-.spooler-model-loading {
-  display: inline-block;
-  width: 56px;
-  height: 9px;
-  border-radius: 4px;
-  background: var(--muted);
-  animation: spooler-pulse 1.6s ease-in-out infinite;
-  vertical-align: 1px;
-}
-
+/* The title line's trailing cluster: unread ink dot, short time, keyboard
+   shortcut, another plugin's row status, unsent-draft pip. */
 .spooler-row-badges {
   display: flex;
   flex: none;
@@ -2648,16 +2279,13 @@ a.spooler-row-main:hover {
    (and everything else) stay static so motion always means "act". */
 @media (prefers-reduced-motion: reduce) {
   .spooler-row,
-  .spooler-row-actions,
-  .spooler-row-extra,
+  .spooler-row-cluster,
   .spooler-fold,
   .spooler-list-switching,
   .spooler-segmented-button:active {
     transition: none;
     transform: none;
   }
-  .spooler-kids-pill,
-  .spooler-kids-line,
   .spooler-celebrate,
   .spooler-hover-card {
     animation: none;
@@ -2667,8 +2295,36 @@ a.spooler-row-main:hover {
   }
 }
 
+/* The short time: cadence chrome at 10px, quiet, tabular. It disappears
+   under the hover cluster (same slot), and its full text lives on the
+   title attribute. */
+.spooler-row-time {
+  display: inline-block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 72px;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spooler-row:hover .spooler-row-time,
+.spooler-row:focus-within .spooler-row-time {
+  opacity: 0;
+}
+
 .spooler-dot-running {
   background: color-mix(in srgb, var(--success, #3f9a6b) 72%, var(--foreground));
+}
+
+.spooler-dot-unread {
+  background: var(--foreground);
 }
 
 .spooler-dot-attention {
@@ -2705,51 +2361,52 @@ a.spooler-row-main:hover {
   }
 }
 
+/* The unread ink dot rides the title line (and chip/rollup slots); a
+   status is never colour-only, so the dot also narrates "Unread". */
 .spooler-unread {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: var(--primary);
+  background: var(--foreground);
   flex: none;
 }
 
 .spooler-kbd {
   font-family: inherit;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.4;
-  padding: 0 5px;
+  padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--card);
-  color: var(--muted-foreground);
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* Hover actions overlay the badges; keyboard users get the context menu. */
-
-.spooler-row-actions {
+/* The hover cluster: Pin · Archive · Details · More, one 24px tactile row
+   that overlays the time slot on hover or keyboard focus-within. Pin and
+   Archive keep their handlers, Details opens the inline panel, More opens
+   the context menu (touch users reach both through it). */
+.spooler-row-cluster {
   position: absolute;
+  top: 3px;
   right: 4px;
-  top: 4px;
+  z-index: 3;
   display: flex;
-  gap: 2px;
-  padding: 2px;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
   border-radius: 6px;
-  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
-  background: var(--muted);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  background: var(--sidebar-accent, var(--accent, var(--muted)));
   opacity: 0;
-  transform: translateX(4px);
+  transition: opacity 150ms ease;
   pointer-events: none;
 }
 
-.spooler-row-active .spooler-row-actions {
-  background: var(--accent, var(--muted));
-}
-
-.spooler-row:hover .spooler-row-actions {
+.spooler-row:hover .spooler-row-cluster,
+.spooler-row:focus-within .spooler-row-cluster {
   opacity: 1;
-  transform: translateX(0);
   pointer-events: auto;
 }
 
@@ -2761,12 +2418,12 @@ a.spooler-row-main:hover {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted-foreground);
+  color: var(--subtle-foreground, var(--muted-foreground));
   cursor: pointer;
 }
 
 .spooler-action:hover {
-  background: var(--card);
+  background: var(--state-hover, var(--muted));
   color: var(--foreground);
 }
 
@@ -2779,26 +2436,246 @@ a.spooler-row-main:hover {
   color: var(--primary);
 }
 
-/* Quiet rows fold only the secondary chips (model, thinking, section,
-   host); time, project, branch, PR, and a folded-family summary stay —
-   the metadata grid never reads as empty. */
-.spooler-row-collapsed .spooler-grid-secondary {
-  display: none;
+.spooler-action-details [data-icon-root] {
+  transition: transform 150ms ease;
 }
 
-.spooler-row-collapsed .spooler-row-actions {
-  top: 3px;
-  padding: 1px;
+.spooler-action-details.spooler-action-on {
+  background: var(--state-hover, var(--muted));
+  color: var(--foreground);
 }
 
-.spooler-row-collapsed .spooler-action {
-  width: 20px;
-  height: 20px;
+.spooler-action-details.spooler-action-on [data-icon-root] {
+  transform: rotate(180deg);
 }
 
-.spooler-row-collapsed .spooler-action [data-icon-root] {
+/* ---- Inline Details --------------------------------------------------------
+   Opens beneath the row: the shared definition list, then Open (primary)
+   and Split (outline). Background is the recessed surface. */
+.spooler-row-details {
+  /* Aligns with the text column: gutter 18 + gap 8 + lead 16 + gap 8 −
+     row padding 8. */
+  margin: 0 8px 6px 42px;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--surface-recessed, var(--muted));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.spooler-details-dl {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  align-items: start;
+}
+
+.spooler-details-dt {
+  color: var(--muted-foreground);
+}
+
+.spooler-details-dt::after {
+  content: ":";
+}
+
+.spooler-details-dd {
+  min-width: 0;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.spooler-details-muted {
+  color: var(--muted-foreground);
+}
+
+.spooler-details-goal {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.spooler-details-provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spooler-details-provider-icon {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  line-height: 0;
+}
+
+.spooler-details-provider-icon * {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px;
+  max-height: 14px;
+  object-fit: contain;
+}
+
+.spooler-details-provider-fallback {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted-foreground);
+}
+
+.spooler-details-provider-fallback [data-icon-root],
+.spooler-details-provider-fallback[data-icon-root] {
   width: 12px;
   height: 12px;
+}
+
+.spooler-details-branch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.spooler-details-branch-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.spooler-details-copy {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  cursor: pointer;
+}
+
+.spooler-details-copy:hover {
+  background: var(--state-hover, var(--muted));
+  color: var(--foreground);
+}
+
+.spooler-details-copy [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-details-pr {
+  display: flex;
+  min-width: 0;
+}
+
+.spooler-details-pr-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.spooler-details-pr-link:hover {
+  filter: brightness(1.08);
+  text-decoration: underline;
+}
+
+.spooler-details-pr-link [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.spooler-details-pr-link > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spooler-details-context {
+  min-width: 0;
+}
+
+.spooler-details-bar {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  height: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
+  overflow: hidden;
+}
+
+.spooler-details-bar-seg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.spooler-details-bar-mark {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--warning);
+}
+
+.spooler-details-context-note {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: var(--subtle-foreground, var(--muted-foreground));
+}
+
+.spooler-details-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.spooler-details-open,
+.spooler-details-split {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.spooler-details-open {
+  border: 0;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.spooler-details-open:hover {
+  filter: brightness(1.08);
+}
+
+.spooler-details-split {
+  border: 1px solid var(--input, var(--border));
+  background: transparent;
+  color: var(--foreground);
+}
+
+.spooler-details-split:hover {
+  background: var(--state-hover, var(--muted));
 }
 
 .spooler-rename {
@@ -4051,9 +3928,8 @@ a.spooler-row-main:hover {
 /* The shelf exists to undo a settle, so its rows surface the action cluster
    without waiting for hover — restore is one click at rest. Cluster sits in
    the same spot the hover reveal uses; pointer-events follow suit. */
-.spooler-group[data-settled] .spooler-row-actions {
+.spooler-group[data-settled] .spooler-row-cluster {
   opacity: 1;
-  transform: none;
   pointer-events: auto;
 }
 

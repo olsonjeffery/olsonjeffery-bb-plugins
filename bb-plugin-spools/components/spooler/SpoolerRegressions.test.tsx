@@ -136,7 +136,7 @@ describe("sidebar behavior regressions", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: "Collapse replies" }));
     const parent = slot.container.querySelector('[data-sidebar-thread-id="parent"]')!;
-    expect(parent.querySelector(".spooler-kids-pill .spooler-dot")).toBeNull();
+    expect(parent.querySelector(".spooler-row-rollup .spooler-dot")).toBeNull();
   });
 
   it.each([
@@ -356,14 +356,19 @@ describe("sidebar behavior regressions", () => {
 });
 
 describe("thread row layout", () => {
-  it("keeps the status cluster on the title line, outside the metadata grid", () => {
+  it("keeps the time on the title line and the status word on the meta line", () => {
     const slot = mount([makeThread({ id: "busy", title: "Busy thread", indicator: "runtime" })]);
     const row = slot.container.querySelector(".spooler-row") as HTMLElement;
     const head = row.querySelector(".spooler-row-head") as HTMLElement;
     expect(head.querySelector(".spooler-row-title")).not.toBeNull();
-    expect(head.querySelector(".spooler-row-badges")?.textContent).toContain("Working");
-    // The grid is its own line beneath the head, never beside the cluster.
-    expect(row.querySelector(".spooler-row-extra")?.closest(".spooler-row-head")).toBeNull();
+    // The time is a trailing member of the title line...
+    expect(head.querySelector(".spooler-row-badges")?.querySelector(".spooler-row-time"))
+      .not.toBeNull();
+    // ...and the status word is its own slot on the meta line beneath.
+    const meta = row.querySelector(".spooler-row-meta") as HTMLElement;
+    expect(meta).not.toBeNull();
+    expect(meta.querySelector(".spooler-status-wording")?.textContent).toContain("Working");
+    expect(head.querySelector(".spooler-status-wording")).toBeNull();
     expect(row.querySelector(".spooler-row-badges")?.closest(".spooler-row-head")).toBe(head);
   });
 

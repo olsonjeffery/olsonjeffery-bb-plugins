@@ -39,12 +39,13 @@ describe("app.css", () => {
     )).toEqual([]);
   });
 
-  it("documents the chip-fold threshold consistently", () => {
-    expect(css).toContain("@container spooler-thread-list (max-width: 284px)");
+  it("keeps the chip row off container queries (chips wrap instead)", () => {
+    // The old 284px fold is retired: status chips are a wrapping row and the
+    // narrow drawer grows taller rather than hiding labels.
+    expect(css).not.toContain("@container spooler-thread-list (max-width: 284px)");
     for (const file of ["README.md", "CHANGELOG.md"]) {
       const copy = readFileSync(resolve(import.meta.dirname, file), "utf8");
-      expect(copy).toContain("284px");
-      expect(copy).not.toMatch(/(?:270|285)px/);
+      expect(copy).not.toMatch(/284px/);
     }
   });
 
@@ -59,39 +60,27 @@ describe("app.css", () => {
     expect(fold?.body).toMatch(/height var\(--spooler-swipe-fold,/);
   });
 
-  it("lays row metadata as one wrapping chip grid", () => {
-    // The grid is the whole metadata story: every kind (time, project,
-    // model, thinking, section, host, branch, PR, folded summary) is a chip
-    // on one wrapping row, capped per element so one long value can never
-    // eat the line, and the owned title stays transparent to the layout.
-    const grid = rules().find((rule) => rule.selector === ".spooler-row-grid");
-    expect(grid?.body).toMatch(/display:\s*flex/);
-    expect(grid?.body).toMatch(/flex-wrap:\s*wrap/);
-    expect(grid?.body).toMatch(/max-width:\s*100%/);
-    const item = rules().find(
-      (rule) => rule.selector === ".spooler-row-grid > *",
-    );
-    expect(item?.body).toMatch(/max-width:\s*45%/);
+  it("lays row metadata as one meta line with one rhetoric slot per fact", () => {
+    // The old wrapping chip grid is retired: rows read title line + meta
+    // line. The meta carries at most one status pill/word, the project
+    // (first to truncate), and the PR.
+    const meta = rules().find((rule) => rule.selector === ".spooler-row-meta");
+    expect(meta?.body).toMatch(/display:\s*flex/);
+    expect(meta?.body).toMatch(/white-space:\s*nowrap/);
     expect(rules().find((rule) => rule.selector === ".spooler-thread-title")?.body)
       .toMatch(/display:\s*contents/);
-    // The old stacked-line layout is retired outright: no rule may declare
-    // .spooler-row-meta anywhere.
-    expect(rules().filter((rule) => /\.spooler-row-meta\b/.test(rule.selector)))
+    // The metadata grid is retired outright.
+    expect(rules().filter((rule) => /\.spooler-row-grid\b/.test(rule.selector)))
       .toEqual([]);
-    // Quiet rows fold only the SECONDARY chips; time/project/branch/PR and
-    // a folded-family summary stay, so the grid never reads as empty.
-    const secondary = rules().find(
-      (rule) => rule.selector === ".spooler-row-collapsed .spooler-grid-secondary",
+    // Quiet rows keep the meta line (it is where the project lives) but
+    // compact clamps it to one unwrapped line.
+    const compactMeta = rules().find(
+      (rule) => rule.selector === ".spooler-density-compact .spooler-row-meta,\n.spooler-row-compact .spooler-row-meta",
     );
-    expect(secondary?.body).toMatch(/display:\s*none/);
-    // Compact keeps the grid to one unwrapped line instead of hiding it.
-    const compactGrid = rules().find(
-      (rule) => rule.selector === ".spooler-density-compact .spooler-row-grid,\n.spooler-row-compact .spooler-row-grid",
-    );
-    expect(compactGrid?.body).toMatch(/flex-wrap:\s*nowrap/);
-    expect(compactGrid?.body).toMatch(/overflow:\s*hidden/);
-    expect(rules()
-      .filter((rule) => /\.spooler-row-extra\b/.test(rule.selector) && /grid-template-rows:\s*0fr/.test(rule.body) && /compact/.test(rule.selector)))
+    expect(compactMeta?.body).toMatch(/flex-wrap:\s*nowrap/);
+    expect(compactMeta?.body).toMatch(/overflow:\s*hidden/);
+    // The retired extra wrapper must not come back.
+    expect(rules().filter((rule) => /\.spooler-row-extra\b/.test(rule.selector)))
       .toEqual([]);
   });
 
@@ -128,21 +117,29 @@ describe("app.css", () => {
       .toEqual([]);
   });
 
-  it("keeps hover actions top-anchored and never hides them", () => {
-    // The actions bar overlays the title line's right end in every layout;
-    // per-row hiding is out: under project grouping no row has a chip, so
-    // that emptied the bar list-wide.
-    const actions = rules().find(
-      (rule) => rule.selector === ".spooler-row-actions",
+  it("overlays the hover cluster in the time slot on hover or focus-within", () => {
+    // The cluster (Pin · Archive · Details · More) sits top-right and
+    // reveals on row hover or focus-within; touch reaches it through the
+    // More menu. It must never be display:none — keyboard focus and the
+    // settled-shelf path both rely on opacity.
+    const cluster = rules().find(
+      (rule) => rule.selector === ".spooler-row-cluster",
     );
-    expect(actions?.body).toMatch(/top:\s*\d+px/);
+    expect(cluster?.body).toMatch(/top:\s*\d+px/);
     expect(rules()
-      .filter((rule) => /spooler-title-wrap/.test(rule.selector) && /\.spooler-action\b/.test(rule.selector) && /display:\s*none/.test(rule.body))
-      .map((rule) => rule.selector)).toEqual([]);
-    expect(rules().filter((rule) => /spooler-title-wrap.*:hover/.test(rule.selector)))
+      .filter((rule) => /\.spooler-row-cluster\b/.test(rule.selector) && /display:\s*none/.test(rule.body)))
+      .toEqual([]);
+    const reveal = rules().find(
+      (rule) =>
+        rule.selector.includes(".spooler-row:hover .spooler-row-cluster") &&
+        rule.selector.includes(".spooler-row:focus-within .spooler-row-cluster"),
+    );
+    expect(reveal?.body).toMatch(/opacity:\s*1/);
+    // The old actions bar is retired.
+    expect(rules().filter((rule) => /\.spooler-row-actions\b/.test(rule.selector)))
       .toEqual([]);
     // The per-line lift machinery is retired: the title line is the only
-    // surface the bar ever overlays.
+    // surface the cluster ever overlays.
     expect(css).not.toContain("--spooler-actions-lift");
   });
 
@@ -175,20 +172,14 @@ describe("app.css", () => {
     expect(deep?.body).toMatch(/margin-left:\s*28px/);
   });
 
-  it("puts the status cluster on the title line, beside the title", () => {
-    // Title and badges share one head row, aligned on the first baseline, so
-    // the cluster never floats between the title and the metadata grid. The
-    // grid is its own line, pinned to the text column so a long chip cannot
-    // spill past the row edge.
+  it("keeps the trailing time cluster on the title line, beside the title", () => {
+    // The title and the trailing badges share one head row, aligned on
+    // their vertical centers; the meta line is its own row beneath.
     const head = rules().find((rule) => rule.selector === ".spooler-row-head");
     expect(head?.body).toMatch(/display:\s*flex/);
-    expect(head?.body).toMatch(/align-items:\s*baseline/);
+    expect(head?.body).toMatch(/align-items:\s*center/);
     expect(rules().find((rule) => rule.selector === ".spooler-row-head > .spooler-row-title")?.body)
       .toMatch(/flex:\s*1 1 auto/);
-    const extra = rules().find((rule) => rule.selector === ".spooler-row-extra");
-    expect(extra?.body).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-    const inner = rules().find((rule) => rule.selector === ".spooler-row-extra-inner");
-    expect(inner?.body).toMatch(/min-width:\s*0/);
   });
 
   it("renders spool rosters one step deeper with one straight guide", () => {
@@ -232,16 +223,13 @@ describe("app.css", () => {
   });
 
   it("keeps badge-row titles readable when the row is squeezed", () => {
-    // At phone widths a chip plus time plus badge left no room: the title
-    // was the only shrinkable item, so it went to zero and the time
-    // painted under the badge. Now the chip yields first, the title keeps
-    // a floor, the time ellipsizes instead of overflowing, and the row
-    // clips any pathological residue at the text edge.
+    // The project yields first (it is the flex-shrink item), the title
+    // keeps a floor, the time ellipsizes instead of overflowing, and the
+    // row clips any pathological residue at the text edge.
     const project = rules()
       .filter((rule) => rule.selector === ".spooler-row-project")
       .find((rule) => /flex:/.test(rule.body));
     expect(project?.body).toMatch(/flex:\s*0 1 auto/);
-    expect(project?.body).toMatch(/min-width:\s*0/);
     expect(project?.body).toMatch(/text-overflow:\s*ellipsis/);
     expect(rules().find((rule) => rule.selector === ".spooler-row-title-text")?.body)
       .toMatch(/min-width:\s*40px/);

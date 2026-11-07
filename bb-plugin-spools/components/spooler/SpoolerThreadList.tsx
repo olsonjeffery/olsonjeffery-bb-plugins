@@ -54,7 +54,7 @@ import {
 } from "@/lib/swipe";
 import { preloadExtendedIcons } from "@/components/ui/icon";
 import { SpoolerThreadRow } from "./SpoolerThreadRow";
-import { activityTime, isRunningThread, timeAgo } from "./time";
+import { activityTime, isRunningThread, timeAgo, timeShort } from "./time";
 import {
   GroupHeader,
   SortableGroupSection,
@@ -1726,6 +1726,19 @@ export function SpoolerThreadList({
                   thread.indicator === "unread-error" ||
                   thread.indicator === "queued-failed",
                 ) > 0,
+              hiddenNeedsUserCount: Math.max(
+                0,
+                counts.needsUser -
+                  Number(thread.indicator === "waiting-for-input"),
+              ),
+              hiddenFailedCount: Math.max(
+                0,
+                counts.failed -
+                  Number(
+                    thread.indicator === "unread-error" ||
+                    thread.indicator === "queued-failed",
+                  ),
+              ),
               hiddenKids: counts.kids,
               onToggle: () => toggleThreadCollapse(thread.id),
             }
@@ -1758,6 +1771,7 @@ export function SpoolerThreadList({
           isVisible={visibleThreadIds.has(thread.id)}
           actions={actions}
           timeText={timeAgo(activityTime(thread, now), now)}
+          timeShortText={timeShort(activityTime(thread, now), now)}
           onNavigate={onNavigate}
           onOpenMenu={openMenu}
           onStartRename={startRename}
