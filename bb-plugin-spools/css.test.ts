@@ -493,6 +493,14 @@ describe("app.css", () => {
     );
     expect(dot?.body).toMatch(/width:\s*6px/);
     expect(dot?.body).toMatch(/background:\s*var\(--spooler-sec-dot, var\(--muted-foreground\)\)/);
+    // Wrappers re-use the bare .spooler-group class, so the hide rule must
+    // gate through the header's DIRECT parent or it hides every dot.
+    const hide = rules().find(
+      (rule) =>
+        rule.selector.includes(':not(.spooler-group-bucket)') &&
+        rule.body.includes('display: none'),
+    );
+    expect(hide?.selector).toContain('> .spooler-group-header .spooler-sec-dot');
   });
 
   it("keeps the menu color swatch its own pill", () => {

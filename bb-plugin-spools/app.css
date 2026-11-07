@@ -981,7 +981,9 @@
 
 /* The section color's dot: one 6px dot before the title, never a wash.
    Only buckets own a color — the Pinned group rides the same right-title
-   header in section grouping but carries no dot. */
+   header in section grouping but carries no dot. NOTE the child combinator:
+   drag wrappers re-use the .spooler-group class, so gating on descendant
+   .spooler-group would hide every dot. */
 .spooler-group-header .spooler-sec-dot {
   flex: none;
   width: 6px;
@@ -990,8 +992,8 @@
   background: var(--spooler-sec-dot, var(--muted-foreground));
 }
 
-:where(.spooler-group:not(.spooler-group-bucket)) .spooler-sec-dot,
-.spooler-group-project .spooler-sec-dot {
+:where(.spooler-group:not(.spooler-group-bucket)) > .spooler-group-header .spooler-sec-dot,
+.spooler-group-project > .spooler-group-header .spooler-sec-dot {
   display: none;
 }
 
