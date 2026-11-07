@@ -165,6 +165,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+
+  /** The view menu (⋯) owns density and folder folding now: open it first. */
+  const openViewMenu = () => {
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
+  };
+
 describe("grouping", () => {
   it("groups by activity so merely reading a thread does not float it to Today", () => {
     const visited = makeThread({
@@ -1154,10 +1160,12 @@ describe("density", () => {
     const slot = renderThreads([makeThread({ id: "t", title: "One" })]);
     expect(root(slot).classList.contains("spooler-density-compact")).toBe(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "Compact view" }));
+    openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Compact view" }));
     expect(root(slot).classList.contains("spooler-density-compact")).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Comfortable view" }));
+    openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Comfortable view" }));
     expect(root(slot).classList.contains("spooler-density-compact")).toBe(false);
   });
 
@@ -1168,13 +1176,15 @@ describe("density", () => {
       settings: { defaultDensity: "compact" },
     });
     // Server says compact, so the button offers the comfortable option.
-    fireEvent.click(screen.getByRole("button", { name: "Comfortable view" }));
+    openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Comfortable view" }));
     expect(localStorage.getItem("spooler-sidebar:density:v1")).toBe(
       "comfortable",
     );
 
     // Toggling back onto the server default stores "auto", not an override.
-    fireEvent.click(screen.getByRole("button", { name: "Compact view" }));
+    openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Compact view" }));
     expect(localStorage.getItem("spooler-sidebar:density:v1")).toBe("auto");
   });
 });
@@ -1605,6 +1615,8 @@ describe("Pinned smart view", () => {
     const slot = renderThreads([pinned, other]);
     expect(visibleRowIds(slot.container)).toContain("other");
 
+    // The smart views bar lives in the View menu now.
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
     fireEvent.click(screen.getByTitle("Pinned threads"));
     await waitFor(() =>
       expect(visibleRowIds(slot.container)).toEqual(["pin"]),
@@ -1766,7 +1778,8 @@ describe("review regressions", () => {
       const slot = renderThreads([
         makeThread({ id: "needle", title: "Needle", isPinned: grouping === "pinned" }),
       ]);
-      fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+      openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Collapse all folders" }));
       const stored = localStorage.getItem("spooler-sidebar:collapsed:v1");
       const row = () => slot.container.querySelector('[data-sidebar-thread-id="needle"]')!;
       expect(row().closest('[aria-hidden="true"]')).not.toBeNull();
@@ -1785,7 +1798,8 @@ describe("review regressions", () => {
 
   it("reveals matches in collapsed groups for status filters too", () => {
     const slot = renderThreads([makeThread({ id: "unread", isUnread: true })]);
-    fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+    openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Collapse all folders" }));
     expect(shortcutTargetIds(slot.container)).toEqual([]);
     fireEvent.click(screen.getByTitle("Filter unread threads"));
     expect(shortcutTargetIds(slot.container)).toEqual(["unread"]);

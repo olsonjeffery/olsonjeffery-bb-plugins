@@ -475,8 +475,10 @@ export function SpoolerThreadList({
   >(() => readStored(DENSITY_KEY, "auto", ["auto", "comfortable", "compact"]));
   const density: DensityMode =
     densityOverride === "auto" ? settings.defaultDensity : densityOverride;
-  const cycleDensity = () => {
-    const next: DensityMode = density === "compact" ? "comfortable" : "compact";
+  /** Pin one density; falling back onto the server default clears the
+   *  override, so the setting stays authoritative instead of being locked
+   *  out forever by one stray click. */
+  const setDensityTo = (next: DensityMode) => {
     const stored = next === settings.defaultDensity ? "auto" : next;
     setDensityOverride(stored);
     writeStored(DENSITY_KEY, stored);
@@ -653,6 +655,32 @@ export function SpoolerThreadList({
   const [spoolNavOpen, setSpoolNavOpen] = useState<{ x: number; y: number } | null>(
     null,
   );
+  /** View menu (⋯ in the filter header): smart views, density, folder
+   *  folding and the spool jump live here, off the glance surface. */
+  const [viewMenu, setViewMenu] = useState<{ left: number; top: number } | null>(
+    null,
+  );
+  const viewMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!viewMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (viewMenuRef.current && !viewMenuRef.current.contains(event.target as Node)) {
+        setViewMenu(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewMenu(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    const onResize = () => setViewMenu(null);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [viewMenu]);
   // The host-rendered palette commands run in this same bundle and ask for a
   // picker through the bus; the sidebar owns the thread resolution and the
   // overlay (no right-hand thread panel involved anymore).
@@ -2281,69 +2309,32 @@ export function SpoolerThreadList({
           </div>
           <div role="group" aria-label="Grouping" className="spooler-segmented">
             {groupingModeButtons}
-            <button
-              type="button"
-              aria-label={
-                areAllGroupsCollapsed
-                  ? "Expand all folders"
-                  : "Collapse all folders"
-              }
-              title={
-                areAllGroupsCollapsed
-                  ? "Expand all folders"
-                  : "Collapse all folders"
-              }
-              className="spooler-segmented-button spooler-segmented-icon"
-              onClick={toggleAllGroups}
-            >
-              <Icon
-                name={areAllGroupsCollapsed ? "Expand" : "Collapse"}
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              aria-pressed={density === "compact"}
-              aria-label={density === "compact" ? "Comfortable view" : "Compact view"}
-              title={
-                density === "compact"
-                  ? "Switch to comfortable view"
-                  : "Switch to compact view"
-              }
-              className={cn(
-                "spooler-segmented-button spooler-segmented-icon",
-                density === "compact" && "spooler-segmented-button-active",
-              )}
-              onClick={cycleDensity}
-            >
-              <Icon
-                name={density === "compact" ? "ListView" : "Rows2"}
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={spoolNavOpen !== null}
-              disabled={spoolStore.spools.length === 0}
-              aria-label="Spools"
-              title={
-                spoolStore.spools.length === 0
-                  ? "No spools yet"
-                  : "Spools — open a member thread"
-              }
-              className="spooler-segmented-button spooler-segmented-icon"
-              onClick={(event) => {
-                if (spoolNavOpen) {
-                  setSpoolNavOpen(null);
-                  return;
-                }
-                setSpoolNavOpen({ x: event.clientX, y: event.clientY });
-              }}
-            >
-              <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
-            </button>
           </div>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={viewMenu !== null}
+            aria-label="View options"
+            title="View options — smart views, density, folders, spools"
+            className="spooler-segmented-button spooler-segmented-icon spooler-view-toggle"
+            onClick={(event) => {
+              if (viewMenu) {
+                setViewMenu(null);
+                return;
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              const width = 268;
+              setViewMenu({
+                left: Math.max(
+                  8,
+                  Math.min(rect.right - width, window.innerWidth - width - 8),
+                ),
+                top: rect.bottom + 4,
+              });
+            }}
+          >
+            <Icon name="MoreHorizontal" aria-hidden="true" />
+          </button>
         </div>
 
         <div className="spooler-chip-row">
@@ -2466,43 +2457,8 @@ export function SpoolerThreadList({
             </button>
           </div>
 
-          <SpoolerSmartViews
-            activeViewId={activeViewId}
-            currentQuery={query}
-            currentStatusFilter={statusFilter}
-            currentLifecycle={lifecycle}
-            counts={{
-              pinned: allRows.filter((thread) => thread.isPinned).length,
-              live: statusCounts.live,
-              waiting: statusCounts.waiting,
-              failed: statusCounts.failed,
-              unread: statusCounts.unread,
-            }}
-            onSelectView={(view) => {
-              setActiveViewId(view.id);
-              startSwitch(() => {
-                setQuery(view.query);
-                setStatusFilter(view.statusFilter);
-                setLifecycle(view.lifecycle);
-              });
-              // "pinned" only exists as a view; a reload starts unfiltered.
-              writeStored(
-                STATUS_FILTER_KEY,
-                view.statusFilter === "pinned" ? "all" : view.statusFilter,
-              );
-              writeStored(LIFECYCLE_KEY, view.lifecycle);
-            }}
-            onClearView={() => {
-              setActiveViewId(null);
-              startSwitch(() => {
-                setQuery("");
-                setStatusFilter("all");
-                setLifecycle("active");
-              });
-              writeStored(STATUS_FILTER_KEY, "all");
-              writeStored(LIFECYCLE_KEY, "active");
-            }}
-          />
+          {/* Smart views live in the View menu (⋯); "New section" stays
+              under the chips in section grouping. */}
           {grouping === "section" ? <SpoolerNewSection compact /> : null}
         </div>
         </div>
@@ -2994,6 +2950,126 @@ export function SpoolerThreadList({
           }}
           onClose={() => setSpoolMenu(null)}
         />
+      ) : null}
+
+      {viewMenu ? (
+        <div
+          ref={viewMenuRef}
+          role="menu"
+          aria-label="View options"
+          className="spooler-view-menu"
+          style={{ left: viewMenu.left, top: viewMenu.top }}
+        >
+          <SpoolerSmartViews
+            activeViewId={activeViewId}
+            currentQuery={query}
+            currentStatusFilter={statusFilter}
+            currentLifecycle={lifecycle}
+            counts={{
+              pinned: allRows.filter((thread) => thread.isPinned).length,
+              live: statusCounts.live,
+              waiting: statusCounts.waiting,
+              failed: statusCounts.failed,
+              unread: statusCounts.unread,
+            }}
+            onSelectView={(view) => {
+              setActiveViewId(view.id);
+              startSwitch(() => {
+                setQuery(view.query);
+                setStatusFilter(view.statusFilter);
+                setLifecycle(view.lifecycle);
+              });
+              // "pinned" only exists as a view; a reload starts unfiltered.
+              writeStored(
+                STATUS_FILTER_KEY,
+                view.statusFilter === "pinned" ? "all" : view.statusFilter,
+              );
+              writeStored(LIFECYCLE_KEY, view.lifecycle);
+              setViewMenu(null);
+            }}
+            onClearView={() => {
+              setActiveViewId(null);
+              startSwitch(() => {
+                setQuery("");
+                setStatusFilter("all");
+                setLifecycle("active");
+              });
+              writeStored(STATUS_FILTER_KEY, "all");
+              writeStored(LIFECYCLE_KEY, "active");
+              setViewMenu(null);
+            }}
+          />
+          <div className="spooler-view-menu-items">
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Comfortable view"
+              aria-pressed={density === "comfortable"}
+              className={cn(
+                "spooler-view-item",
+                density === "comfortable" && "spooler-view-item-on",
+              )}
+              onClick={() => {
+                setDensityTo("comfortable");
+                setViewMenu(null);
+              }}
+            >
+              <Icon name="ListView" aria-hidden="true" />
+              <span>Comfortable</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              aria-label="Compact view"
+              aria-pressed={density === "compact"}
+              className={cn(
+                "spooler-view-item",
+                density === "compact" && "spooler-view-item-on",
+              )}
+              onClick={() => {
+                setDensityTo("compact");
+                setViewMenu(null);
+              }}
+            >
+              <Icon name="Rows2" aria-hidden="true" />
+              <span>Compact</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="spooler-view-item"
+              aria-label={
+                areAllGroupsCollapsed ? "Expand all folders" : "Collapse all folders"
+              }
+              onClick={() => {
+                toggleAllGroups();
+                setViewMenu(null);
+              }}
+            >
+              <Icon
+                name={areAllGroupsCollapsed ? "Expand" : "Collapse"}
+                aria-hidden="true"
+              />
+              <span>
+                {areAllGroupsCollapsed ? "Expand all folders" : "Collapse all folders"}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="spooler-view-item"
+              disabled={spoolStore.spools.length === 0}
+              onClick={() => {
+                const points = viewMenu;
+                setViewMenu(null);
+                if (points) setSpoolNavOpen({ x: points.left, y: points.top });
+              }}
+            >
+              <Icon name="Spool" aria-hidden="true" />
+              <span>Jump to spool…</span>
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {spoolNavOpen ? (

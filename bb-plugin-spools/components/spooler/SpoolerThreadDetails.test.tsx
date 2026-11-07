@@ -156,9 +156,9 @@ describe("hover cluster", () => {
   it("keeps Pin and Archive handlers on the cluster", async () => {
     const slot = renderThreads([makeThread({ id: "t1" })]);
     const row = rowOf(slot.container);
-    const buttons = [
-      ...row.querySelectorAll(".spooler-row-cluster .spooler-action"),
-    ] as HTMLElement[];
+    const buttons = Array.from(
+      row.querySelectorAll(".spooler-row-cluster .spooler-action"),
+    ) as HTMLElement[];
 
     fireEvent.click(buttons[0]!); // Pin
     await waitFor(() =>

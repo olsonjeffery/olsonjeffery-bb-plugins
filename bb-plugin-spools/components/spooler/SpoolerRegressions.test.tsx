@@ -163,18 +163,30 @@ describe("sidebar behavior regressions", () => {
     expect(slot.container.querySelector(".spooler-group-status")?.getAttribute("aria-label")).toBe("3 failed");
   });
 
+  const openViewMenu = () => {
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
+  };
+
   it.each(["family", "group"])("prunes selected children after folding their %s", (fold) => {
     const slot = mount([makeThread({ id: "parent" }), makeThread({ id: "child", parentThreadId: "parent" })]);
     fireEvent.click(slot.container.querySelector('[data-sidebar-thread-id="child"]')!, { ctrlKey: true });
     expect(screen.getByText("1 selected")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: fold === "family" ? "Collapse replies" : "Collapse all folders" }));
+    if (fold === "family") {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Collapse replies" }),
+      );
+    } else {
+      openViewMenu();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Collapse all folders" }));
+    }
     expect(screen.queryByText("1 selected")).toBeNull();
   });
 
   it("does not archive the last keyboard target after its group is folded", () => {
     const slot = mount([makeThread({ id: "hidden-target" })]);
     fireEvent.keyDown(document.body, { key: "ArrowDown" });
-    fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+    openViewMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Collapse all folders" }));
     fireEvent.keyDown(document.body, { key: "e" });
     expect(archiveCalls(slot)).toEqual([]);
   });

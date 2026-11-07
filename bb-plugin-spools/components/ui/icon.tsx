@@ -46,6 +46,7 @@ import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import SidebarLeftIcon from "@hugeicons/core-free-icons/SidebarLeftIcon";
 import SlidersHorizontalIcon from "@hugeicons/core-free-icons/SlidersHorizontalIcon";
+import SpoolIconPackage from "@hugeicons/core-free-icons/SpoolIcon";
 import SourceCodeIcon from "@hugeicons/core-free-icons/SourceCodeIcon";
 import Target02Icon from "@hugeicons/core-free-icons/Target02Icon";
 import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
@@ -201,6 +202,8 @@ const CORE_ICON_MAP = {
   SectionMove: SectionMoveStrokeRoundedIcon,
   Settings: Settings01Icon,
   SlidersHorizontal: SlidersHorizontalIcon,
+  // The spool glyph: the thread-stack metaphor everywhere 🧵 used to be.
+  Spool: SpoolIconPackage,
   Spinner: DashedLineCircleIcon,
   Target: Target02Icon,
   Terminal: ComputerTerminal01Icon,

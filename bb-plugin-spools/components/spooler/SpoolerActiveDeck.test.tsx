@@ -253,12 +253,14 @@ describe("active deck", () => {
 
   it("expand-all and collapse-all reach the deck with the rest", () => {
     renderThreads([runningThread(), makeThread({ id: "quiet" })], { sections });
-    fireEvent.click(screen.getByRole("button", { name: "Collapse all folders" }));
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Collapse all folders" }));
     expect(
       screen.getByRole("button", { name: "Active, 1 running thread" })
         .getAttribute("aria-expanded"),
     ).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: "Expand all folders" }));
+    fireEvent.click(screen.getByRole("button", { name: "View options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Expand all folders" }));
     expect(
       screen.getByRole("button", { name: "Active, 1 running thread" })
         .getAttribute("aria-expanded"),
