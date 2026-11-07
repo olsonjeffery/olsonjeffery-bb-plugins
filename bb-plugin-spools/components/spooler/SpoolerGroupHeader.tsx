@@ -109,8 +109,14 @@ export function GroupHeader({
           className="spooler-group-chevron"
         />
         <span className="spooler-group-rail" aria-hidden="true">
-          {titleRight ? (
+          {titleRight && railIcon ? (
             <SectionIconGlyph raw={railIcon} className="spooler-group-rail-glyph" />
+          ) : titleRight ? (
+            // Sections with no stored icon show nothing except the fixed
+            // Inbox bucket, whose group carries the host's Inbox glyph.
+            group.icon === "Inbox" ? (
+              <Icon name="Inbox" className="spooler-group-rail-glyph" />
+            ) : null
           ) : (
             <Icon name={groupGlyph(group, isCollapsed)} className="spooler-group-rail-glyph" />
           )}
