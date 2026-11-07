@@ -3698,7 +3698,7 @@ a.spooler-row-main:hover {
   top: -2px;
   bottom: -2px;
   width: 1px;
-  background: color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--border);
   pointer-events: none;
   z-index: -1;
 }
@@ -4100,7 +4100,7 @@ a.spooler-row-main:hover {
   top: -2px;
   bottom: -2px;
   width: 1px;
-  background: color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--border);
   pointer-events: none;
   z-index: -1;
 }
