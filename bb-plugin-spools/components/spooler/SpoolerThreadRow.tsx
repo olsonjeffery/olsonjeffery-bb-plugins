@@ -32,6 +32,7 @@ import {
 } from "./useThreadExecution";
 import { SpoolerHoverCard, type ContextUsage } from "./SpoolerHoverCard";
 import { ThreadDetailFacts } from "./SpoolerThreadDetails";
+import { onOpenThreadDetails } from "./detailsBus";
 import { useEnvironmentPullRequest } from "./usePullRequest";
 import { useRowSwipe } from "./useRowSwipe";
 import {
@@ -292,11 +293,15 @@ export function projectHue(projectId: string): number {
 
 let hoverCapable: boolean | null = null;
 
-/** Hover previews need a real hover-capable pointer (never touch). */
-function canHoverPreview(): boolean {
+/** Hover previews (and the hover cluster's grammars) need a real
+ *  hover-capable pointer (never touch). Coarse pointers reach Details
+ *  through the More menu's "Show details" item, which the list gates
+ *  with this same check. */
+export function canHoverPreview(): boolean {
   if (hoverCapable === null) {
     hoverCapable =
       typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
       window.matchMedia("(hover: hover)").matches;
   }
   return hoverCapable;
@@ -533,6 +538,19 @@ function SpoolerThreadRowImpl({
     closeHoverCard(true);
   };
 
+  // Touch: the thread menu's "Show details" item surfaces here.
+  useEffect(
+    () =>
+      onOpenThreadDetails((intent) => {
+        if (intent.threadId !== thread.id) return;
+        setDetailsOpen((open) => {
+          if (!open) ensureContext();
+          return true;
+        });
+      }),
+    [thread.id, ensureContext],
+  );
+
   useEffect(() => {
     return () => {
       if (copiedTimer.current !== null) {
@@ -573,6 +591,9 @@ function SpoolerThreadRowImpl({
   const scheduleHoverCard = () => {
     if (!allowHoverCard || !isVisible) return;
     if (!canHoverPreview()) return;
+    // The peek is suppressed while the row's inline Details are open —
+    // they carry the same facts, so only one may show at a time.
+    if (detailsOpen) return;
     if (hoverTimer.current !== null || hoverCard) return;
     hoverTimer.current = window.setTimeout(() => {
       hoverTimer.current = null;
@@ -759,6 +780,10 @@ function SpoolerThreadRowImpl({
     event?.preventDefault();
     event?.stopPropagation();
     if (!branch) return;
+    if (!navigator.clipboard) {
+      toast.error("Could not copy branch");
+      return;
+    }
     void navigator.clipboard.writeText(branch).then(() => {
       setCopiedBranch(true);
       toast.success(`Copied branch: ${branch}`);
@@ -1407,8 +1432,6 @@ function SpoolerThreadRowImpl({
             <SpoolerHoverCard
               thread={thread}
               anchor={hoverCard.anchor}
-              branch={branch}
-              isWorktree={isWorktree}
               pullRequest={pullRequest}
               facts={{
                 providerName,
@@ -1417,24 +1440,18 @@ function SpoolerThreadRowImpl({
                 thinking,
                 projectName,
                 sectionName,
-                hostName,
+                hostName: detailHostName,
                 timeText,
                 statusWord: statusMeta?.text ?? null,
                 statusTone: hoverTone,
                 hiddenKids: collapse?.hiddenKids ?? [],
                 hiddenTotal: collapse?.hiddenTotal ?? 0,
               }}
-              onOpen={() => {
-                actions.open(thread.id);
-                onNavigate();
-                setHoverCard(null);
-              }}
-              onOpenSplit={() => {
-                openInSplit();
-                setHoverCard(null);
-              }}
-              onTogglePin={togglePin}
-              onArchive={toggleArchive}
+              context={context}
+              getContext={ensureContext}
+              onOpenPr={handleOpenPr}
+              onCopyBranch={() => handleCopyBranch()}
+              copiedBranch={copiedBranch}
               onMouseEnter={() => {
                 isHoveringCard.current = true;
               }}

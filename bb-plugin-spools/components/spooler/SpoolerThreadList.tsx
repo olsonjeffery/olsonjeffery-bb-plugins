@@ -53,7 +53,8 @@ import {
   swipeActionFromSetting,
 } from "@/lib/swipe";
 import { preloadExtendedIcons } from "@/components/ui/icon";
-import { SpoolerThreadRow } from "./SpoolerThreadRow";
+import { canHoverPreview, SpoolerThreadRow } from "./SpoolerThreadRow";
+import { openThreadDetails } from "./detailsBus";
 import { activityTime, isRunningThread, timeAgo, timeShort } from "./time";
 import {
   GroupHeader,
@@ -1491,6 +1492,11 @@ export function SpoolerThreadList({
   const menuItems = useMemo<SpoolerMenuItem[]>(() => {
     if (!menuThread) return [];
     const items: SpoolerMenuItem[] = [
+      // Coarse pointers have no hover cluster, so Details is one menu tap.
+      // Coarse pointers have no hover cluster, so Details is one menu tap.
+      ...(!canHoverPreview()
+        ? ([{ kind: "item", id: "details", label: "Show details", icon: "ChevronDown" }] as SpoolerMenuItem[])
+        : []),
       { kind: "item", id: "open-split", label: "Open in split", icon: "Columns2" },
       {
         kind: "item",
@@ -1629,6 +1635,8 @@ export function SpoolerThreadList({
         if (id === "open-split") {
           actions.open(thread.id, { split: true });
           onNavigate();
+        } else if (id === "details") {
+          openThreadDetails(thread.id);
         } else if (id === "pin") {
           await actions.setPinned(thread.id, !thread.isPinned);
         } else if (id === "read") {
