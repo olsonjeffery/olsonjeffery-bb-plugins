@@ -10,23 +10,51 @@ through BB's own flows (pins, reads, renames, archives, deletes), spool membersh
 plugin metadata on each thread, and a `bb spools` CLI can organise sections and spools
 without opening the app.
 
+The list reads at a glance and inspects on demand: every row answers three
+questions in one line — does this need me, what is it, when did it change —
+and everything else sits behind the row's hover cluster or its inline
+Details panel. Surfaces follow the approved `docs/glance-redesign-mockup`
+reference.
+
 ## Surfaces
 
 - **Thread list** (`experimental_threadList`, id `spooler`): pinned threads,
   then Today / Yesterday / Previous 7 days / Previous 30 days / Older — or
-  group by project, or by **section** for drag-to-organise. The header holds
-  a text filter, an Active / Archived / All switch, grouping + expand-all +
-  density toggles, status chips, and the smart-views bar (New thread is
-  BB's own, above the list, so the list keeps no duplicate). The header
-  collapses to ONE line — a chevron at the search bar's right edge (right
-  glyph when collapsed, down when expanded) hides the filter INPUT first
-  and every control but the Grouping widget (Section / Time / Project);
-  collapsed, that widget anchors the row's left edge and the chevron sits
-  right-justified, and <kbd>/</kbd> expands the header and focuses the
-  field; persisted in `spooler-sidebar:filters-collapsed:v1`; default
-  expanded. Section view adds the fixed **Active deck** (see Active section
-  below). Preferences persist per client in `localStorage` (`spools:*:v1`
-  keys).
+  group by project, or by **section** for drag-to-organise (New thread is
+  BB's own, above the list, so the list keeps no duplicate).
+- **Filter header**, three rows. Row A: the search input (with the `/`
+  keycap; `/` focuses it) and the collapse chevron. Row B: the
+  Active / Archived / All switch, the grouping toggle, and the ⋯ **View
+  menu**. Row C: the **status chips**, a wrapping row (never a horizontal
+  scroll or a container fold).
+  The header collapses to ONE line — the chevron at the search bar's right
+  edge (right glyph when collapsed, down when expanded) hides the status
+  chips row and every control but the Grouping widget (Section / Time /
+  Project); collapsed, that widget anchors the row's left edge and the
+  chevron sits right-justified, and <kbd>/</kbd> expands the header and
+  focuses the field; persisted in `spooler-sidebar:filters-collapsed:v1`;
+  default expanded. Section view adds the fixed **Active deck** (below).
+  What lives in the **View menu (⋯)**: smart views (the Pinned preset,
+  saved views, Save view), the density choice (Comfortable / Compact),
+  Expand-All / Collapse-All folders, and **Jump to spool…** (the member
+  navigation dropdown listing every spool and its members). Section
+  grouping keeps **New section** under the chips.
+- **Status chips** (`role=radiogroup`): **All · Needs you · Failed ·
+  Working · Unread**, each with its count. Needs you carries an amber dot
+  and takes its attention surface when the count is above zero; Failed
+  carries a red dot and takes its destructive surface; Working carries a
+  success spinner; Unread carries the ink dot. Selected uses
+  `aria-checked` and bb's `bg-state-active` wash. The stored filter ids
+  are still `live`/`waiting` (labels only renamed); `failed` is new, and
+  stored preferences keep working with no migration.
+- **Groups**, time / project / section: caption rows — chevron, marker
+  icon (section's chosen icon; project's folder; pinned's pin), label,
+  quiet total — with **action pills only when a count is above zero**:
+  "N failed" on the destructive surface, "N needs you" on the attention
+  surface with its amber dot, "N working" as success text with a spinner.
+  Section identity is **icon-only**: colour dots, hue vars and colour
+  pickers are gone; stored colour values are ignored, not migrated.
+
 ## Navigation
 
 BB 0.46 retired the `experimental_sidebarNavigation` slot. BB's own navigation
@@ -35,71 +63,116 @@ cannot replace it, so Spooler 0.5.3 ships no navigation or rail. The `railNav`
 and `wideRail` settings are gone. On BB 0.44 or 0.45, Spooler 0.5.2 still has
 both.
 
+## Row anatomy
+
+One lead, one title line, one meta line (depth-0 rows):
+
+- **Lead (16px slot)**: the status glyph — a success spinner (working, incl.
+  working-draft), pulsing success glyphs for background agent (bot) /
+  command (terminal) / workflow / goal (target) / plan mode (checklist), an
+  amber pulsing dot for needs-you and queued, a red ✕ for failed, a green
+  check for finished-but-unseen — or, for a family parent, the fold chevron
+  that used to live in the tree gutter. Selection replaces the lead with the
+  checkbox (the family toggle stays, so folding still prunes selections).
+  The provider icon lives in Details now.
+- **Title line**: the title truncates, ranked by weight — 400 (quiet/child),
+  500 (needs-you/queued/failed), 600 (unread/done); unread rows keep the ink
+  dot and the bolded title. Trailing, in order: the unread ink dot, the
+  **short time** ("now", "12m", "2h", "2d" — `timeShort`; the full relative
+  text is in the tooltip and Details and still re-renders on the minute
+  tick), the jump-shortcut keycap, another plugin's row-status icon, and the
+  unsent-draft pip. The **hover cluster** overlays the time slot on hover
+  or focus-within.
+- **Meta line**: the status word or pill first — success text ("Working" or
+  "Working · Agent / Command / Workflow / Goal / Plan"), or a pill ("Needs
+  you" on the attention surface with ink text, "Queued" keeps its name,
+  "Failed" on the destructive surface); done shows no word. Then the
+  project (muted, first to truncate), then the **pull request link**
+  (icon + `#N Label`, tone only: destructive for failed checks/conflicts,
+  warning for changes-requested/blocked, success-foreground for
+  ready-to-merge/merged, muted otherwise; click opens the PR). A folded
+  family shows "N replies · ● loudest-state" instead of the project —
+  failed first, then needs-you, then unread, then working. Quiet rows
+  (adaptive collapse) show title, project and time only.
+- Everything the glance row dropped — provider, model + thinking,
+  section, away-host, branch, the full time, folded kids, project colours —
+  lives in **Details**.
+
+## Hover cluster, Details, peek
+
+- **Hover cluster** (Pin · Archive · Details · More): a 24px button row,
+  absolute at the row's top right on the sidebar-accent surface, shown on
+  hover or focus-within. Pin and Archive keep their handlers; **Details**
+  (chevron, `aria-expanded`, `aria-controls`) toggles the inline panel;
+  **More** opens the existing context menu — rename moved into it
+  (double-click still renames). Row actions are `tabIndex={-1}`; the
+  cluster's buttons join the tab order only while the row holds focus
+  (the row is the roving tab stop). No arrow-key bindings were added.
+  Touch has no hover: the More menu gains a **Show details** item on
+  coarse pointers.
+- **Inline Details panel** (`SpoolerThreadDetails.tsx`): opens beneath the
+  row on the recessed surface as one definition list (4.75rem label column)
+  plus **Open** (primary) and **Split** (outline, the same split call the
+  peek used to make). Facts: Goal, Status, Model (+ thinking, only while
+  the thread is in flight), Provider (icon + name), Host (only away from
+  the home host), Branch (with copy), Pull request (opens in the browser),
+  Section (when present), Replies (folded families, names + remainder),
+  and the **context meter** — omitted entirely when BB records no usage.
+- **Shared facts** — one `ThreadDetailFacts` renders the list for both the
+  inline panel and the peek, so the two surfaces tell the same story.
+  Context usage is fetched lazily through the row's single cache: the first
+  open of Details or the peek triggers it once.
+- **Peek card** (`SpoolerHoverCard.tsx`): still a measured, portal'd,
+  clamped card (pre-paint `offsetWidth/Height` placement, right side
+  preferred, flipped + 8px-clamped, arrow tracking the row's mid-height,
+  gated by `canHoverPreview()` and the `hoverCard` setting, closed on
+  leave/scroll/blur/menu/actions). Its body is the header (title +
+  provider + status/time) plus the shared facts; the **action footer is
+  gone** (copy-branch and PR-open survive inside the facts). The peek is
+  **suppressed while that row's Details are open**.
+
+## Active deck
+
+- **Active deck** (`SpoolerActiveDeck.tsx`): a fixed, optional card
+  (plugin setting **Active deck**, default on) in section grouping only —
+  the hardcoded deck above Pinned and Inbox, inside the pinned
+  `spooler-active-station`: the station pins the caption AND its card row
+  together at the scrollport's top for the whole scroll, and every other
+  group header's sticky top is offset by the station's measured height
+  (`--spooler-active-overlap`, ResizeObserver-tracked). The caption reads
+  "Active" + a count pip overlaying a running spinner (failed dot /
+  needs-you dot override); it folds like any other group (chevron at the
+  right, aria-expanded, persisted in the ordinary group-collapse set as id
+  `active`), filtering forces it open, and View-menu Expand/Collapse-All
+  reach it. Each member is a duplicate card — status glyph, truncated
+  title, home label (the spool's title with its SpoolIcon glyph, else the
+  section name, else "Inbox") — clicking opens the thread while the
+  original stays in its own section and/or spool card (deck members are
+  not lifted; the deck never enters `shownTotal`). Ordering is failed >
+  needs-you > running.
+
 ## Organisation tools
 
-- **Grouping modes** (`Clock` / `Folder` / `Hash` icons): time,
-  project, or section. Project groups are drag-reorderable by their header
-  (order persisted in `spools:project-order:v1`; right-click a header
-  to reset). Each project header also carries a New-thread-in-project button.
-  Section grouping reads like bb-app's own sidebar (Shannon style, re-skinned
-  from 0.7's slab column — colors kept in pills or dots): flat stock rows on
-  the plain sidebar, rounded accent hover tubes, caption-tone sticky headers
-  (sentence case, translucent blur), stock depth indents — section rows one
-  step off the bucket edge with one straight guide at the section-icon axis
-  (33px in; family children keep their elbow guides), spool rosters one step
-  deeper still (48px) under one continuous guide. The section color lives in
-  ONE 6px dot before the title (`--spooler-sec-dot`); status is tone chips
-  on the title line (tinted pill shells; the needs-you dot breathes), count
-  pips tint by state (`:has()` on the overlaid status), unread stays a small
-  dot + bolded title. **Inbox** is the sibling bucket with a neutral gray
-  dot. Section headers read title-left, controls-right: the rail carries the
-  section's chosen icon (curated builtin set or any pasted emoji/unicode
-  character — the universal `#` glyph retired), and the right group runs
-  unread pip · count-plus-working pill · collapse chevron furthest right.
-  Threads float to the top of a section with the spool deck beneath;
-  headers and spool headers paint only their own tubes (no slab, no rim).
-  Unspooled thread titles may wrap to two rows before ellipsizing (title
-  priority over the detail pills); thread titles run weight 450, spool
-  titles 550 upright (italics retired with the slabs). Spool detail pills
-  (project/branch/PR/rollup) live in one wrapping flex grid under the title
-  (`spooler-row-grid`), pills ellipsize inside their own boxes and the grid
-  re-flows across rows without ever overflowing the entry.
-- **Active section** (`SpoolerActiveDeck.tsx`): a fixed, optional top bar
-  (plugin setting **Active section**, default on) in section grouping only —
-  the hardcoded active deck above Pinned and Inbox, with top-bar remain-
-  visible behavior on scroll: the STATION (`spooler-active-station`) pins
-  the bar AND its card row together at the scrollport's top for the WHOLE
-  scroll (no clipping mid-scroll), and every other group header's sticky
-  top is offset by the station's MEASURED height (--spooler-active-
-  overlap, ResizeObserver-tracked), so running work stays glanceable however
-  deep you scroll, right alongside the filter header. The bar FOLDS like
-  any other group: a chevron at the far right (down expanded, right
-  collapsed) with aria-expanded, the cards collapse through the shared
-  Fold animation, the choice persists in the ordinary group-collapse set
-  (`spooler-sidebar:collapsed:v1` as id `active`), filtering forces it back
-  open, and Expand-All / Collapse-All reach it. It renders ONLY when
-  something runs, and ignores nothing the rest of the list respects: the
-  text/status filters shape the deck. Each member renders as a duplicate
-  pill-card (spinner · title · jump-home chip) — clicking opens the thread —
-  while the original stays in its own section and/or spool card (deck
-  members are NOT lifted: `visibleFlattenedThreadIds` never includes the
-  deck, so keyboard walk, selection and ⌘-jump stay un-crowded, and the
-  deck's group never enters `shownTotal`). Card status uses the row
-  priority failed > needs-you > running spinner; the bar's pip is the
-  running count with the same overlay, and unread pip rides beside it. The
-  jump-home chip reads the spool's title (🧵), else the section name, else
-  the unfiled Inbox.
+- **Grouping modes**: time, project, or section. Project groups are
+  drag-reorderable by their header (order persisted in
+  `spools:project-order:v1`; right-click a header to reset; each header
+  carries a New-thread-in-project button). Section grouping keeps the flat
+  stock rows on the plain sidebar, rounded accent hover tubes, caption
+  headers, stock depth indents — section rows one step off the bucket edge
+  with one straight guide at the section-icon axis; spool rosters one step
+  deeper still under one continuous guide. Unspooled thread titles may
+  wrap to two rows before ellipsizing.
 - **Section Settings**: the header context menu offers a single
-  **Section settings…** entry (double-click the section title too) opening a
-  modal with auto-save — name saves on a short debounce via
-  `sdk.threadSections.update`, color and icon save the moment they are
-  picked; ONE status slot beside Done reports Saving…/Saved/error. Cancel
-  discards uncommitted drafts; Done flushes and closes. The inline
-  Rename/Change-color menu pair and the two-stage color submenu are gone.
-  Styles persist in `spooler-sidebar:section-style:v2` (a per-section
-  `{color, icon}` record; the v1 color map is migrated on read and left in
-  place for old clients), shared with the plugin-settings section editor
-  through the same event bus.
+  **Section settings…** entry (double-click the section title too) opening
+  a modal with auto-save — name saves on a short debounce via
+  `sdk.threadSections.update`, the icon saves the moment it is picked; ONE
+  status slot beside Done reports Saving…/Saved/error. Cancel discards
+  uncommitted drafts; Done flushes and closes. The colour row is gone.
+  Styles persist in `spooler-sidebar:section-style:v2` as a per-section
+  record that keeps **only its icon** (curated builtin set or any pasted
+  emoji/unicode character; stored `color` fields are ignored rather than
+  migrated), shared with the plugin-settings section editor (name, create,
+  delete — no swatches) through the same event bus.
 - **Create a section**: switch to section grouping, choose **New section**,
   enter its name and submit with **Create section** or Enter. Cancel or Escape
   closes the form without creating anything. Names are trimmed; blank names
@@ -110,43 +183,27 @@ both.
 - **Drag to file**: in section grouping, hover a root thread to reveal its
   grip, then drag it onto a section header (or the **Inbox** bucket — the
   unfiled pseudo-section that leads the section list) to set its
-  `sectionId` through BB's own thread update — the drop target highlights,
-  the thread's own section is marked as a no-op, and a toast confirms.
-  Dragging a selected thread files the whole selection. For keyboard filing,
-  focus the grip, press Space, move with arrow keys, and press Enter to drop
-  or Escape to cancel.
+  `sectionId` through BB's own thread update — the drop target shows the
+  selected surface with a sidebar-ring outline, the thread's own section is
+  marked as a no-op, and a toast confirms. Dragging a selected thread files
+  the whole selection. For keyboard filing, focus the grip, press Space,
+  move with arrow keys, and press Enter to drop or Escape to cancel.
   Threads cannot be moved between *projects*: BB's update API has no
   `projectId` field, so project grouping is view-only.
-- **Smart views** (`SpoolerSmartViews.tsx`): the bar under the filters offers a
-  Pinned preset plus any saved view. Configure query + status chip +
-  lifecycle, hit **Save view**, name it — stored in
-  `spools:smart-views:v1`. Click a pill to apply (click again to
-  clear).
-- **Hover preview** (`SpoolerHoverCard.tsx`): pausing on a row opens a portal'd
-  card (portaled because row `content-visibility` containment would clip a
-  fixed-position child) with an arrow pointing at the row. Sections: title +
-  provider + status word + time; the initial goal; chips for model, thinking,
-  section, project, host; branch (click to copy) and PR (click to open);
-  a **stacked context meter** built from `threads.context` snapshot
-  categories (used / reserved / deferred, with a legend of the four biggest)
-  plus a marker at the auto-compaction threshold; folded-family names; and
-  Open / Split / Pin / Archive actions. It is interactive, so it stays open
-  while pointed at. **The context section is omitted entirely when BB records
-  no usage** (a thread that never ran a turn) rather than showing a zeroed
-  bar. Placement is measured in a pre-paint layout effect: the card prefers
-  the row's right, flips left when that would overflow, and clamps to an 8px
-  viewport inset on both axes, so no part of it can leave the screen; the
-  arrow tracks the row's mid-height even after the card is nudged. It
-  measures `offsetWidth`/`offsetHeight` (not `getBoundingClientRect`) so the
-  entrance `scale()` can't skew the maths, and re-places when the context
-  section arrives and changes its height.
+- **Smart views** (in the View menu): a Pinned preset plus any saved view.
+  Configure query + status chip + lifecycle, hit **Save view**, name it —
+  stored in `spools:smart-views:v1` with the same status ids as the chips
+  (`failed` accepted). Pick a view to apply it (pick again to clear).
+- **Row context menu**: open in split, pin, mark read/unread, mark family
+  read (whole tree), rename, move to section, archive/unarchive, copy link,
+  delete (host confirmation). On coarse pointers it gains **Show details**.
 
 ## Thread spools
 
 **Spools gather child threads under one label.** A spool is a first-class entry in section
-grouping only (other groupings keep ordinary rows): a flat strip — grip and 🧵
-share the icon rail (the grip fades in over the mark on hover), the upright
-title sits above its wrapping detail-pill grid, and the count
+grouping only (other groupings keep ordinary rows): the SpoolIcon glyph and the drag
+grip share the icon rail (the grip fades in over the mark on hover), the title
+sits above one muted meta line reading **"Spool · N working"**, and the count
 pip doubles as the actions button — stored entirely in per-thread plugin
 metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
@@ -160,18 +217,17 @@ by the spool's *lead* thread). Details:
   locks the name exactly as it shows — and also persists an elected lead's `spoolLead`
   so the arrival's join stamp can never re-elect a different lead. Lead migration
   (archive/release) persists the promoted member's `spoolLead` too, and never promotes
-  a member whose family leaves together with the old lead. The card also shows a
-  member count pip (working members announce the count with a green spinner
-  behind the numeral) and a stale-status rollup with a detail tooltip. The
-  spool-level hover peek card is retired — expand the spool to read the
-  roster; thread ROWS keep their own hover preview card.
+  a member whose family leaves together with the old lead. The card also shows the
+  member count pip (working members spin the success spinner behind the numeral; the
+  pip takes the state-active surface). The spool header carries no project/branch/PR
+  chips any more — those are member-row facts, in Details.
 - Member rows are flat: they hang one stock depth step deeper than the bucket's own
   rows (a shared left edge), carry one straight roster guide instead of tree
   elbows, and no person glyph. Every member still renders at depth 1 for its row
   logic (no branch or section chip).
-- Spools behave like families for sorting and navigation: open the lead via the card's
-  Layers icon, jump to members, and the header layer dropdown lists every spool and
-  its members for one-click navigation.
+- Spools behave like families for sorting and navigation: open the lead via the
+  card's glyph, jump to members, and the View menu's **Jump to spool…** lists
+  every spool and its members for one-click navigation.
 - Drag & drop: dragging a card onto a section re-files **every member** to that section;
   dragging a thread *onto another thread* (drop onto the middle 40% of a row; the outer
   bands are the ordinary above/below filing) creates a new spool from the pair (a drag
@@ -217,48 +273,29 @@ list; disabling this plugin falls back to BB's list automatically.
 
 ## Row behaviour
 
-- Status visual: spinning green loader = thread working; distinct pulsing
-  green icons for background agent (bot), background command (terminal),
-  workflow, goal (target), and plan mode (checklist); amber dot =
-  needs input / message waiting to send, red X icon = error / failed send,
-  green check-circle = finished but unseen. Rows that need you are the
-  loud ones, but the color never leaves the title line's tone chips:
-  waiting-for-input gets an amber chip whose dot breathes, failed gets the
-  red chip — both stay until resolved, whether read or not. Finished-unseen
-  gets the DONE chip + semibold title + unread dot, clearing once opened.
-  The counted pips (section, spool, Active deck) tint by the same state.
-  Auto-resolving queued states keep just the dot/pulse. Motion is reserved
-  for action items (off under prefers-reduced-motion); finished-unseen and
-  everything else stays static. Drafts show no status dot
-  (the pencil badge covers them). Unknown indicators draw nothing
-  (forward-compatible), and the row's accessible name appends the host's
-  status label.
-- Row lead: just the provider icon (14px, hard-capped).
-- Right-side badges, in order: status visual (spinner, dot, or icon) plus
-  its explicit word (WORKING, AGENT, COMMAND, WORKFLOW, GOAL, PLAN,
-  NEEDS YOU, QUEUED, FAILED, DONE — coloured to match), jump shortcut
-  while the app command modifier is held (only rows on screen get one:
-  rows in a folded family or collapsed group are skipped), another
-  plugin's row status (takes the draft slot, as BB's list does), amber pip
-  for an unsent composer draft, blue pip for unread.
-- State changes animate: chips tint, badges pop in, quiet rows fold
+- Status is never colour-only: the lead glyph's shape and the meta line's
+  word or pill both carry it. Auto-resolving queued states keep the amber
+  pulse. Drafts show no status glyph (the pip covers them). Unknown
+  indicators draw nothing (forward-compatible), and the row's accessible
+  name appends the host's status label.
+- Time: `timeShort` — "now", "12m", "2h", "2d", then a short date. Same
+  minute granularity as the full text at the bottom of the scale, so the
+  label flips within the same minute tick. The full text is always in the
+  tooltip and in Details.
+- State changes animate: pills appear, badges pop in, quiet rows fold
   smoothly, and groups + families expand/collapse with an animated roll
   (rows stay mounted only while the fold closes, hidden from keyboard and
   screen readers, then unmount so a folded group or family costs nothing;
-  all off under prefers-reduced-motion).
-  Threads flipping from live work to done get a one-time springy
-  check-pop on their status badge.
-- Adaptive rows (`adaptiveCollapse`): quiet read-idle rows fold only the
-  SECONDARY chips (model, thinking, section, host) — time, project, branch,
-  PR, and a folded-family summary always stay, so the metadata grid never
-  reads as empty. Anything worth a glance (unread, working, needs-you,
-  failed, drafts, plugin statuses, PRs needing attention, unknown states)
-  keeps the full row. Editing never collapses.
+  all off under prefers-reduced-motion). Threads flipping from live work
+  to done get a one-time springy pop on the lead's check glyph.
+- Adaptive rows (`adaptiveCollapse`): quiet read-idle rows are title +
+  project + time — no status word, no PR on the meta line. Anything worth
+  a glance (unread, working, needs-you, failed, drafts, plugin statuses,
+  PRs needing attention, unknown states) keeps the full row. Editing never
+  collapses.
 - Compact density compresses **vertically only** — inline padding and the
-  child indent stay identical to comfortable so tree guides keep lining up;
-  the grid holds one unwrapped line (time + project + PR; the secondary
-  chips and the branch yield). **Two-line titles** also applies to compact
-  density and the forced-compact touch layout.
+  child indent stay identical to comfortable so tree guides keep lining
+  up; the meta line truncates to one unwrapped line.
   It uses `margin-block` rather than `margin`, since the shorthand also
   zeroes `margin-left` and wipes `.spooler-row-child` / `.spooler-row-deep`.
   `css.test.ts` guards both as static assertions (jsdom does not resolve the
@@ -266,84 +303,26 @@ list; disabling this plugin falls back to BB's list automatically.
 - Pinned rows carry a small pin marker at the start of the title, so
   pinned children nested under unpinned parents stay recognisable (and
   `pinned` joins the row's accessible name).
-- Hover cards (`hoverCard`): pausing on a row (hover-capable pointers only)
-  opens the interactive preview described under **Hover preview**. It
-  closes on leave, scroll, window blur, or when a menu opens.
-- Responsive: container-query width tiers shed load as the sidebar
-  narrows (status words first, then project chips, then badges down to
-  status + unread); status chips fold to glyph and count at 284px or less,
-  keeping their accessible labels; compact touch viewports pin the ⋯ menu inline since
-  hover doesn't exist there, and filters wrap.
-- Row layout: two columns. The LEFT column spans the row's full height and
-  centers its content — the provider icon (or the fold/grip chevron) — so
-  tall rows keep the icon mid-line instead of pinning it top-left.
-  The RIGHT column is the content: the title line (title + the right-edge
-  status cluster: WORKING/spinner/agent/etc, plugin row status, draft pip,
-  unread pip), then ONE wrapping metadata grid. The cluster shares the title's
-  row (aligned on its first baseline, so a wrapped title keeps it on line one)
-  and never sits beside the grid, which spans the full text column beneath.
-- The metadata grid: time (leftmost, muted tabular), project chip in the
-  project's own muted hue (stable per project id, readable light and dark —
-  hidden only when it would echo the project group header), then model +
-  thinking (outlined chips, live threads only), section chip in the
-  section's own muted hue, host (away-from-home only), branch, and PR —
-  every kind an outlined chip with its own max-width (default 45%, branch
-  60%, folded summary 100%, time 90px, project 110px, model 130px). The
-  grid WRAPS onto further lines when values don't fit; kinds never stack
-  on disjointed lines. Groups, sorting, and timestamps all key off
-  activity — live threads (executing, background work, queued messages,
-  waiting on you) count as now, everything else keys off latest attention —
-  so merely opening a thread never floats it to Today.
-- Model + thinking: **shown only while the thread is in flight**
-  (`isLiveThread`): `threads.defaultExecutionOptions` resolves *defaults*,
-  so it answers with a model and reasoning level for any thread at all —
-  including idle and never-started ones. Idle rows skip the fetch and show
-  no chips. The provider name is not echoed (the icon says it) unless no
-  icon is available; `Off` thinking and the home host (whichever host runs
-  the most threads) are omitted as noise. Model names resolve through each
-  provider's catalog; a shimmer stub holds the place while loading. The
-  full text is always in the tooltip. Model info refreshes when a thread
-  starts a new run, records newer activity, or the window regains focus;
-  regrouping within the same run reuses cached values.
-- Branch + PR live in the grid: a branch chip (a git-folder icon for
-  worktrees, a branch icon for plain checkouts, click to copy, with
-  `(worktree)` in the tooltip) and a PR badge whenever the thread HAS one —
-  branch or not (`#123 · Open`, coloured by attention: red for failed
-  checks/conflicts, amber for changes requested/blocked, blue for review
-  pending, green for ready/merged). Clicking the badge opens the PR.
-- Folded families swap the live chips for an inline summary of who's hidden
-  (stacked people faces + remainder, names in the tooltip) — the summary
-  joins the grid as a full-width item beside section/host/branch/PR.
-
-- Hover actions: pin, rename (pencil), archive/unarchive, and a menu (⋯).
-  They never resize the row and sit at the row's top right in every layout
-  (over the title line's end, clear of the metadata grid so the PR badge
-  stays clickable).
-  Right-click opens the fuller menu: open in split, pin, mark read/unread,
-  mark family read (whole tree, for threads with parents or children —
-  a child's completion lands as the parent's own notification turn, so
-  clearing one often means clearing both), rename, move to section,
-  archive/unarchive, copy link, delete (host confirmation).
-- Double-click a row to rename inline; Enter commits, Escape cancels.
-- Child threads nest directly under their parent (indented, deeper indent past
-  one level, VS Code-style indent guides with stubs on last children), and child
-  activity bubbles up: a family
-  groups/sorts by its freshest activity, so an active child floats its
-  parent. Children show model • thinking + time only — no branch line, no
-  echoed context (the tooltip keeps everything). Placement follows the
-  root's pin state; orphans whose parent is hidden promote to roots.
-  Filtering keeps matching branches plus their ancestor context. Families
-  fold via the gutter chevron (persisted per client; group headers stick
-  while scrolling; filtering forces everything open). A collapsed
-  parent swaps its subtitle
-  for an inline
-  summary of who's folded (stacked people faces + remainder, names in
-  the tooltip), keeps its branch line, and shows a pill
-  only when the fold hides unseen threads (blue count) or loud states
-  (red failed, amber needs-you, pulsing green live rollup dot). Group
-  counts/rollups always include folded members and count each thread. Failed
-  work takes priority over input waits, which take priority over running work.
+- Model + thinking live in Details, shown only while the thread is in
+  flight (`isLiveThread`): `threads.defaultExecutionOptions` resolves
+  *defaults*, so it answers with a model and reasoning level for any thread
+  at all — idle rows skip the fetch and show nothing. `Off` thinking and
+  the home host (whichever host runs the most threads) are omitted as
+  noise; the Host row appears only away from home. Model names resolve
+  through each provider's catalog; Details shows the section only when
+  present, plus Provider always. Context usage refreshes lazily, once per
+  row, on first Details or peek open.
+- Family folding: the parent's meta line carries "N replies · ● loudest"
+  (failed > needs-you > unread > working) instead of the project chip;
+  count/rollups always include folded members and count each thread.
+  Failed work takes priority over input waits, which take priority over
+  running work.
 - Hidden helper threads (`isHidden`) are filtered out, as in BB's list.
+- Double-click a row to rename inline; Enter commits, Escape cancels. The
+  rename row keeps the title + meta layout without the cluster.
+- The stylesheet paints only with bb's host tokens (no literal colours,
+  no hard-coded font sizes — the `--text-2xs/xs/sm` scale — and weights
+  only 400/500/600); `css.test.ts` guards that statically.
 
 ## Keyboard and selection
 
@@ -351,7 +330,9 @@ list; disabling this plugin falls back to BB's list automatically.
   Enter opens it, and Escape clears the query (or leaves the field when it
   is already empty).
 - ↑ / ↓ walk the rows, Enter opens, and Space, ← or → fold or unfold a
-  family. E archives and P pins or unpins the focused row.
+  family. E archives and P pins or unpins the focused row. The hover
+  cluster is reachable while the row holds focus: Tab steps into
+  Pin/Archive/Details/More (never parked on hidden buttons of other rows).
 - These shortcuts stay out of text fields, open dialogs and menus, and
   buttons or links outside the list, and never apply to a key another handler already consumed or one held
   with ⌘, Ctrl or Alt. The focused row (or the last one reached with ↑ / ↓)
@@ -373,14 +354,14 @@ rows paint at their final height.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `hoverCard` | `true` | Show the hover preview card on thread rows. |
-| `celebrate` | `true` | Pop the check badge once when a thread finishes. |
-| `motion` | `true` | Pulse rows that need input or have failed; off under `prefers-reduced-motion` regardless. |
-| `loudUnread` | `true` | Wash and accent bar on finished-but-unseen rows; off keeps the icon and pip only. |
-| `adaptiveCollapse` | `true` | Fold quiet read-idle rows to their title line. |
-| `activeDeck` | `true` | Show the fixed Active section top bar in Group By Section (default on). |
-| `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the header toggle is used; that choice is remembered per client. |
-| `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; metadata wraps below when needed. |
+| `hoverCard` | `true` | Show the peek card with the same facts as Details on thread rows (no action buttons). |
+| `celebrate` | `true` | Pop the lead's check glyph once when a thread finishes. |
+| `motion` | `true` | Pulse the needs-you dot and spin the working glyph; failed rows stay still; off under `prefers-reduced-motion` regardless. |
+| `loudUnread` | `true` | Bold title on finished-but-unseen rows. Off means no bold title, and the ink unread dot still shows. |
+| `adaptiveCollapse` | `true` | Fold quiet read-idle rows to title, project and time. |
+| `activeDeck` | `true` | Show the fixed Active deck in Group By Section (default on). |
+| `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the View menu choice is used; that choice is remembered per client. Compact keeps the meta line with tighter rows and single-line truncation. |
+| `twoLineTitles` | `false` | Enable to wrap long titles, including mentions, in both densities; the meta line stays beneath. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it, by touch or with two fingers on a trackpad. |
 | `swipeRight` | `Mark read / unread` | Rightward swipe action: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` or `Nothing`. |
 | `swipeLeft` | `Archive / unarchive` | Leftward swipe action, same options. |
@@ -391,6 +372,8 @@ rows paint at their final height.
 - The list renders no virtualisation: very large thread counts (thousands)
   may scroll slowly on low-end machines. Prefer the text filter or Archived
   separation in that case.
-- `app.css` is custom CSS against BB theme tokens; Tailwind utilities in
+- `app.css` is custom CSS against bb's theme tokens; Tailwind utilities in
   `components/spooler/*.tsx` compile in the plugin build. Keep new styles
-  behind the `spooler-` prefix.
+  behind the `spooler-` prefix, work through the host's tokens only (no
+  literal colours, `--text-*` for type, weights 400/500/600), and let
+  `css.test.ts`'s static guards keep it that way.

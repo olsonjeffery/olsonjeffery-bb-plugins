@@ -4,6 +4,61 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.10.0 — 2026-11-06
+
+### Changed
+- **The glance redesign.** Every row answers three questions in one line —
+  does this thread need you, what is it, when did it change — and everything
+  else moved behind a disclosure (the approved `docs/glance-redesign-mockup`
+  reference).
+  - **One lead glyph, one title line, one meta line.** The 16px lead carries
+    the state: a spinner or working glyph (agent / command / workflow / goal
+    / plan) in success, an amber needs-you dot, a red ✕ for failed, a green
+    check for done, or the family's fold chevron (it moved in from the tree
+    gutter; the drag grip stays). The title truncates, ranked by weight:
+    400 quiet/child, 500 needs-you/queued/failed, 600 unread/done. The meta
+    line holds the status word or pill, the project, and the pull request;
+    a folded family shows "3 replies · ● 1 needs you" instead.
+  - **Status reads as text, not just colour.** Working shows "Working ·
+    Command" etc. in success text; needs threads show a "Needs you" pill
+    ("Queued" keeps its name); failed shows a "Failed" pill; done shows no
+    word — only the check and the ink unread dot.
+  - **The hover cluster** (Pin · Archive · Details · More) overlays the
+    time slot on hover or keyboard focus. Details opens an inline panel
+    with Goal, Status, Model (+ thinking), Provider, Host (only away from
+    home), Branch (with copy), Pull request, Section, Replies and a context
+    meter — the same shared facts the hover peek shows. Rename moved into
+    the More menu (double-click still renames). The peek card drops its
+    action footer; context usage is fetched lazily, once per row.
+  - **Short row time**: "now", "12m", "2d" — the full relative text stays
+    in the tooltip and in Details, and still re-renders on the minute tick.
+- **Status chips renamed and extended**: All · Needs you · Failed · Working
+  · Unread, wrapping onto a second row on narrow lists instead of hiding
+  labels (the narrow-list chip fold retired). Needs you and Failed take their
+  tinted surface when their count is above zero; Working spins. The stored
+  ids stay `live`/`waiting`, with `failed` added — no data migration, and
+  stored preferences and smart views keep working.
+- **The filter header regroups**: search row, then Active/Archived/All, the
+  grouping toggle and a ⋯ **View menu** that now holds smart views, density,
+  expand/collapse-all and the spool jump. "New section" stays under the
+  chips in section grouping.
+- **Group headers are caption rows**: chevron, section icon (identity is
+  icon-only — **section colours retire**, stored colour values are ignored,
+  not migrated), label, quiet total, and action pills only when a count is
+  above zero: "N failed" on the destructive surface, "N needs you" on the
+  attention surface, "N working" as success text with a spinner. Project
+  headers take the same shape without a hue; project-colour chips leave the
+  rows entirely.
+- **Active deck and spool cards adopt the same grammar**: the Active card
+  is glyph + title + home label (spool title, else section, else Inbox);
+  spool headers read "Spool · N working" with the SpoolIcon glyph, which
+  replaces 🧵 everywhere, and member rosters hang off one hairline guide.
+- **The stylesheet paints only with host tokens** — hex/rgb/hsl literals,
+  hard-coded font sizes and off-scale weights are gone; type runs through
+  the host's `--text-2xs/xs/sm` scale, and `--success-foreground` is locally
+  re-mixed in oklab (bb's oklch mix of an achromatic ink paints olive —
+  workaround until the host token is fixed).
+
 ## 0.9.0 — 2026-11-06
 
 ### Changed

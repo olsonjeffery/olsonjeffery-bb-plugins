@@ -68,32 +68,33 @@ where it belongs, and anything running or waiting surfaces to Today. Group by
 project or section instead with one toggle. In section view, choose **New
 section**, enter a name, then **Create section**. Drag threads onto its header
 or use **Move to section** in a thread's right-click menu. Sections carry a
-chosen icon and one color dot in the header — the sidebar stays bb-app's plain
-flat rows, so color lives in pills and dots, never washes.
+chosen icon in the header — identity is icon-only; the sidebar stays bb-app's
+plain flat rows, and status colour lives in the lead glyph, pills and words,
+never washes.
 
-Restore the section list to one glance: an optional **Active section** pins a
-bar **with its cards** above it — the whole overlay stays on top while you
-scroll, and each card marks its home (spool, section or Inbox) while the
-originals never leave their sections. The bar folds like any other section:
-a chevron at its right (down expanded, right collapsed), remembered with the
-other group-collapse choices, and Expand-All / Collapse-All reach it. The
-filter header itself folds to one line: a chevron at the search bar's right
-edge (pointing right when collapsed, down when expanded) hides the filter
-field and every control but the Grouping widget — grouped left, chevron
-right — and <kbd>/</kbd> from the collapsed state re-opens it focused.
+Restore the section list to one glance: an optional **Active deck** pins a
+caption **with its cards** above it — the whole overlay stays on top while you
+scroll, and each card shows its status glyph, title and home (spool, section
+or Inbox) while the originals never leave their sections. The caption folds
+like any other group, remembered with the other group-collapse choices, and
+the View menu's Expand-All / Collapse-All reach it. The filter header itself
+folds to one line: a chevron at the search bar's right edge (pointing right
+when collapsed, down when expanded) hides the status chips row and every
+control but the Grouping widget — grouped left, chevron right — and
+<kbd>/</kbd> from the collapsed state re-opens it focused.
 
 </td>
 <td width="50%" valign="top">
 
 ### 🔴 Loud attention states
 
-Working, needs-you, failed and finished-unread each get their own icon, status
-word and colour. The color stays in small pills and dots: every status is a
-**tone chip** on the title line (a tinted pill whose dot breathes for
-needs-you), headers tint their count pip, and finished-but-unseen threads keep
-an unread dot and a bolded title — row surfaces never wash.
-Motion is reserved for things that need action, so movement
-always means something.
+Working, needs-you, failed and finished-unread each get their own lead glyph,
+word or pill. The 16px lead carries the shape; the meta line carries the word
+("Working · Command") or the pill ("Needs you", "Failed", "Queued"), so
+status is never colour-only. Finished-but-unseen threads keep an ink unread
+dot and a bolded title. Motion is reserved for things that need action — the
+needs-you dot pulses and the working spinner spins — so movement always means
+something.
 
 </td>
 </tr>
@@ -110,11 +111,14 @@ state inside.
 </td>
 <td valign="top">
 
-### 🔎 Hover peek card
+### 🔎 Details on demand
 
-Pause on a row for a preview with the thread's original goal, its branch and
-pull request, and a stacked context-window meter marked at the auto-compaction
-threshold. It is interactive, so you can pin, split or archive from the card.
+The row's hover cluster — Pin · Archive · Details · More — opens an inline
+details panel: goal, status, model and thinking, provider, away-hosts, branch
+(with copy), pull request, section, replies and a context-window meter marked
+at the auto-compaction threshold. Open and Split sit at its foot. Pause on a
+row (when peek is enabled) for the same facts as a pocket card with no action
+buttons; it stays out of the way while the row's own Details are open.
 
 </td>
 </tr>
@@ -124,7 +128,9 @@ threshold. It is interactive, so you can pin, split or archive from the card.
 ### ⌨️ Keyboard and bulk control
 
 Arrow keys walk the list, <kbd>Enter</kbd> opens, <kbd>Space</kbd> folds,
-<kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. Shortcuts
+<kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. Focused
+rows expose the hover cluster's four actions to Tab (they join the tab order
+only while the row holds focus). Shortcuts
 stay out of text fields, open dialogs and menus, and buttons or links outside the
 list, so they never steal keys from the rest of BB. <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click also selects several,
 to act on them together from a floating dock. Save a query plus filters as a
@@ -139,14 +145,14 @@ to mark it read or archive it; each direction's action is a setting.
 <table>
 <tr>
 <td align="center"><img src="docs/screenshots/families.png" alt="Today group with needs-you, background-command, failed and finished rows, one expanded family and one folded family" width="440"><br><sub><b>Attention states and nested families</b></sub></td>
-<td align="center"><img src="docs/screenshots/hover-card.png" alt="Peek card beside a thread running a background command, showing its goal, model, section, branch and context use" width="440"><br><sub><b>Hover peek card</b></sub></td>
+<td align="center"><img src="docs/screenshots/hover-card.png" alt="Details opened from a row's cluster, showing goal, status, model, host, branch, pull request and context use" width="440"><br><sub><b>Inline details and the same-facts peek</b></sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/screenshots/group-by-project.png" alt="Threads grouped under Tidewater and Lantern project headers" width="440"><br><sub><b>Grouped by project</b></sub></td>
 <td align="center"><img src="docs/screenshots/group-by-section.png" alt="Threads grouped under Bugs and Research section headers" width="440"><br><sub><b>Grouped by section</b></sub></td>
 </tr>
 <tr>
-<td align="center"><img src="docs/screenshots/filters-smart-views.png" alt="Waiting status chip active beside a saved smart view named Needs me, showing 2 of 15 threads" width="440"><br><sub><b>Status chips and a saved smart view</b></sub></td>
+<td align="center"><img src="docs/screenshots/filters-smart-views.png" alt="Status chips on the header with the View menu open beside a saved smart view" width="440"><br><sub><b>Status chips and the View menu</b></sub></td>
 <td align="center"><img src="docs/screenshots/bulk-select.png" alt="Three selected threads and the bulk bar with Archive, Pin and Read" width="440"><br><sub><b>Multi-select and bulk actions</b></sub></td>
 </tr>
 <tr>
@@ -190,10 +196,10 @@ bb plugin install path:$PWD --yes
 
 | Where | What |
 | --- | --- |
-| **Sidebar thread list** | Grouped, folded, attention-coloured threads with a filter, status chips, grouping and density toggles, and expand/collapse all. Status chips wrap onto a second row on narrow lists instead of hiding labels. |
-| **Smart views bar** | Saved query-plus-filter presets, and a shortcut to save the current one. |
-| **Row hover** | Pin, rename, archive and a fuller menu; a peek card after a short pause. |
-| **Settings → Appearance** | Choose Spooler for the thread list. |
+| **Sidebar thread list** | Grouped, folded threads with a filter; status chips (All · Needs you · Failed · Working · Unread, with counts) wrap onto a second row on narrow lists instead of hiding labels. |
+| **Hover cluster (Pin · Archive · Details · More)** | Pin and archive, the inline details panel, and the rest — rename, split, read, spool filing — under More; a same-facts peek card after a pause. |
+| **View menu (⋯ in the header)** | Smart views, density, expand/collapse all folders, and the spool jump. |
+| **Settings → Appearance** | Choose Spools for the sidebar. |
 
 ## Compatibility notes
 
@@ -245,25 +251,23 @@ flowchart LR
 
 | Setting | Default | |
 | --- | --- | --- |
-| `hoverCard` | `true` | Show the hover preview card on thread rows. |
-| `celebrate` | `true` | Pop the check badge once when a thread finishes. |
-| `motion` | `true` | Pulse rows that need input or have failed. Also respects `prefers-reduced-motion`. |
-| `loudUnread` | `true` | Unread dot and bold title on finished-but-unseen threads. Off keeps the DONE chip, unbolded. |
-| `adaptiveCollapse` | `true` | Fold quiet read-idle rows down to title, project and time. |
-| `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you change density in the header, which is remembered per client. |
-| `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their project chip and time beside them when they fit; otherwise metadata wraps below, aligned with the title text. Applies in both densities. |
+| `hoverCard` | `true` | Show the peek card with the same facts as Details on thread rows (no action buttons). |
+| `celebrate` | `true` | Pop the lead's check glyph once when a thread finishes. |
+| `motion` | `true` | Pulse the needs-you dot and spin the working glyph. Also respects `prefers-reduced-motion`. |
+| `loudUnread` | `true` | Bold title on finished-but-unseen threads. Off means no bold title, and the ink unread dot still shows. |
+| `adaptiveCollapse` | `true` | Fold quiet read-idle rows down to title, project and time — no status word, no pull request on the meta line. |
+| `defaultDensity` | `"comfortable"` | `comfortable` or `compact`. Applies until you pick a density in the View menu, which is remembered per client. Compact keeps the meta line with tighter rows and single-line truncation. |
+| `twoLineTitles` | `false` | Enable **Two-line titles** to wrap long titles, including mentions, before truncating. Short titles keep their time beside them when they fit; otherwise the title wraps and the meta line stays beneath. Applies in both densities. |
 | `swipeActions` | `true` | Swipe a row left or right to act on it: one finger on a touch screen, two fingers on a trackpad. A trackpad swipe stopped short rests open with its action as a button. A mouse's clicks, drags and Shift+wheel are unaffected. |
 | `swipeRight` | `"Mark read / unread"` | Action for a rightward swipe: `Mark read / unread`, `Pin / unpin`, `Archive / unarchive`, `Open in split`, `Rename`, `More actions`, `Delete…` (BB confirms) or `Nothing`. |
 | `swipeLeft` | `"Archive / unarchive"` | Action for a leftward swipe, from the same list. |
-| `activeDeck` | `true` | Show the **Active section** top bar in Group By Section: every running thread above the list, kept visible while you scroll. Each card is a duplicate — the thread stays in its section or spool too. The header's chevron collapse (`Hide filter controls`) is remembered per client in `spooler-sidebar:filters-collapsed:v1`. |
+| `activeDeck` | `true` | Show the **Active deck** above the section list in Group By Section: every running thread kept visible while you scroll, one card per thread with its status glyph, title and home. Each card is a duplicate — the thread stays in its section or spool too. The header's chevron collapse (`Hide filter controls`) is remembered per client in `spooler-sidebar:filters-collapsed:v1`. |
 
 The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last
-saw, so rows paint at their final height. In two-line mode, hover actions sit
-on the row's last line of plain text (the subtitle, or the project chip and
-time where the subtitle is folded away), so they stay off a wrapped title and
-off the PR badge. A row that is only one line tall still has them over the end
-of its title, as in one-line mode. They never change the row's layout.
+saw, so rows paint at their final height. The hover cluster sits over the
+title line's trailing time slot in every layout and never changes the row's
+layout.
 
 </details>
 

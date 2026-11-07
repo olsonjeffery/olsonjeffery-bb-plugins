@@ -8,33 +8,38 @@ A thread list you can read at a glance, for BB.
   never floats it to the top. Group by project or by section instead with one
   toggle, and reorder projects by dragging them.
 - **Attention states you cannot miss.** Working, needs-you, failed and
-  finished-but-unread each get their own icon, status word and colour, held
-  in small pills and dots. Every status is a tone chip beside the title
-  (needs-you's chip dot breathes), count pips tint, and unseen rows keep an
-  unread dot and a bolded title. Motion is reserved for things that need
-  action, so movement always means something.
+  finished-but-unread each get their own lead glyph, word or pill on a single
+  title line plus one meta line (status word, project, pull request). Status
+  is never colour-only: the glyph's shape and the word both carry it, and
+  unseen rows keep an ink unread dot and a bolded title. Motion is reserved
+  for things that need action — the needs-you dot pulses, the working spinner
+  spins — so movement always means something.
 - **Nested families.** Child threads sit under their parent with indent
   guides, and a family sorts by its freshest activity. Fold one and the
   summary tells you how many are hidden, how many are unseen, and the loudest
   state inside.
-- **Rows that carry their context.** Provider icon, model and thinking level
-  while a thread is in flight, plus a branch line you can copy and a
-  pull-request badge that opens in your browser. Pause on a row for a peek
-  card with the original goal and a stacked context-window meter.
-- **For working fast.** Status filter chips, saved smart views, a text
-  filter, comfortable or compact density, keyboard traversal with quick
-  archive and pin, multi-select bulk actions, and drag a thread onto a section
-  header to file it.
+- **Details on demand.** A row's hover cluster (Pin · Archive · Details ·
+  More) opens an inline details panel — goal, status, model and thinking,
+  provider, away-host, branch with copy, pull request, section, replies and
+  a stacked context-window meter — with Open and Split at its foot; pause on
+  a row for the same facts as a peek card. The glance row itself keeps one
+  pull-request link whose tone follows its state.
+- **For working fast.** Status filter chips (All · Needs you · Failed ·
+  Working · Unread), smart views in the header's View menu, a text filter,
+  comfortable or compact density, keyboard traversal with quick archive and
+  pin, multi-select bulk actions, and drag a thread onto a section header to
+  file it.
 - **A sidebar that reads like bb-app's own.** Flat rows on the plain
-  sidebar with bb's rounded hover tubes, caption-tone sticky headers, stock
-  depth indents and family guides — and section color as ONE dot in the
-  header, never a tinted slab. Per-section icons, and one Section Settings
-  modal with auto-save for name, color and icon.
-- **An Active section** (off via its setting, on by default): a fixed top
-  bar in section view that duplicates every running thread above the list —
-  bar and cards pinned together while you scroll, headers beneath them —
-  and it folds like any other section. The originals never move out of
-  their own sections or spools.
+  sidebar with bb's rounded hover tubes, one-line caption headers whose pills
+  only appear when a count is above zero, stock depth indents and family
+  guides. Section identity is icon-only (per-section icons; one Section
+  Settings modal with auto-save for name and icon), and the whole stylesheet
+  paints with bb's own tokens — no literal colours anywhere.
+- **An Active deck** (off via its setting, on by default): a pinned caption
+  in section view that duplicates every running thread above the list —
+  caption and cards pinned together while you scroll, headers beneath them —
+  and it folds like any other group. The originals never move out of their
+  own sections or spools.
 - **A filter header that folds.** A chevron beside the search bar (right
   collapsed, down expanded) collapses the filter area to one line that keeps
   only the Grouping widget — the filter field folds away first; `/` from the

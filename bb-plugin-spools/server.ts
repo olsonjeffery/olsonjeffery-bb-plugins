@@ -23,41 +23,41 @@ export default async function plugin(bb: BbPluginApi) {
       type: "boolean",
       label: "Hover peek card",
       description:
-        "Show a preview card with goal, model, branch, PR and context usage when pausing on a thread.",
+        "When you pause on a thread, show a peek card carrying the same facts as the row's inline Details — no action buttons.",
       default: true,
     },
     celebrate: {
       type: "boolean",
       label: "Completion pop",
-      description: "Pop the check badge once when a thread finishes.",
+      description: "Pop the lead's check glyph once when a thread finishes.",
       default: true,
     },
     motion: {
       type: "boolean",
-      label: "Attention pulse",
+      label: "Attention motion",
       description:
-        "Breathe a soft glow on rows that need input or have failed. Turns off automatically under prefers-reduced-motion.",
+        "Pulse the needs-you dot and spin the working glyph. Failed rows stay still. Turns off automatically under prefers-reduced-motion.",
       default: true,
     },
     loudUnread: {
       type: "boolean",
       label: "Loud unread rows",
       description:
-        "Tinted wash and accent bar on finished-but-unseen threads. Off keeps the check icon and unread pip only.",
+        "Bold titles on finished-but-unseen threads. Off means no bold title, and the ink unread dot still shows.",
       default: true,
     },
     adaptiveCollapse: {
       type: "boolean",
       label: "Collapse quiet rows",
       description:
-        "Fold read-idle threads down to title, project and time so rows that matter stand out.",
+        "Fold read-idle threads down to title, project and time (no status pill, no pull request) so rows that matter stand out.",
       default: true,
     },
     defaultDensity: {
       type: "select",
       label: "Default row density",
       description:
-        "Used until you change density with the header toggle, which is remembered per client.",
+        "Used until you pick a density in the header's View menu, which is remembered per client. Compact keeps the meta line, with tighter rows and single-line truncation.",
       options: ["comfortable", "compact"],
       default: "comfortable",
     },
@@ -91,9 +91,9 @@ export default async function plugin(bb: BbPluginApi) {
     },
     activeDeck: {
       type: "boolean",
-      label: "Active section",
+      label: "Active deck",
       description:
-        "Pin a top bar of every running thread above the section list. Each thread stays in its own section or spool too — these are glanceable duplicates. Only in Group By Section.",
+        "Pin an Active card to the top of the list, one per running thread, labelled with its spool or section. Each thread stays in its own section or spool too — these are glanceable duplicates. Only in Group By Section.",
       default: true,
     },
     addPosition: {
