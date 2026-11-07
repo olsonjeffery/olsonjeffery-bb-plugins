@@ -154,13 +154,6 @@ export function SpoolerMenu({
                 style={{ background: item.swatch }}
                 aria-hidden="true"
               />
-            ) : item.icon === "🧵" ? (
-              <span
-                className="spooler-menu-icon spooler-spool-emoji"
-                aria-hidden="true"
-              >
-                🧵
-              </span>
             ) : item.icon ? (
               <Icon name={item.icon} aria-hidden="true" className="spooler-menu-icon" />
             ) : (

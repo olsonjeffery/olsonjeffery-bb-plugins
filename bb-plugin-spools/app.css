@@ -901,32 +901,25 @@
   margin-top: 8px;
 }
 
+/* The group caption: a 28px sticky row on the sidebar itself — chevron,
+   icon, label, total; pills only when a state needs action. The Active
+   station's measured height lands in --spooler-active-overlap (headers
+   stick beneath the pinned overlay; it defaults to 0 elsewhere). */
 .spooler-group-header {
   position: sticky;
-  /* With the Active station pinned above, headers stick beneath the whole
-     overlay (its measured height — bar + card rows — lands in
-     --spooler-active-overlap via the list); it defaults to 0 elsewhere. */
   top: var(--spooler-active-overlap, 0px);
-  z-index: 1;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+  height: 28px;
   width: 100%;
-  padding: 5px 8px;
-  background: color-mix(
-    in srgb,
-    var(--sidebar, var(--background)) 82%,
-    transparent
-  );
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  padding: 0 8px;
+  background: var(--sidebar, var(--background));
   border-radius: 6px;
-  box-shadow: none;
-  /* Shannon style: sentence-case muted captions, like bb's own
-     "Pinned / Threads" group titles — no caps slabs anywhere. */
   color: var(--muted-foreground);
-  font-size: 11.5px;
-  font-weight: 550;
+  font-size: 12px;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0.01em;
   user-select: none;
@@ -936,24 +929,6 @@
 .spooler-group-header:hover {
   background: var(--accent, var(--muted));
   color: var(--foreground);
-}
-
-/* The section color's dot: one 6px dot before the title, never a wash.
-   Only buckets own a color — the Pinned group rides the same right-title
-   header in section grouping but carries no dot. NOTE the child combinator:
-   drag wrappers re-use the .spooler-group class, so gating on descendant
-   .spooler-group would hide every dot. */
-.spooler-group-header .spooler-sec-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--spooler-sec-dot, var(--muted-foreground));
-}
-
-:where(.spooler-group:not(.spooler-group-bucket)) > .spooler-group-header .spooler-sec-dot,
-.spooler-group-project > .spooler-group-header .spooler-sec-dot {
-  display: none;
 }
 
 .spooler-group-toggle {
@@ -995,11 +970,8 @@
    sits on the same vertical axis as spool marks and thread provider icons.
    Shannon style: the header is a translucent sticky caption like every
    other grouping's — the tinted slab and its darkened rim are retired. */
-.spooler-group-header-right {
-  gap: 4px;
-  padding: 4px 6px 4px 0;
-}
-
+/* Section headers keep the same one-line anatomy; only their titles may
+   clamp to two rows (section names outgrow the column). */
 .spooler-group-header-right .spooler-group-label {
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -1010,18 +982,15 @@
   white-space: normal;
 }
 
-
-
-/* The section icon rail: an empty rail renders nothing (the '#' glyph is
-   retired); a chosen icon — curated builtin or pasted character — centers
-   on the shared icon axis. */
+/* The marker rail (section's chosen icon, Inbox's glyph, or the group
+   folder): centered on the shared icon axis after the chevron. */
 .spooler-group-rail {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
   width: 14px;
-  margin-left: 26px;
+  color: var(--muted-foreground);
 }
 
 .spooler-group-rail-glyph {
@@ -1038,11 +1007,6 @@
 .spooler-group-rail-glyph [data-icon-root] {
   width: 14px;
   height: 14px;
-}
-
-.spooler-group-chevron-right {
-  margin-right: 0;
-  flex: none;
 }
 
 .spooler-group-chevron {
@@ -1092,6 +1056,72 @@
 .spooler-group-count {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+/* The header's total: quiet cadence numerals after the label. */
+.spooler-group-total {
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Action pills on the caption's right end. They render only when the count
+   is above zero; no dot, no pill, otherwise. */
+.spooler-group-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+}
+
+.spooler-group-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.spooler-group-pill .spooler-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 0;
+}
+
+.spooler-group-pill-failed {
+  background: var(--surface-destructive, color-mix(in srgb, var(--destructive) 14%, transparent));
+  color: var(--destructive-text, var(--destructive));
+}
+
+.spooler-group-pill-needs {
+  background: var(--surface-attention, color-mix(in srgb, var(--warning) 14%, transparent));
+  color: var(--foreground);
+}
+
+.spooler-group-pill-working {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success-foreground);
+}
+
+.spooler-group-pill-spinner {
+  display: inline-flex;
+}
+
+.spooler-group-pill-spinner [data-icon-root] {
+  width: 12px;
+  height: 12px;
+  animation: spooler-spin 1s linear infinite;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
 }
 
 /* Sections mode turns the count into a neutral fg-tinted pill. The
@@ -4420,24 +4450,24 @@ a.spooler-row-main:hover {
 .spooler-active-bar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   min-height: var(--spooler-active-bar-h);
-  padding: 0 8px;
+  padding: 0 6px;
   border: 0;
   background: transparent;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.01em;
   cursor: pointer;
   text-align: left;
   user-select: none;
 }
 
 .spooler-active-bar:hover {
-  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  background: var(--accent, var(--muted));
   color: var(--foreground);
 }
 
@@ -4445,28 +4475,8 @@ a.spooler-row-main:hover {
   width: 14px;
   height: 14px;
   flex: none;
-}
-
-.spooler-active-bar [data-icon-root] {
-  width: 14px;
-  height: 14px;
-}
-
-/* The rail aligns the deck with the section grammar: 26px in, so the Zap
-   glyph rides the same axis as spool marks and row provider icons. */
-.spooler-active-bar-rail {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 14px;
-  margin-left: 26px;
-}
-
-.spooler-active-bar-rail-glyph {
-  width: 14px;
-  height: 14px;
-  color: color-mix(in srgb, var(--success, #3f9a6b) 62%, var(--foreground));
+  margin-left: auto;
+  color: var(--subtle-foreground, var(--muted-foreground));
 }
 
 .spooler-active-bar .spooler-group-label {
@@ -4477,8 +4487,6 @@ a.spooler-row-main:hover {
   min-height: 1em;
 }
 
-/* The deck count pip: same grammar as the section pips; the pip's own
-   rules (`.spooler-group-count-pip` above) give the steady spinner overlay. */
 
 /* The duplicate cards ride under the bar in one wrapping row; every card is
    a button that opens the thread — the original row stays in its own
@@ -4497,30 +4505,34 @@ a.spooler-row-main:hover {
   gap: 6px;
   min-width: 0;
   max-width: 100%;
-  padding: 3px 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--card, var(--background)) 72%, transparent);
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
+  text-align: left;
 }
 
 .spooler-active-card:hover {
-  background: var(--muted);
-  border-color: var(--border);
+  background: var(--sidebar-accent, var(--accent, var(--muted)));
 }
 
-.spooler-active-card-status {
-  display: inline-flex;
-  align-items: center;
+.spooler-active-card .spooler-dot,
+.spooler-active-card .spooler-spinner {
   flex: none;
 }
 
-.spooler-active-card-status [data-icon-root] {
-  width: 12px;
-  height: 12px;
+.spooler-active-card .spooler-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.spooler-active-card .spooler-spinner [data-icon-root] {
+  width: 14px;
+  height: 14px;
 }
 
 .spooler-active-card-title {
@@ -4528,24 +4540,30 @@ a.spooler-row-main:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 220px;
-  font-weight: 450;
 }
 
-/* The jump-home chip: spool titles carry the thread emoji, plain sections
-   just the name. It tells you where the original row lives. */
+/* The jump-home label: the spool title, else the section name, else
+   "Inbox" — the spool's own glyph marks the spool case. */
 .spooler-active-card-origin {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   flex: none;
   max-width: 150px;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  background: var(--muted);
-  color: var(--muted-foreground);
-  font-size: 10.5px;
-  font-weight: 600;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  font-size: 10px;
+  font-weight: 400;
   overflow: hidden;
+}
+
+.spooler-active-card-origin-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-active-card-origin-icon [data-icon-root] {
+  width: 12px;
+  height: 12px;
 }
 
 .spooler-active-card-origin-label {

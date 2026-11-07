@@ -359,12 +359,16 @@ describe("app.css", () => {
     expect(tone?.body).toMatch(/animation:\s*none/);
   });
 
-  it("right-aligns the section header chrome and keeps the chevron alone", () => {
-    const header = rules().find(
-      (rule) => rule.selector === ".spooler-group-header-right",
-    );
-    // Left edge free for the icon rail; right control inset only.
-    expect(header?.body).toMatch(/padding:\s*4px 6px 4px 0/);
+  it("puts the chevron at the left of every group header, even sections", () => {
+    // §2(d): the section-mode chevron moved from the far right to the left
+    // of the label, while the section rail stays between them.
+    const toggle = rules().find((rule) => rule.selector === ".spooler-group-toggle");
+    expect(toggle?.body).toMatch(/display:\s*flex/);
+    const chevron = rules().find((rule) => rule.selector === ".spooler-group-chevron");
+    expect(chevron?.body).toMatch(/width:\s*14px/);
+    // No far-right chevron variant may come back.
+    expect(rules().filter((rule) => /spooler-group-chevron-right/.test(rule.selector)))
+      .toEqual([]);
   });
 
   it("lays bucket boxes on one vertical rhythm, flush under the header", () => {
@@ -426,39 +430,24 @@ describe("app.css", () => {
     );
   });
 
-  it("retires the header rims: headers are translucent captions with tubes", () => {
-    // Shannon style: no slab, no darkened rim — every header paints only
-    // its own hover tube (the group header keeps its translucent sticky
-    // base under the tube, and viewed-thread spool cards add the same
-    // state wash on the header that the viewed row shows).
+  it("headers are sticky one-line captions on the sidebar", () => {
     const header = rules().find((candidate) => candidate.selector === ".spooler-group-header");
-    expect(header?.body).not.toMatch(/border-bottom/);
-    expect(header?.body).toMatch(/border-radius:\s*6px/);
-    expect(header?.body).toMatch(/backdrop-filter:\s*blur\(10px\)/);
-    const headerHover = rules().find(
-      (candidate) => candidate.selector === ".spooler-group-header:hover",
-    );
-    expect(headerHover?.body).toMatch(/background:\s*var\(--accent, var\(--muted\)\)/);
-    const spoolHeader = rules().find(
-      (candidate) => candidate.selector === ".spooler-spool-header",
-    );
-    expect(spoolHeader?.body).not.toMatch(/border-bottom/);
-    expect(spoolHeader?.body).toMatch(/border-radius:\s*6px/);
-    const spoolHeaderHover = rules().find(
-      (candidate) => candidate.selector === ".spooler-spool-header:hover",
-    );
-    expect(spoolHeaderHover?.body).toMatch(/background:\s*var\(--accent, var\(--muted\)\)/);
-    const activeCard = rules().find(
-      (candidate) =>
-        candidate.selector === ".spooler-spool-card-active .spooler-spool-header",
-    );
-    expect(activeCard?.body).toMatch(
-      /background:\s*var\(--state-active, var\(--accent, var\(--muted\)\)\)/,
-    );
-    const members = rules().find(
-      (candidate) => candidate.selector === ".spooler-spool-members",
-    );
-    expect(members?.body).toMatch(/margin-top:\s*0/);
+    expect(header?.body).toMatch(/height:\s*28px/);
+    expect(header?.body).toMatch(/background:\s*var\(--sidebar/);
+    expect(header?.body).toMatch(/z-index:\s*10/);
+    // Pills live at the caption's right end and only render when a count
+    // is above zero; no dot, no pill otherwise.
+    const pills = rules().find((rule) => rule.selector === ".spooler-group-pills");
+    expect(pills?.body).toMatch(/margin-left:\s*auto/);
+    const failed = rules().find((rule) => rule.selector === ".spooler-group-pill-failed");
+    expect(failed?.body).toMatch(/--surface-destructive/);
+    const needs = rules().find((rule) => rule.selector === ".spooler-group-pill-needs");
+    expect(needs?.body).toMatch(/--surface-attention/);
+    const working = rules().find((rule) => rule.selector === ".spooler-group-pill-working");
+    expect(working?.body).toMatch(/--success-foreground/);
+    // The section colour dot is retired.
+    expect(rules().filter((rule) => /\.spooler-sec-dot\b/.test(rule.selector)))
+      .toEqual([]);
   });
 
   it("carries the section color in one dot and indents the bucket flat", () => {

@@ -2,25 +2,15 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
-  useBbNavigate,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import {
-  prBadgeClass,
-  prIconName,
-  prLabel,
-  prToneClass,
-  projectHue,
-} from "./SpoolerThreadRow";
 import { type SpoolGroupData } from "./useThreadGroups";
-import { useEnvironmentPullRequest } from "./usePullRequest";
 import { Fold } from "./Fold";
 
 /**
@@ -34,7 +24,7 @@ export interface SpoolCardProps {
   onToggle(): void;
   /** Open a member thread. */
   onOpen(threadId: string): void;
-  /** 🧵 icon click opens the top (lead) thread. */
+  /** Spool glyph click opens the top (lead) thread. */
   onOpenTop(threadId: string): void;
   /** Ellipsis click opens the spool menu (parent positions it). */
   onOpenMenu(event: React.MouseEvent<HTMLButtonElement>): void;
@@ -53,7 +43,7 @@ export interface SpoolCardProps {
   ): ReactNode;
   /** Current dragged thread id, for drop-affordance checks. */
   draggingThreadId: string | null;
-  /** Resolves a member thread's display project name (badge chips). */
+  /** Resolves a member thread's display project name (detail facts use it). */
   projectNameFor(thread: PluginSidebarThread): string;
   /** The thread being viewed is a member of this spool: while the card is
    *  collapsed its members render no rows, so no active row tint could show;
@@ -110,7 +100,6 @@ export function SpoolCardImpl({
   startRename,
   renderMember,
   draggingThreadId,
-  projectNameFor,
   hasActiveThread = false,
 }: SpoolCardProps) {
   // ONE draggable (grip only) and ONE droppable, both on this card.
@@ -127,57 +116,11 @@ export function SpoolCardImpl({
   });
   const dropActive = draggingThreadId !== null && isOver;
 
-  // Collapsed-card badges (item 6): the card hides its member rows, so the
-  // common context must be summarized on the header. Lead thread only —
-  // members share a branch, so one PR stands for the spool.
-  const navigate = useBbNavigate();
-  const leadEnvironmentId = data.members[0]?.environment?.id ?? null;
-  const pullRequest = useEnvironmentPullRequest(leadEnvironmentId);
-  const lead = data.members[0] ?? null;
-  const projectIds = new Set(
-    data.members.map((member) => member.projectId),
-  );
-  const uniformProjectName = projectIds.size === 1 && lead
-    ? projectNameFor(lead)
-    : null;
-  const branchSet = new Set(
-    data.members.map((member) => member.environment?.branchName ?? null),
-  );
-  const uniformBranch =
-    branchSet.size === 1 && lead?.environment?.branchName
-      ? lead.environment.branchName
-      : null;
-  // Liveness rollup (item 6): the card hides its member rows, so the common
-  // context must be summarized on the header.
-
   // Rollup counts: derived from the same member statuses the rows show.
+  // Working liveness presents in the count pip itself (a success spinner
+  // behind the numeral).
   const memberStatuses = data.members.map(memberStatusFor);
   const nWorking = memberStatuses.filter((s) => s === "working").length;
-  const nQuestion = memberStatuses.filter((s) => s === "question").length;
-  const nUnread = memberStatuses.filter((s) => s === "need").length;
-  const nFailed = memberStatuses.filter((s) => s === "failed").length;
-  // Working liveness presents in the count pip itself (a green spinner
-  // behind the numeral), the same pip grammar the section headers use —
-  // there is no separate text badge, and the rollup never repeats it.
-  // Non-working parts stay in both states.
-  const rollupRest = [
-    nQuestion > 0 ? `${nQuestion} needs you` : null,
-    nUnread > 0 ? `${nUnread} unread` : null,
-    nFailed > 0 ? `${nFailed} failed` : null,
-  ]
-    .filter((part) => part !== null)
-    .join(" · ") || null;
-  // The rollup's tooltip: the full member-status line, same words the
-  // collapsed roster could not carry live.
-  const rollupMeta = [
-    `${data.members.length} thread${data.members.length === 1 ? "" : "s"}`,
-    nWorking > 0 ? `${nWorking} working` : null,
-    nQuestion > 0 ? `${nQuestion} needs you` : null,
-    nUnread > 0 ? `${nUnread} unread` : null,
-    nFailed > 0 ? `${nFailed} failed` : null,
-  ]
-    .filter((part) => part !== null)
-    .join(" · ");
 
   // In-place rename. Seeds once per rename start, like the ordinary row.
   const [renameValue, setRenameValue] = useState("");
@@ -218,19 +161,18 @@ export function SpoolCardImpl({
       )}
       onContextMenu={onContextMenu}
     >
-
       {/* The header's own click toggles the fold; interactive children stop
-          propagation and keep their own behavior (drag, open-top, PR link,
-          actions pip); renaming guards the input. */}
+          propagation and keep their own behavior (drag, open-top, actions
+          pip); renaming guards the input. */}
       <div
         className="spooler-spool-header"
         onClick={() => {
           if (!isRenaming) onToggle();
         }}
       >
-        {/* The rail stacks the 🧵 mark over the drag grip: the grip fades in
-            on hover WITHOUT moving the mark, so the spool's icon axis stays
-            static (aligned with section icons and thread provider icons). */}
+        {/* The rail stacks the spool glyph over the drag grip: the grip fades
+            in on hover WITHOUT moving the mark, so the spool's icon axis
+            stays static. */}
         <span className="spooler-spool-rail">
           {/* Grip only: a plain click never starts a drag. */}
           <button
@@ -257,119 +199,63 @@ export function SpoolCardImpl({
               onOpenTop(data.leadThreadId);
             }}
           >
-            <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
+            <Icon name="Spool" aria-hidden="true" />
           </button>
         </span>
         <span className="spooler-spool-entry">
-        {isRenaming ? (
-          <input
-            ref={inputRef}
-            value={renameValue}
-            onChange={(event) => setRenameValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                commit();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                setCancelled(true);
-                onRenameCancel();
-              }
-            }}
-            onBlur={commit}
-            aria-label="Rename spool"
-            placeholder={data.customTitle ?? data.label}
-            maxLength={200}
-            className="spooler-rename spooler-spool-rename"
-          />
-        ) : (
-          <button
-            type="button"
-            className="spooler-spool-title-btn"
-            title={
-              data.customTitle
-                ? data.label
-                : `${data.label} (double-click to rename)`
-            }
-            onClick={(event) => {
-              // The header background toggles too; don't let the title's
-              // toggle bubble up and fire twice.
-              event.stopPropagation();
-              onToggle();
-            }}
-            onDoubleClick={(event) => {
-              event.preventDefault();
-              startRename();
-            }}
-          >
-            <span className="spooler-spool-title">{data.label}</span>
-          </button>
-        )}
-        {/* Detail pills run in ONE wrapping grid under the title — a pill
-            ellipsizes inside its own box and the grid re-flows to further
-            lines; the title's two-line clamp always outranks them. The rollup
-            rides the grid like any other pill. */}
-        <div className="spooler-spool-grid spooler-row-grid">
-          {uniformProjectName ? (
-              <span
-                className="spooler-row-project"
-                title={`All threads in project: ${uniformProjectName}`}
-                style={{
-                  "--spooler-project-hue": projectHue(lead!.projectId),
-                } as CSSProperties}
-              >
-                {uniformProjectName}
-              </span>
-            ) : projectIds.size > 1 ? (
-              <span
-                className="spooler-spool-badge-muted"
-                title={`Threads span ${projectIds.size} projects`}
-              >
-                {projectIds.size} projects
-              </span>
-            ) : null}
-            {uniformBranch ? (
-              <span
-                className="spooler-spool-badge-branch"
-                title={`All threads on branch: ${uniformBranch}`}
-              >
-                <Icon name="GitBranch" aria-hidden="true" />
-                <span className="spooler-branch-text">{uniformBranch}</span>
-              </span>
-            ) : null}
-            {uniformBranch && pullRequest ? (
-              <button
-                type="button"
-                tabIndex={-1}
-                className={cn(
-                  "spooler-pr-link",
-                  prBadgeClass(pullRequest.state, pullRequest.attention),
-                  prToneClass(pullRequest.attention),
-                )}
-                title={`${pullRequest.title} — open PR #${pullRequest.number} (${prLabel(pullRequest.state, pullRequest.attention)})`}
-                aria-label={`Open pull request ${pullRequest.number}: ${pullRequest.title}`}
-                onClick={(event) => {
+          {isRenaming ? (
+            <input
+              ref={inputRef}
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
                   event.preventDefault();
-                  event.stopPropagation();
-                  navigate.openUrl(pullRequest.url);
-                }}
-              >
-                <Icon
-                  name={prIconName(pullRequest.state, pullRequest.attention)}
-                  aria-hidden="true"
-                />
-                <span>
-                  #{pullRequest.number} ·{" "}
-                  {prLabel(pullRequest.state, pullRequest.attention)}
-                </span>
-              </button>
-            ) : null}
-            {rollupRest ? (
-              <span className="spooler-spool-rollup" title={rollupMeta}>
-                {rollupRest}
-              </span>
-            ) : null}
-        </div>
+                  commit();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  setCancelled(true);
+                  onRenameCancel();
+                }
+              }}
+              onBlur={commit}
+              aria-label="Rename spool"
+              placeholder={data.customTitle ?? data.label}
+              maxLength={200}
+              className="spooler-rename spooler-spool-rename"
+            />
+          ) : (
+            <button
+              type="button"
+              className="spooler-spool-title-btn"
+              title={
+                data.customTitle
+                  ? data.label
+                  : `${data.label} (double-click to rename)`
+              }
+              onClick={(event) => {
+                // The header background toggles too; don't let the title's
+                // toggle bubble up and fire twice.
+                event.stopPropagation();
+                onToggle();
+              }}
+              onDoubleClick={(event) => {
+                event.preventDefault();
+                startRename();
+              }}
+            >
+              <span className="spooler-spool-title">{data.label}</span>
+            </button>
+          )}
+        </span>
+        {/* One muted meta line: "Spool · N working". Members carry their own
+            detail on their rows; the header keeps a single glanceable line. */}
+        <span
+          className="spooler-spool-meta"
+          title={`Spool · ${nWorking} working`}
+        >
+          {"Spool"}
+          {nWorking > 0 ? ` · ${nWorking} working` : ""}
         </span>
         {/* The count pip IS the actions button (the ellipsis never worked
             reliably): clicking it opens the spool context menu. */}
@@ -416,7 +302,6 @@ export function SpoolCardImpl({
           </div>
         )}
       </Fold>
-
     </div>
   );
 }

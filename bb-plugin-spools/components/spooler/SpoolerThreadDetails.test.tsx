@@ -259,9 +259,9 @@ describe("inline Details facts", () => {
     const row = rowOf(slot.container);
     fireEvent.click(row.querySelector(".spooler-action-details")!);
     await waitFor(() => {
-      const labels = [
-        ...row.querySelectorAll(".spooler-row-details .spooler-details-dt"),
-      ].map((dt) => dt.textContent);
+      const labels = Array.from(
+        row.querySelectorAll(".spooler-row-details .spooler-details-dt"),
+      ).map((dt) => dt.textContent);
       expect(labels).toContain("Provider");
       expect(labels).not.toContain("Context");
     });

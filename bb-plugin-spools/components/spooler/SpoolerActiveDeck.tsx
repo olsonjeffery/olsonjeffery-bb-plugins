@@ -5,7 +5,8 @@
 // for the whole scroll (the ordinary group headers' sticky top is offset by
 // the station's measured height), so work in flight stays glanceable
 // wherever you've scrolled. The bar folds like every other group: chevron
-// at the far right, down when expanded, right when collapsed.
+// at the left (as everywhere else in the new design), down when expanded,
+// right when collapsed.
 import { Fragment } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
@@ -41,8 +42,8 @@ function CardStatus({ thread }: { thread: PluginSidebarThread }) {
     );
   }
   return (
-    <span aria-hidden="true" className="spooler-spinner spooler-tone-running">
-      <Icon name="Loading" />
+    <span aria-hidden="true" className="spooler-spinner spooler-tone-success">
+      <Icon name="Loading" aria-hidden="true" />
     </span>
   );
 }
@@ -50,7 +51,7 @@ function CardStatus({ thread }: { thread: PluginSidebarThread }) {
 export interface SpoolerActiveDeckProps {
   /** The deck's duplicate cards (the group's roots, host order). */
   threads: PluginSidebarThread[];
-  /** Where each thread's ORIGINAL row lives, for the jump-home chip. */
+  /** Where each thread's ORIGINAL row lives, for the jump-home label. */
   originOf: ActiveOriginOf;
   unread: number;
   failed: number;
@@ -62,8 +63,8 @@ export interface SpoolerActiveDeckProps {
 }
 
 /** Bar button + fold of duplicate cards, inside the list's pinned station.
- *  The count rides the section pip grammar: a numeral overlaid by a running
- *  spinner — failed/needs-you members turn the overlay into its dot. */
+ *  The header reads "Active" plus a count pip overlaying a running spinner
+ *  (failed/needs-you members turn the overlay into its dot). */
 export function SpoolerActiveDeck({
   threads,
   originOf,
@@ -93,9 +94,6 @@ export function SpoolerActiveDeck({
         }
         onClick={onToggle}
       >
-        <span className="spooler-active-bar-rail" aria-hidden="true">
-          <Icon name="Zap" className="spooler-active-bar-rail-glyph" />
-        </span>
         <span className="spooler-group-label">Active</span>
         <span className="spooler-group-meta">
           {unread > 0 ? (
@@ -114,7 +112,7 @@ export function SpoolerActiveDeck({
               ) : needsUser > 0 ? (
                 <span className="spooler-dot spooler-dot-attention spooler-dot-pulse" />
               ) : (
-                <Icon name="Loading" />
+                <Icon name="Loading" aria-hidden="true" />
               )}
             </span>
             <span className="spooler-pip-numeral">{threads.length}</span>
@@ -154,7 +152,7 @@ export function SpoolerActiveDeck({
                       }
                     >
                       {origin.isSpool ? (
-                        <span aria-hidden="true" className="spooler-spool-emoji">🧵</span>
+                        <Icon name="Spool" aria-hidden="true" className="spooler-active-card-origin-icon" />
                       ) : null}
                       <span className="spooler-active-card-origin-label">
                         {origin.label}

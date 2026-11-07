@@ -1575,7 +1575,7 @@ export function SpoolerThreadList({
               kind: "item" as const,
               id: "spool:create",
               label: "Create Spool from this Thread",
-              icon: "🧵",
+              icon: "Spool",
             },
           ]),
       ...(spoolThrowTargetIds(menuThread.id).length > 0
@@ -2735,11 +2735,11 @@ export function SpoolerThreadList({
                       <span className="spooler-group-grip" aria-hidden="true">
                         <Icon name="DragDropVertical" />
                       </span>
-                      <span aria-hidden="true" className="spooler-spool-emoji spooler-group-drag-icon">🧵</span>
+                      <Icon name="Spool" aria-hidden="true" className="spooler-group-drag-icon" />
                       <span className="spooler-group-label">
                         {spoolById.get(draggingSpoolId)?.title ?? "Spool"}
                       </span>
-                      <span className="spooler-group-count">
+                      <span className="spooler-group-total">
                         {spoolById.get(draggingSpoolId)?.members.length ?? 0}
                       </span>
                     </div>
@@ -2894,7 +2894,7 @@ export function SpoolerThreadList({
               kind: "item",
               id: "open-top",
               label: "Open top thread",
-              icon: "🧵",
+              icon: "Spool",
             },
             { kind: "separator" },
             { kind: "header", label: "Move all to section" },

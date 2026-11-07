@@ -118,11 +118,12 @@ describe("sidebar behavior regressions", () => {
     expect(slot.container.querySelector(".spooler-row-collapsed")).toBeNull();
   });
 
-  it("shows an approval-only group's attention state instead of running", () => {
+  it("shows an approval-only group's attention pill instead of running", () => {
     const slot = mount([makeThread({ id: "waiting", indicator: "waiting-for-input",
       hasPendingInteraction: true, indicatorLabel: "Thread needs user input" })]);
-    const status = slot.container.querySelector(".spooler-group-status");
-    expect(status?.getAttribute("aria-label")).toBe("1 waiting for input");
+    const needs = slot.container.querySelector(".spooler-group-pill-needs");
+    expect(needs?.textContent).toContain("1 needs you");
+    expect(slot.container.querySelector(".spooler-group-pill-working")).toBeNull();
   });
 
   it.each([
@@ -140,15 +141,20 @@ describe("sidebar behavior regressions", () => {
   });
 
   it.each([
-    ["waiting-for-input" as const, "1 waiting for input"],
-    ["unread-error" as const, "1 failed"],
-    ["queued-failed" as const, "1 failed"],
+    ["waiting-for-input" as const, "needs you"],
+    ["unread-error" as const, "failed"],
+    ["queued-failed" as const, "failed"],
   ])("prioritizes a child's attention over a running parent (%s)", (indicator, expected) => {
     const slot = mount([
       makeThread({ id: "parent", status: "active", indicator: "runtime" }),
       makeThread({ id: "child", parentThreadId: "parent", indicator }),
     ]);
-    expect(slot.container.querySelector(".spooler-group-status")?.getAttribute("aria-label")).toBe(expected);
+    expect(slot.container.querySelector(".spooler-group-pill-needs") !== null).toBe(
+      expected === "needs you",
+    );
+    expect(slot.container.querySelector(".spooler-group-pill-failed") !== null).toBe(
+      expected === "failed",
+    );
   });
 
   it("prioritizes failed work over input waits and counts each descendant", () => {
@@ -160,7 +166,8 @@ describe("sidebar behavior regressions", () => {
       grouping: "time", projectOrder: [], projects: [], sections: [], now: NOW }));
     expect(hook.result.current.groups[0]).toMatchObject({ live: 0, needsUser: 3, failed: 3 });
     const slot = mount(threads);
-    expect(slot.container.querySelector(".spooler-group-status")?.getAttribute("aria-label")).toBe("3 failed");
+    const failedPill = slot.container.querySelector(".spooler-group-pill-failed");
+    expect(failedPill?.textContent).toContain("3 failed");
   });
 
   const openViewMenu = () => {

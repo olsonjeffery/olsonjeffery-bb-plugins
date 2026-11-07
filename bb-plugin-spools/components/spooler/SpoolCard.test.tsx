@@ -235,12 +235,8 @@ describe("SpoolCard", () => {
   });
 
   describe("collapsed badges", () => {
-    it("shows a uniform-project chip and nothing on mixed projects but the fallback", () => {
-      renderEl(makeProps({ collapsed: true }));
-      expect(screen.getByText("P:proj_a")).toBeTruthy();
-      cleanup();
-
-      const mixed = makeProps({
+    it("keeps no project/branch chips on the header — the meta line is Spool", () => {
+      const props = makeProps({
         collapsed: true,
         data: {
           ...makeProps().data,
@@ -250,12 +246,16 @@ describe("SpoolCard", () => {
           ],
         },
       });
-      renderEl(mixed);
-      expect(screen.getByText(/2 projects/)).toBeTruthy();
+      renderEl(props);
+      // The glance header reads the spool itself; member rows carry projects.
       expect(screen.queryByText("P:proj_a")).toBeNull();
+      expect(screen.queryByText(/2 projects/)).toBeNull();
+      // The spool header's meta read: "Spool" (and "Spool · N working"
+      // when members are running).
+      expect(screen.getByText("Spool")).toBeTruthy();
     });
 
-    it("shows a uniform-branch chip plus the lead thread's PR badge in both states", () => {
+    it("keeps no branch/PR badges on the spool header", () => {
       const branched = () =>
         makeThread({
           id: "t9",
@@ -288,15 +288,9 @@ describe("SpoolCard", () => {
           },
         }),
       );
-      expect(screen.getByText("feat/spool")).toBeTruthy();
-      // The badges keep their own behavior — a PR click opens the PR instead
-      // of fold-toggling the spool (round 11).
-      fireEvent.click(screen.getByRole("button", { name: /Open pull request 42/ }));
-      expect(onToggle).not.toHaveBeenCalled();
-      expect(sdkStub.openUrl).toHaveBeenCalledWith(
-        "https://github.com/o/r/pull/42",
-      );
-      expect(screen.getByText(/#42 ·/)).toBeTruthy();
+      // Branches and PRs are per-member facts now: off the glance header.
+      expect(screen.queryByText("feat/spool")).toBeNull();
+      expect(screen.queryByRole("button", { name: /Open pull request 42/ })).toBeNull();
       cleanup();
 
       sdkStub.pullRequest = null;
@@ -309,9 +303,7 @@ describe("SpoolCard", () => {
           },
         }),
       );
-      // Badges no longer vanish when the spool is folded open — the header
-      // keeps its project / branch / PR context in both states.
-      expect(screen.getAllByText("feat/spool").length).toBeGreaterThan(0);
+      expect(screen.queryByText("feat/spool")).toBeNull();
     });
 
     it("rides working liveness in the count pip while collapsed", () => {
@@ -365,9 +357,14 @@ describe("SpoolCard", () => {
           ".spooler-spool-pip-status.spooler-spinner.spooler-tone-success",
         ),
       ).toBeTruthy();
-      // No text badge in either state.
-      expect(screen.queryByText(/working/)).toBeNull();
-      expect(screen.queryByText("2 working")).toBeNull();
+      // The pip overlay persists in either state; the meta line carries
+      // "Spool · 2 working".
+      expect(
+        pip.querySelector(
+          ".spooler-spool-pip-status.spooler-spinner.spooler-tone-success",
+        ),
+      ).toBeTruthy();
+      expect(screen.getByText(/Spool · 2 working/)).toBeTruthy();
     });
 
   });
