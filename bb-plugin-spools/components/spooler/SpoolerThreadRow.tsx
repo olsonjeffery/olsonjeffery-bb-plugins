@@ -746,9 +746,9 @@ function SpoolerThreadRowImpl({
       }
     >
       {collapse ? (
-        // The family fold toggle stays in the lead even while selection is
-        // active: pruning a selection happens through the fold, and the row
-        // itself still selects (ctrl-click) when a dock is open.
+        // The fold chevron stays in the lead even while selection is active:
+        // pruning a selection happens through the fold, and the row itself
+        // still selects (ctrl-click) when a dock is open.
         <button
           type="button"
           tabIndex={-1}
@@ -784,34 +784,41 @@ function SpoolerThreadRowImpl({
         >
           <Icon name={isSelected ? "Check" : "Circle"} aria-hidden="true" />
         </button>
-      ) : visual ? (
-        <span
-          className={cn(
-            "spooler-status-glyph",
-            celebrate && done && "spooler-celebrate",
-            visual.kind === "icon" && visual.className,
-          )}
-          title={thread.indicatorLabel ?? undefined}
-        >
-          {visual.kind === "spinner" ? (
-            <span className="spooler-spinner spooler-tone-success">
-              <Icon name="Loading" aria-hidden="true" />
-            </span>
-          ) : visual.kind === "icon" ? (
-            <Icon name={visual.name} aria-hidden="true" />
-          ) : (
-            <span
-              key="dot"
-              className={cn("spooler-dot", visual.className)}
-              aria-hidden="true"
-            />
-          )}
-        </span>
       ) : (
+        // The state glyph does NOT live here any more: it rides the
+        // sub-head's first slot, right next to the word it belongs to.
         <span className="spooler-lead-empty" aria-hidden="true" />
       )}
     </span>
   );
+
+  // The sub-head's status glyph: the spinner / dot / icon that previously
+  // lead the row — now glued to the word it belongs to ("Working", "Needs
+  // you", "Failed", done's check), so glyph and label read as ONE thing.
+  const statusGlyphNode = visual ? (
+    <span
+      className={cn(
+        "spooler-status-glyph",
+        celebrate && done && "spooler-celebrate",
+        visual.kind === "icon" && visual.className,
+      )}
+      title={thread.indicatorLabel ?? undefined}
+    >
+      {visual.kind === "spinner" ? (
+        <span className="spooler-spinner spooler-tone-success">
+          <Icon name="Loading" aria-hidden="true" />
+        </span>
+      ) : visual.kind === "icon" ? (
+        <Icon name={visual.name} aria-hidden="true" />
+      ) : (
+        <span
+          key="dot"
+          className={cn("spooler-dot", visual.className)}
+          aria-hidden="true"
+        />
+      )}
+    </span>
+  ) : null;
 
   // The main line's trailing cluster (fixed to the right, never wrapped):
   // unread ink dot, keyboard shortcut, another plugin's row status, the
@@ -893,6 +900,7 @@ function SpoolerThreadRowImpl({
   const subHeadNode = (
     <span className="spooler-row-sub">
       <span className="spooler-row-sub-left">
+        {statusGlyphNode}
         {statusMeta && !collapsed ? (
           statusMeta.pill ? (
             <span

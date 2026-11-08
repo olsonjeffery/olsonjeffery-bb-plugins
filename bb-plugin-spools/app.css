@@ -1344,6 +1344,23 @@ a.spooler-row-main:hover {
   height: 16px;
 }
 
+/* In the sub-head the glyph is word-sized: 12px, glued to its label so
+   spinner/ring and word read as one thing, not two separated tones. */
+.spooler-row-sub .spooler-status-glyph {
+  width: 12px;
+  height: 12px;
+  margin-top: 0;
+}
+
+.spooler-row-sub .spooler-status-glyph [data-icon-root] {
+  width: 12px;
+  height: 12px;
+}
+
+.spooler-row-sub .spooler-spinner {
+  display: inline-flex;
+}
+
 .spooler-status-glyph .spooler-dot {
   margin-top: 0;
 }
