@@ -18,17 +18,18 @@ A thread list you can read at a glance, for BB.
   guides, and a family sorts by its freshest activity. Fold one and the
   summary tells you how many are hidden, how many are unseen, and the loudest
   state inside.
-- **Details on demand.** A row's hover cluster (Pin · Archive · Details ·
-  More) opens an inline details panel — goal, status, model and thinking,
-  provider, away-host, branch with copy, pull request, section, replies and
-  a stacked context-window meter — with Open and Split at its foot; pause on
-  a row for the same facts as a peek card. The glance row itself keeps one
+- **Details on demand.** Select a thread and its details are open — no
+  chevron: a compact header (provider icon · title; provider · status ·
+  time) over the facts — goal at small type in three clamped lines, status,
+  model · effort (idle threads included), away-host, branch with copy,
+  pull request, replies and a stacked context-window meter — with Open and
+  Split at its foot. No on-hover peek card; the glance row keeps one
   pull-request link whose tone follows its state.
 - **For working fast.** Status filter chips (All · Needs you · Failed ·
   Working · Unread), smart views in the header's View menu, a text filter,
   comfortable or compact density, keyboard traversal with quick archive and
-  pin, multi-select bulk actions, and drag a thread onto a section header to
-  file it.
+  pin, multi-select bulk actions, and menu-only filing — **Move to section**
+  in a row's ⋯ menu, right-click or touch press-and-hold.
 - **A sidebar that reads like bb-app's own.** Flat rows on the plain
   sidebar with bb's rounded hover tubes, one-line caption headers whose pills
   only appear when a count is above zero, stock depth indents and family

@@ -4,8 +4,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
-  type ReactNode,
 } from "react";
 import {
   ThreadTitle,
@@ -20,19 +18,15 @@ import {
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { type SpoolerThreadActions } from "./useThreadRowActions";
-import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { isLiveThread } from "./time";
 import {
   formatReasoningLevel,
   useModelDisplayName,
   useThreadExecution,
 } from "./useThreadExecution";
-import { SpoolerHoverCard, type ContextUsage } from "./SpoolerHoverCard";
-import { ThreadDetailFacts } from "./SpoolerThreadDetails";
-import { onOpenThreadDetails } from "./detailsBus";
+import { ThreadDetailFacts, type ContextUsage } from "./SpoolerThreadDetails";
 import { useEnvironmentPullRequest } from "./usePullRequest";
 import { useRowSwipe } from "./useRowSwipe";
 import {
@@ -282,22 +276,6 @@ function statusMetaFor(
   }
 }
 
-let hoverCapable: boolean | null = null;
-
-/** Hover previews (and the hover cluster's grammars) need a real
- *  hover-capable pointer (never touch). Coarse pointers reach Details
- *  through the More menu's "Show details" item, which the list gates
- *  with this same check. */
-export function canHoverPreview(): boolean {
-  if (hoverCapable === null) {
-    hoverCapable =
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(hover: hover)").matches;
-  }
-  return hoverCapable;
-}
-
 function rowStatusToneClass(tone: string | undefined): string {
   switch (tone) {
     case "running":
@@ -319,7 +297,6 @@ function SpoolerThreadRowImpl({
   sectionName,
   sectionId,
   celebrate,
-  allowHoverCard = true,
   adaptiveCollapse = true,
   isActive,
   isEditing,
@@ -349,7 +326,6 @@ function SpoolerThreadRowImpl({
   selectedIds,
   isKeyboardFocused = false,
   onToggleSelect,
-  dragHandle,
   swipeRight = "none",
   swipeLeft = "none",
   listFiltersArchived = true,
@@ -363,8 +339,7 @@ function SpoolerThreadRowImpl({
   sectionName: string | null;
   sectionId: string | null;
   celebrate: boolean;
-  /** Plugin settings: gate the peek card and the quiet-row fold. */
-  allowHoverCard?: boolean;
+  /** Plugin setting: gate the quiet-row fold. */
   adaptiveCollapse?: boolean;
   isActive: boolean;
   isEditing: boolean;
@@ -396,8 +371,6 @@ function SpoolerThreadRowImpl({
   selectedIds?: Set<string>;
   isKeyboardFocused?: boolean;
   onToggleSelect?: (event: React.MouseEvent, threadId: string) => void;
-  /** Grip affordance for drag-to-section (section grouping only). */
-  dragHandle?: import("./SpoolerThreadList").RowDragHandle | null;
   /** Touch swipe actions per direction; "none" leaves that side inert. */
   swipeRight?: SwipeActionId;
   swipeLeft?: SwipeActionId;
@@ -427,24 +400,20 @@ function SpoolerThreadRowImpl({
   const cancelledRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
-  const hoverTimer = useRef<number | null>(null);
-  const hoverCardTimer = useRef<number | null>(null);
-  const isHoveringCard = useRef(false);
-  const [hoverCard, setHoverCard] = useState<{
-    anchor: { top: number; bottom: number; left: number; right: number };
-  } | null>(null);
 
-  // Inline Details: opened from the hover cluster's chevron. Local to the
-  // row — only this row's panel and peek care.
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // Inline Details: ALWAYS open while this thread is the selected one — the
+  // chevron, the hover cluster and the peek card are all retired, and the
+  // details (the peek's replacement) carry the facts on their own. Local to
+  // the row: only this row's panel cares.
+  const detailsOpen = isActive && isVisible;
   const detailsId = `spooler-details-${thread.id.replace(/[^a-zA-Z0-9-]/g, "_")}`;
-  // Cluster buttons join the tab order only while the row itself holds
-  // focus: the row is the roving tab stop, so Tab reaches Pin/Archive/
-  // Details/More without parking on four invisible buttons of every row.
+  // The row's ⋯ joins the tab order only while the row itself holds focus:
+  // the row is the roving tab stop, so Tab reaches it without parking on an
+  // invisible button of every row.
   const [rowFocusWithin, setRowFocusWithin] = useState(false);
-  // Context usage is fetched once per row, lazily, when Details or the peek
-  // card first opens. `undefined` in the cache means "not resolved yet",
-  // as a marker for the in-flight fetch.
+  // Context usage is fetched once per row, lazily, when its Details open.
+  // `undefined` in the cache means "not resolved yet", as a marker for the
+  // in-flight fetch.
   const contextCacheRef = useRef<ContextUsage | null | undefined>(undefined);
   const [context, setContext] = useState<ContextUsage | null>(null);
   const fetchThreadContext = useCallback(
@@ -472,32 +441,12 @@ function SpoolerThreadRowImpl({
             })) ?? [],
         };
       } catch {
-        // A thread that never ran a turn has no usage: the card shows that.
+        // A thread that never ran a turn has no usage: the panel shows that.
         return null;
       }
     },
     [sdk],
   );
-
-  const closeHoverCard = useCallback((force = false) => {
-    if (hoverTimer.current !== null) {
-      clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-    if (hoverCardTimer.current !== null) {
-      clearTimeout(hoverCardTimer.current);
-      hoverCardTimer.current = null;
-    }
-    if (force) {
-      setHoverCard(null);
-      return;
-    }
-    hoverCardTimer.current = window.setTimeout(() => {
-      if (!isHoveringCard.current) {
-        setHoverCard(null);
-      }
-    }, 220);
-  }, []);
 
   const ensureContext = useCallback(() => {
     if (contextCacheRef.current !== undefined) {
@@ -515,29 +464,12 @@ function SpoolerThreadRowImpl({
       });
   }, [fetchThreadContext, thread.id]);
 
-  const toggleDetails = (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setDetailsOpen((open) => {
-      const next = !open;
-      if (next) ensureContext();
-      return next;
-    });
-    closeHoverCard(true);
-  };
-
-  // Touch: the thread menu's "Show details" item surfaces here.
-  useEffect(
-    () =>
-      onOpenThreadDetails((intent) => {
-        if (intent.threadId !== thread.id) return;
-        setDetailsOpen((open) => {
-          if (!open) ensureContext();
-          return true;
-        });
-      }),
-    [thread.id, ensureContext],
-  );
+  // Details open when the row becomes the selected one (and when it is shown
+  // again after a fold): fetch the row's one-shot context then.
+  useEffect(() => {
+    if (!detailsOpen) return;
+    ensureContext();
+  }, [detailsOpen, ensureContext]);
 
   useEffect(() => {
     return () => {
@@ -545,59 +477,8 @@ function SpoolerThreadRowImpl({
         clearTimeout(copiedTimer.current);
         copiedTimer.current = null;
       }
-      if (hoverTimer.current !== null) {
-        clearTimeout(hoverTimer.current);
-        hoverTimer.current = null;
-      }
-      if (hoverCardTimer.current !== null) {
-        clearTimeout(hoverCardTimer.current);
-        hoverCardTimer.current = null;
-      }
     };
   }, []);
-
-  useEffect(() => {
-    if (!isVisible) closeHoverCard(true);
-  }, [isVisible, closeHoverCard]);
-
-  const hoverOpen = hoverCard !== null;
-  useEffect(() => {
-    if (!hoverOpen) return;
-    const close = () => {
-      if (!isHoveringCard.current) {
-        setHoverCard(null);
-      }
-    };
-    document.addEventListener("scroll", close, true);
-    window.addEventListener("blur", close);
-    return () => {
-      document.removeEventListener("scroll", close, true);
-      window.removeEventListener("blur", close);
-    };
-  }, [hoverOpen]);
-
-  const scheduleHoverCard = () => {
-    if (!allowHoverCard || !isVisible) return;
-    if (!canHoverPreview()) return;
-    // The peek is suppressed while the row's inline Details are open —
-    // they carry the same facts, so only one may show at a time.
-    if (detailsOpen) return;
-    if (hoverTimer.current !== null || hoverCard) return;
-    hoverTimer.current = window.setTimeout(() => {
-      hoverTimer.current = null;
-      const rect = rowRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      // The card places and clamps itself once it knows its own size.
-      setHoverCard({
-        anchor: {
-          top: rect.top,
-          bottom: rect.bottom,
-          left: rect.left,
-          right: rect.right,
-        },
-      });
-    }, 380);
-  };
 
   // Seed the input when editing starts only: an auto-generated title arriving
   // mid-edit must not overwrite what the user is typing.
@@ -645,7 +526,6 @@ function SpoolerThreadRowImpl({
     onNavigate();
   };
   const runSwipeAction = (action: SwipeActionView, offset: number) => {
-    closeHoverCard(true);
     switch (action.id) {
       case "read":
         actions.setRead(thread.id, thread.isUnread).catch(() => {
@@ -681,7 +561,6 @@ function SpoolerThreadRowImpl({
     right: rightSwipe,
     left: leftSwipe,
     restoreKey: `${thread.isArchived}`,
-    onStart: () => closeHoverCard(true),
     onCommit: runSwipeAction,
   });
 
@@ -707,8 +586,8 @@ function SpoolerThreadRowImpl({
   // tinted working word ("Working · Command"). Done reads nothing: the check
   // glyph and the unread dot carry it.
   const statusMeta = statusMetaFor(thread.indicator);
-  // The peek keeps its own word chip grammar; pill tones don't apply there.
-  const hoverTone = statusMeta
+  // The details header keeps its own word tint; pill tones don't apply there.
+  const headTone = statusMeta
     ? statusMeta.pill
       ? statusMeta.tone === "spooler-pill-failed"
         ? "spooler-tone-error"
@@ -731,16 +610,15 @@ function SpoolerThreadRowImpl({
     !rowStatus &&
     !prNeedsAttention;
 
-  // Model + thinking show only in Details (and the peek), and only while
-  // the thread is in flight. The options endpoint resolves *defaults*, so
-  // it reports a model for any thread at all; showing one on an idle thread
-  // reads as fabricated.
-  const showExecution = isLiveThread(thread);
+  // Model + effort live in Details and resolve for ANY thread — the options
+  // endpoint answers with the thread's defaults, so idle rows show them too.
+  // The fetch is gated to the selected row: its details are the only ones
+  // open, so nothing else pays for the request.
   const execution = useThreadExecution(
     thread.id,
     sdk,
     modelEpoch,
-    showExecution,
+    isActive && isVisible,
     thread.latestAttentionAt,
     isVisible,
   );
@@ -820,23 +698,21 @@ function SpoolerThreadRowImpl({
             : null
     : null;
 
-  // Shared facts for Details and the peek. Both render ThreadDetailFacts,
-  // so the two surfaces tell the same story from one computation.
+  // Shared facts for the Details panel. Provider and section are absent on
+  // purpose: the header carries the provider; the sidebar itself carries the
+  // section.
   const facts = {
     goal:
       thread.titleFallback && thread.titleFallback !== thread.displayTitle
         ? thread.titleFallback
         : null,
     statusLabel: thread.indicatorLabel ?? statusMeta?.text ?? null,
-    model: showExecution ? (execution === undefined ? null : modelName) : null,
+    model: isActive && isVisible ? (execution === undefined ? null : modelName) : null,
     thinking,
-    providerName,
-    providerIcon,
     hostName: detailHostName,
     branch,
     isWorktree,
     pullRequest,
-    sectionName,
     replies:
       collapse && collapse.hiddenTotal > 0
         ? { hiddenTotal: collapse.hiddenTotal, hiddenKids: collapse.hiddenKids }
@@ -847,11 +723,22 @@ function SpoolerThreadRowImpl({
 
   // -- Row anatomy ----------------------------------------------------------
   //
-  // Lead (16px): the status glyph — or, for a family parent, the collapse
-  // toggle that used to live in the tree gutter. Selection replaces both.
-  // Then one title line (title + trailing time cluster) and, on depth-0
-  // rows, one meta line (status word/pill · project · pull request, or the
-  // folded-family rollup).
+  // One icon rail (the old grip slot, now the provider's), one lead (status
+  // glyph or family chevron), one title line (title + trailing ⋯/time) and,
+  // on depth-0 rows, one meta line. Selection replaces the lead.
+  const gutterNode = (
+    <span className="spooler-tree-gutter" aria-hidden="true">
+      {providerIcon ? (
+        <span
+          className="spooler-row-provider"
+          title={`Provider: ${providerName}`}
+        >
+          <ProviderIcon providerKind="agent" provider={providerIcon} />
+        </span>
+      ) : null}
+    </span>
+  );
+
   const leadNode = (
     <span
       className={"spooler-row-lead"}
@@ -927,31 +814,10 @@ function SpoolerThreadRowImpl({
     </span>
   );
 
-  const gutterNode = (
-    <span
-      className="spooler-tree-gutter"
-      aria-hidden={!dragHandle ? true : undefined}
-    >
-      {dragHandle ? (
-        <button
-          type="button"
-          className="spooler-row-grip"
-          aria-label="Drag onto a section header to file this thread"
-          title="Drag onto a section header to file this thread"
-          onClick={(event) => event.preventDefault()}
-          {...dragHandle.attributes}
-          {...dragHandle.listeners}
-        >
-          <Icon name="DragDropVertical" aria-hidden="true" />
-        </button>
-      ) : null}
-    </span>
-  );
-
   // The title line's trailing cluster (the read side): unread ink dot, the
+  // PERMANENT ⋯ (the row's only menu affordance — no hover cluster), the
   // short time, a keyboard shortcut, another plugin's row status, then an
-  // unsent-draft pip. The hover cluster overlays the time slot; any member
-  // with a real icon stays put.
+  // unsent-draft pip.
   const titleTrailNode = (
     <span className="spooler-row-badges">
       {thread.isUnread ? (
@@ -962,6 +828,22 @@ function SpoolerThreadRowImpl({
           title="Unread"
         />
       ) : null}
+      <button
+        type="button"
+        tabIndex={rowFocusWithin ? 0 : -1}
+        aria-label="More actions"
+        title="More actions"
+        aria-haspopup="menu"
+        className="spooler-row-more"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onOpenMenu(rect.left, rect.bottom + 4, thread);
+        }}
+      >
+        <Icon name="MoreHorizontal" aria-hidden="true" />
+      </button>
       <span key="time" className="spooler-row-time" title={timeText}>
         {timeShortText}
       </span>
@@ -1175,80 +1057,6 @@ function SpoolerThreadRowImpl({
     );
   }
 
-  const clusterNode = (
-    <span className="spooler-row-cluster">
-      <button
-        type="button"
-        tabIndex={rowFocusWithin ? 0 : -1}
-        aria-label={thread.isPinned ? "Unpin thread" : "Pin thread"}
-        aria-pressed={thread.isPinned}
-        title={thread.isPinned ? "Unpin" : "Pin"}
-        className={cn(
-          "spooler-action",
-          thread.isPinned && "spooler-action-active",
-        )}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          togglePin();
-        }}
-      >
-        <Icon name={thread.isPinned ? "PinOff" : "Pin"} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        tabIndex={rowFocusWithin ? 0 : -1}
-        aria-label={
-          thread.isArchived ? "Unarchive thread" : "Archive thread"
-        }
-        title={thread.isArchived ? "Unarchive" : "Archive"}
-        className="spooler-action"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          toggleArchive();
-        }}
-      >
-        <Icon
-          name={thread.isArchived ? "ArchiveRestore" : "Archive"}
-          aria-hidden="true"
-        />
-      </button>
-      <button
-        type="button"
-        tabIndex={rowFocusWithin ? 0 : -1}
-        aria-label={detailsOpen ? "Hide details" : "Show details"}
-        title="Details"
-        aria-expanded={detailsOpen}
-        aria-controls={detailsId}
-        className={cn(
-          "spooler-action spooler-action-details",
-          detailsOpen && "spooler-action-on",
-        )}
-        onClick={toggleDetails}
-      >
-        <Icon name="ChevronDown" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        tabIndex={rowFocusWithin ? 0 : -1}
-        aria-label="More actions"
-        title="More actions"
-        aria-haspopup="menu"
-        className="spooler-action spooler-action-more"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          closeHoverCard(true);
-          const rect = event.currentTarget.getBoundingClientRect();
-          onOpenMenu(rect.left - 200, rect.bottom + 4, thread);
-        }}
-      >
-        <Icon name="MoreHorizontal" aria-hidden="true" />
-      </button>
-    </span>
-  );
-
   return (
     <div
       className={cn(
@@ -1270,27 +1078,6 @@ function SpoolerThreadRowImpl({
         collapsed && "spooler-row-collapsed",
       )}
       ref={rowRef}
-      draggable={!isEditing}
-      onDragStart={(event) => {
-        if (isEditing) return;
-        closeHoverCard(true);
-        const idsToDrag =
-          isSelected && selectedIds && selectedIds.size > 0
-            ? Array.from(selectedIds)
-            : [thread.id];
-        event.dataTransfer.setData(
-          "application/json",
-          JSON.stringify({
-            type: "bb-thread-drag",
-            threadIds: idsToDrag,
-            title: thread.displayTitle,
-          }),
-        );
-        event.dataTransfer.setData("text/plain", thread.id);
-        event.dataTransfer.effectAllowed = "move";
-      }}
-      onMouseEnter={scheduleHoverCard}
-      onMouseLeave={() => closeHoverCard(false)}
       onFocusCapture={() => setRowFocusWithin(true)}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
@@ -1334,7 +1121,6 @@ function SpoolerThreadRowImpl({
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          closeHoverCard(true);
           onOpenMenu(event.clientX, event.clientY, thread);
         }}
         onDoubleClick={(event) => {
@@ -1369,14 +1155,40 @@ function SpoolerThreadRowImpl({
           {metaNode}
         </span>
       </a>
-      {clusterNode}
-      {detailsOpen ? (
+      {detailsOpen && !isEditing ? (
         <div
           id={detailsId}
           className="spooler-row-details"
           role="region"
           aria-label={`${thread.displayTitle} details`}
         >
+          <div className="spooler-details-head">
+            <span
+              className="spooler-details-provider-icon"
+              title={`Provider: ${providerName}`}
+            >
+              {providerIcon ? (
+                <ProviderIcon providerKind="agent" provider={providerIcon} />
+              ) : (
+                <Icon
+                  name="Bot"
+                  aria-hidden="true"
+                  className="spooler-details-provider-fallback"
+                />
+              )}
+            </span>
+            <span className="spooler-details-title">{thread.displayTitle}</span>
+          </div>
+          <div className="spooler-details-head-meta">
+            {statusMeta ? (
+              <span className={cn("spooler-details-head-status", headTone)}>
+                {statusMeta.text}
+              </span>
+            ) : null}
+            <span title={`Provider: ${providerName}`}>{providerName}</span>
+            <span aria-hidden="true">·</span>
+            <span>{timeText}</span>
+          </div>
           <ThreadDetailFacts
             {...facts}
             copiedBranch={copiedBranch}
@@ -1390,8 +1202,6 @@ function SpoolerThreadRowImpl({
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setDetailsOpen(false);
-                closeHoverCard(true);
                 actions.open(thread.id);
                 onNavigate();
               }}
@@ -1405,8 +1215,6 @@ function SpoolerThreadRowImpl({
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setDetailsOpen(false);
-                closeHoverCard(true);
                 openInSplit();
               }}
             >
@@ -1415,47 +1223,9 @@ function SpoolerThreadRowImpl({
           </div>
         </div>
       ) : null}
-      {hoverCard && !detailsOpen
-        ? createPortal(
-            <SpoolerHoverCard
-              thread={thread}
-              anchor={hoverCard.anchor}
-              pullRequest={pullRequest}
-              facts={{
-                providerName,
-                providerIcon,
-                modelName,
-                thinking,
-                projectName,
-                sectionName,
-                hostName: detailHostName,
-                timeText,
-                statusWord: statusMeta?.text ?? null,
-                statusTone: hoverTone,
-                hiddenKids: collapse?.hiddenKids ?? [],
-                hiddenTotal: collapse?.hiddenTotal ?? 0,
-              }}
-              context={context}
-              getContext={ensureContext}
-              onOpenPr={handleOpenPr}
-              onCopyBranch={() => handleCopyBranch()}
-              copiedBranch={copiedBranch}
-              onMouseEnter={() => {
-                isHoveringCard.current = true;
-              }}
-              onMouseLeave={() => {
-                isHoveringCard.current = false;
-                closeHoverCard(true);
-              }}
-            />,
-            document.body,
-          )
-        : null}
     </div>
   );
 }
-
-
 
 function sameCollapse(a: RowCollapse | null, b: RowCollapse | null): boolean {
   if (a === b) return true;

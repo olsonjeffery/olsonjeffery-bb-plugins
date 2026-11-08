@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DndContext } from "@dnd-kit/core";
 import { createElement as h, type ReactNode } from "react";
 import { SpoolCard } from "./SpoolCard";
 import { makeThread } from "./fixtures";
@@ -76,7 +75,6 @@ function makeProps(partial: Partial<PropsForTest> = {}): PropsForTest {
     startRename: vi.fn(),
     renderMember: (thread: PluginSidebarThread): ReactNode =>
       h("div", { "data-testid": `member-${thread.id}` }, thread.displayTitle),
-    draggingThreadId: null,
     projectNameFor: (thread: PluginSidebarThread): string =>
       `P:${thread.projectId}`,
     ...partial,
@@ -84,7 +82,7 @@ function makeProps(partial: Partial<PropsForTest> = {}): PropsForTest {
 }
 
 function renderEl(props: PropsForTest) {
-  return render(h(DndContext, null, h(SpoolCard, props)));
+  return render(h(SpoolCard, props));
 }
 
 describe("SpoolCard", () => {
@@ -124,7 +122,7 @@ describe("SpoolCard", () => {
   it("clicking the header background (badges line) toggles via onToggle exactly once", () => {
     const onToggle = vi.fn();
     const { container } = render(
-      h(DndContext, null, h(SpoolCard, makeProps({ onToggle }))),
+      h(SpoolCard, makeProps({ onToggle })),
     );
     fireEvent.click(
       container.querySelector(".spooler-spool-header") as HTMLElement,
@@ -135,11 +133,7 @@ describe("SpoolCard", () => {
   it("clicking the header background while renaming does not toggle", () => {
     const onToggle = vi.fn();
     const { container } = render(
-      h(
-        DndContext,
-        null,
-        h(SpoolCard, makeProps({ onToggle, isRenaming: true })),
-      ),
+      h(SpoolCard, makeProps({ onToggle, isRenaming: true })),
     );
     fireEvent.click(
       container.querySelector(".spooler-spool-header") as HTMLElement,
@@ -160,7 +154,7 @@ describe("SpoolCard", () => {
     expect(startRename).toHaveBeenCalledTimes(1);
 
     // Parent accepts rename: input appears seeded with the resolved label.
-    slot.rerender(h(DndContext, null, h(SpoolCard, { ...props, isRenaming: true })));
+    slot.rerender(h(SpoolCard, { ...props, isRenaming: true }));
     const input = screen.getByLabelText("Rename spool") as HTMLInputElement;
     expect(input.value).toBe("Spool: Alpha");
     fireEvent.change(input, { target: { value: "My Heap" } });
@@ -195,17 +189,28 @@ describe("SpoolCard", () => {
     expect(eventArg.stopPropagation).toBeDefined();
   });
 
-  it("renders inside a DndContext with draggable grip attributes and non-active droppable root", () => {
-    renderEl(makeProps({ draggingThreadId: "t9" }));
+  it("drops the grip: no drag affordance, and the glyph shows without hover swaps", () => {
+    renderEl(makeProps());
     const card = document.querySelector('[data-spool-id="spool1"]')!;
     expect(card).toBeTruthy();
     expect(card.className).not.toContain("spooler-spool-drop-active");
-    // Grip is a focusable button carrying dnd-kit's draggable attributes.
-    const grip = screen.getByRole("button", {
-      name: "Drag spool onto a section header to file its threads",
-    }) as HTMLButtonElement;
-    expect(grip.hasAttribute("aria-roledescription")).toBe(true);
-    expect(grip.hasAttribute("aria-describedby")).toBe(true);
+    expect(document.querySelector(".spooler-row-grip")).toBeNull();
+    // Relocation goes through the ⋯ menu; the spool glyph is just the mark.
+    const glyph = screen.getByRole("button", { name: "Open top thread" });
+    fireEvent.click(glyph);
+    expect(document.querySelector(".spooler-spool-icon")).toBeTruthy();
+  });
+
+  it("the pip is a count again: not buttoned, not the actions trigger", () => {
+    renderEl(makeProps());
+    const pip = document.querySelector(".spooler-spool-pip") as HTMLElement;
+    expect(pip?.querySelectorAll("button").length).toBe(0);
+    expect(screen.getByText("3")).toBeTruthy();
+    // Ellipsis sits left of the "Spool" meta text within the trailing cluster.
+    const trail = document.querySelector(".spooler-spool-trail") as HTMLElement;
+    const kids = Array.from(trail.children).map((el) => el.className);
+    expect(kids[0]).toContain("spooler-spool-more");
+    expect(kids[1]).toContain("spooler-spool-meta");
   });
 
   it("carries the active-row tint only while collapsed with the viewed thread inside", () => {
@@ -216,20 +221,12 @@ describe("SpoolCard", () => {
     expect(card().className).toContain("spooler-spool-card-active");
     // Expanded: the members' own active rows carry the tint instead.
     view.rerender(
-      h(
-        DndContext,
-        null,
-        h(SpoolCard, makeProps({ collapsed: false, hasActiveThread: true })),
-      ),
+      h(SpoolCard, makeProps({ collapsed: false, hasActiveThread: true })),
     );
     expect(card().className).not.toContain("spooler-spool-card-active");
     // Collapsed, but the viewed thread is elsewhere: a plain card.
     view.rerender(
-      h(
-        DndContext,
-        null,
-        h(SpoolCard, makeProps({ collapsed: true, hasActiveThread: false })),
-      ),
+      h(SpoolCard, makeProps({ collapsed: true, hasActiveThread: false })),
     );
     expect(card().className).not.toContain("spooler-spool-card-active");
   });

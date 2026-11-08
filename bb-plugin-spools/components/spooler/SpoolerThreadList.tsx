@@ -17,9 +17,6 @@ import {
   MouseSensor,
   TouchSensor,
   closestCenter,
-  defaultKeyboardCoordinateGetter,
-  useDraggable,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -53,8 +50,13 @@ import {
   swipeActionFromSetting,
 } from "@/lib/swipe";
 import { preloadExtendedIcons } from "@/components/ui/icon";
-import { canHoverPreview, SpoolerThreadRow } from "./SpoolerThreadRow";
-import { openThreadDetails } from "./detailsBus";
+import { SpoolerThreadRow } from "./SpoolerThreadRow";
+import {
+  LONG_PRESS_MS,
+  LONG_PRESS_SLOP_PX,
+  findLongPressTarget,
+  type LongPressTarget,
+} from "./longPress";
 import { activityTime, isRunningThread, timeAgo, timeShort } from "./time";
 import {
   GroupHeader,
@@ -105,12 +107,6 @@ export type StatusFilter =
   | "unread"
   | "pinned";
 
-/** Row drag affordance handed to a thread row's grip handle. */
-export interface RowDragHandle {
-  attributes: ReturnType<typeof useDraggable>["attributes"];
-  listeners: ReturnType<typeof useDraggable>["listeners"];
-  isDragging: boolean;
-}
 type DensityMode = "comfortable" | "compact";
 
 const LIFECYCLE_KEY = "spooler-sidebar:lifecycles:v1";
@@ -179,7 +175,6 @@ function useSidebarSettings() {
     writeStored(LAST_TWO_LINE_TITLES_KEY, wrapTitles ? "on" : "off");
   }, [loaded, defaultDensity, wrapTitles]);
   return {
-    hoverCard: flag("hoverCard", true),
     celebrate: flag("celebrate", true),
     motion: flag("motion", true),
     loudUnread: flag("loudUnread", true),
@@ -227,116 +222,6 @@ const noop = (): void => undefined;
 
 const nThreads = (count: number) => `${count} thread${count === 1 ? "" : "s"}`;
 
-/**
- * A section group that accepts a dragged thread or spool. Highlighting is
- * driven by dnd-kit's `isOver`, so the drop target is unmistakable before
- * release — for either drag kind. Exported for the drop-cue tests.
- */
-export function DroppableSectionSection({
-  group,
-  draggingThreadId,
-  draggingSpoolId,
-  draggingSpoolSectionId,
-  onDropThread,
-  children,
-}: {
-  group: ThreadGroup;
-  draggingThreadId: string | null;
-  draggingSpoolId: string | null;
-  /** Where the dragged spool currently sits (its lead thread's section),
-   * matching what "Move all to section" considers current. */
-  draggingSpoolSectionId: string | null;
-  onDropThread: (threadId: string, sectionId: string | null) => void;
-  children: ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: group.id,
-    data: { sectionId: group.sectionId },
-  });
-  const hasThreadDrag = draggingThreadId != null;
-  const hasSpoolDrag = draggingSpoolId != null;
-  const hasDrag = hasThreadDrag || hasSpoolDrag;
-  const dragged = hasThreadDrag
-    ? (group.roots.find((root) => root.id === draggingThreadId) ?? null)
-    : null;
-  // No point offering a drag its own current section. A spool's members all
-  // count as sitting where the lead sits (same rule as the ctx menu).
-  const existingSectionId = hasSpoolDrag
-    ? draggingSpoolSectionId
-    : dragged != null
-      ? (dragged.sectionId ?? null)
-      : null;
-  const alreadyHere = hasDrag && existingSectionId === group.sectionId;
-  return (
-    // A plain div: the wrapped group already renders the labelled <section>.
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "spooler-group",
-        "spooler-group-section",
-        isOver && hasDrag && !alreadyHere && "spooler-group-drop-active",
-        isOver && hasDrag && alreadyHere && "spooler-group-drop-same",
-      )}
-      onDrop={(event) => {
-        if (!hasDrag) return;
-        event.preventDefault();
-        // A spool drag still resolves through the section DndContext's
-        // onDragEnd (it must re-file every member, not just one thread).
-        if (!hasThreadDrag) return;
-        onDropThread(draggingThreadId, group.sectionId);
-      }}
-      onDragOver={(event) => {
-        if (hasDrag) event.preventDefault();
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** Wraps a row so its grip can start a drag onto a section header. */
-/** Wraps a row so its grip can start a drag onto a section header. */
-function DraggableThreadRow({
-  threadId,
-  dropData,
-  dropCue,
-  renderRow,
-}: {
-  threadId: string;
-  /** Row droppable payload (section grouping only): null in other groupings. */
-  dropData: { kind: "threaddrop"; threadId: string; sectionId: string | null } | null;
-  /** In-drag positional feedback computed by the section onDragOver. */
-  dropCue: "above" | "below" | "onto" | null;
-  renderRow: (handle: RowDragHandle) => ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `thread:${threadId}`,
-    data: { threadId },
-  });
-  const { setNodeRef: setDropRef } = useDroppable({
-    id: `threaddrop:${threadId}`,
-    data: dropData ?? undefined,
-    disabled: !dropData,
-  });
-  return (
-    <div
-      ref={(el) => {
-        setNodeRef(el);
-        setDropRef(el);
-      }}
-      className={cn(
-        "spooler-row-draggable",
-        isDragging && "spooler-row-dragging",
-        dropCue === "above" && "spooler-row-insert-above",
-        dropCue === "below" && "spooler-row-insert-below",
-        dropCue === "onto" && "spooler-row-drop-onto",
-      )}
-    >
-      {renderRow({ attributes, listeners, isDragging })}
-    </div>
-  );
-}
-
 function renderSubtree(
   thread: PluginSidebarThread,
   depth: number,
@@ -345,34 +230,18 @@ function renderSubtree(
     depth: number,
     groupProjectId: string | null,
     isLastChild: boolean,
-    dragHandle: RowDragHandle | null,
     hidden: boolean,
   ) => ReactNode,
   children: Map<string, PluginSidebarThread[]>,
   groupProjectId: string | null,
   collapsedIds: ReadonlySet<string>,
   isLastChild: boolean,
-  draggable: boolean,
   /** Inside a closing group or family fold: still mounted, no longer shown. */
   hidden: boolean,
-  /** Row droppable data + positional feedback (section grouping only). */
-  dropCue: { threadId: string; zone: "above" | "below" | "onto" } | null,
 ): ReactNode {
   const kids = depth > 25 ? [] : (children.get(thread.id) ?? []);
   const folded = collapsedIds.has(thread.id);
-  const rowNode =
-    draggable && depth === 0 ? (
-      <DraggableThreadRow
-        threadId={thread.id}
-        dropData={{ kind: "threaddrop", threadId: thread.id, sectionId: thread.sectionId }}
-        dropCue={dropCue !== null && dropCue.threadId === thread.id ? dropCue.zone : null}
-        renderRow={(handle) =>
-          renderRow(thread, depth, groupProjectId, isLastChild, handle, hidden)
-        }
-      />
-    ) : (
-      renderRow(thread, depth, groupProjectId, isLastChild, null, hidden)
-    );
+  const rowNode = renderRow(thread, depth, groupProjectId, isLastChild, hidden);
   const node = (
     <Fragment key={thread.id}>
       {rowNode}
@@ -388,9 +257,7 @@ function renderSubtree(
                 groupProjectId,
                 collapsedIds,
                 index === kids.length - 1,
-                false,
                 hidden || folded,
-                null,
               ),
             )
           }
@@ -488,10 +355,6 @@ export function SpoolerThreadList({
     readStringArray(PROJECT_ORDER_KEY),
   );
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
-  const [draggingThreadId, setDraggingThreadId] = useState<string | null>(
-    null,
-  );
-  const draggingThreadIds = useRef<string[]>([]);
   const [groupMenu, setGroupMenu] = useState<{
     x: number;
     y: number;
@@ -521,10 +384,9 @@ export function SpoolerThreadList({
       activationConstraint: { delay: 250, tolerance: 5 },
     }),
     useSensor(KeyboardSensor, {
-      coordinateGetter:
-        grouping === "project"
-          ? sortableKeyboardCoordinates
-          : defaultKeyboardCoordinateGetter,
+      // Only project-header reordering is draggable now, so the keyboard
+      // sensor always follows the sortable list coordinates.
+      coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
   // Regrouping remounts every row: run it as a transition so the click
@@ -629,14 +491,8 @@ export function SpoolerThreadList({
     });
   }, [spoolStore.spools]);
   const [editingSpoolId, setEditingSpoolId] = useState<string | null>(null);
-  const [draggingSpoolId, setDraggingSpoolId] = useState<string | null>(null);
   const [spoolMenu, setSpoolMenu] = useState<{ x: number; y: number; spoolId: string } | null>(null);
   const [unspoolConfirmId, setUnspoolConfirmId] = useState<string | null>(null);
-  /** Positional drop feedback for row droppables during a section drag. */
-  const [rowDrop, setRowDrop] = useState<{
-    threadId: string;
-    zone: "above" | "below" | "onto";
-  } | null>(null);
   /** Toolbar Layers button → member navigation dropdown. */
   const [spoolNavOpen, setSpoolNavOpen] = useState<{ x: number; y: number } | null>(
     null,
@@ -1503,14 +1359,88 @@ export function SpoolerThreadList({
     ? (threads.find((thread) => thread.id === menu.threadId) ?? null)
     : null;
 
+  // -- Press-and-hold (touch/pen) ------------------------------------------
+  // A held finger on a thread row or a spool header opens the SAME context
+  // menu the ⋯ button and the right-click use; the follow-up click (if any)
+  // is swallowed so the tap that opened the menu never navigates. Mouse
+  // pointers keep right-click; they never long-press.
+  const suppressNextClick = useRef(false);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let timer: number | null = null;
+    let origin: { x: number; y: number } | null = null;
+
+    const clear = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      origin = null;
+    };
+
+    const open = (clientX: number, clientY: number, target: LongPressTarget) => {
+      suppressNextClick.current = true;
+      if (!target) return;
+      if (target.kind === "spool") {
+        setSpoolMenu({ x: clientX, y: clientY, spoolId: target.spoolId });
+      } else {
+        const thread = rowById.get(target.threadId);
+        if (thread) openMenu(clientX, clientY, thread);
+      }
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" || event.button !== 0) return;
+      const target = findLongPressTarget(event.target as Element | null);
+      if (!target) return;
+      clear();
+      origin = { x: event.clientX, y: event.clientY };
+      const { clientX, clientY } = event;
+      timer = window.setTimeout(() => {
+        timer = null;
+        open(clientX, clientY, target);
+        if (navigator.vibrate) navigator.vibrate(10);
+      }, LONG_PRESS_MS);
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (timer === null || origin === null) return;
+      if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > LONG_PRESS_SLOP_PX) {
+        clear();
+      }
+    };
+    const onPointerUp = () => clear();
+    const onScroll = () => clear();
+
+    const onClickCapture = (event: MouseEvent) => {
+      if (!suppressNextClick.current) return;
+      suppressNextClick.current = false;
+      const menu = document.querySelector(".spooler-menu");
+      if (menu && menu.contains(event.target as Node)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointermove", onPointerMove, true);
+    document.addEventListener("pointerup", onPointerUp, true);
+    document.addEventListener("pointercancel", onPointerUp, true);
+    document.addEventListener("scroll", onScroll, true);
+    document.addEventListener("click", onClickCapture, true);
+    return () => {
+      clear();
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointermove", onPointerMove, true);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      document.removeEventListener("pointercancel", onPointerUp, true);
+      document.removeEventListener("scroll", onScroll, true);
+      document.removeEventListener("click", onClickCapture, true);
+    };
+  }, [openMenu, rowById]);
+
   const menuItems = useMemo<SpoolerMenuItem[]>(() => {
     if (!menuThread) return [];
     const items: SpoolerMenuItem[] = [
-      // Coarse pointers have no hover cluster, so Details is one menu tap.
-      // Coarse pointers have no hover cluster, so Details is one menu tap.
-      ...(!canHoverPreview()
-        ? ([{ kind: "item", id: "details", label: "Show details", icon: "ChevronDown" }] as SpoolerMenuItem[])
-        : []),
       { kind: "item", id: "open-split", label: "Open in split", icon: "Columns2" },
       {
         kind: "item",
@@ -1537,6 +1467,34 @@ export function SpoolerThreadList({
           ]
         : []),
       { kind: "item", id: "rename", label: "Rename…", icon: "Edit" },
+      // Archive and Delete ride the top section, right below Rename — they
+      // started life at the menu's bottom, but relocation lives under the
+      // Spools/section blocks and destructive work should sit with the
+      // read/write block. Delete still asks the host for confirmation.
+      ...(menuThread.isArchived
+        ? [
+            {
+              kind: "item",
+              id: "unarchive",
+              label: "Unarchive",
+              icon: "ArchiveRestore",
+            } as SpoolerMenuItem,
+          ]
+        : [
+            {
+              kind: "item",
+              id: "archive",
+              label: "Archive",
+              icon: "Archive",
+            } as SpoolerMenuItem,
+          ]),
+      {
+        kind: "item",
+        id: "delete",
+        label: "Delete…",
+        icon: "Trash2",
+        danger: true,
+      },
       // Spool actions under one "Spools" header: members get a release plus
       // throw targets (spools never nest, throw breaks out first); plain
       // threads create a spool or throw onto an existing one.
@@ -1610,32 +1568,7 @@ export function SpoolerThreadList({
             } as SpoolerMenuItem,
           ]
         : []),
-      { kind: "separator" },
-      ...(menuThread.isArchived
-        ? [
-            {
-              kind: "item",
-              id: "unarchive",
-              label: "Unarchive",
-              icon: "ArchiveRestore",
-            } as SpoolerMenuItem,
-          ]
-        : [
-            {
-              kind: "item",
-              id: "archive",
-              label: "Archive",
-              icon: "Archive",
-            } as SpoolerMenuItem,
-          ]),
       { kind: "item", id: "copy-link", label: "Copy link", icon: "Copy" },
-      {
-        kind: "item",
-        id: "delete",
-        label: "Delete…",
-        icon: "Trash2",
-        danger: true,
-      },
     ];
     return items;
   }, [menuThread, sections, childrenOf, spoolById, spoolIdByThreadId, spoolThrowTargetIds]);
@@ -1649,8 +1582,6 @@ export function SpoolerThreadList({
         if (id === "open-split") {
           actions.open(thread.id, { split: true });
           onNavigate();
-        } else if (id === "details") {
-          openThreadDetails(thread.id);
         } else if (id === "pin") {
           await actions.setPinned(thread.id, !thread.isPinned);
         } else if (id === "read") {
@@ -1727,7 +1658,6 @@ export function SpoolerThreadList({
       depth: number,
       groupProjectId: string | null,
       isLastChild: boolean,
-      dragHandle: RowDragHandle | null,
       hidden: boolean,
     ) => {
       const kidCount = (shownChildren.get(thread.id) ?? []).length;
@@ -1786,7 +1716,6 @@ export function SpoolerThreadList({
           }
           sectionId={thread.sectionId}
           celebrate={settings.celebrate && celebrateIds.has(thread.id)}
-          allowHoverCard={settings.hoverCard}
           adaptiveCollapse={settings.adaptiveCollapse}
           isActive={thread.id === activeThreadId}
           isEditing={thread.id === editingId}
@@ -1811,7 +1740,6 @@ export function SpoolerThreadList({
           selectionActive={selectedIds.size > 0}
           isKeyboardFocused={keyboardFocusedId === thread.id}
           onToggleSelect={handleToggleSelect}
-          dragHandle={dragHandle}
           swipeRight={settings.swipeRight}
           swipeLeft={settings.swipeLeft}
           listFiltersArchived={lifecycle !== "all"}
@@ -1825,7 +1753,6 @@ export function SpoolerThreadList({
       sectionById,
       celebrateIds,
       settings.celebrate,
-      settings.hoverCard,
       settings.adaptiveCollapse,
       settings.swipeRight,
       settings.swipeLeft,
@@ -1858,10 +1785,9 @@ export function SpoolerThreadList({
   );
 
   const renderGroup = useCallback(
-    (group: ThreadGroup, isSortable = false, draggable = false) => {
+    (group: ThreadGroup, isSortable = false) => {
       const isCollapsed = collapsedGroupIds.has(group.id);
-      // The Settled shelf is a read-mostly bucket: no section drop target
-      // (dropping would write a bogus sectionId), no sortable handle in the
+      // The Settled shelf is a read-mostly bucket: no sortable handle in the
       // project reorder flow, no section context menu.
       const isSettled = group.id === SETTLED_GROUP_ID;
 
@@ -1903,25 +1829,9 @@ export function SpoolerThreadList({
             onRenameCommit={(title) => commitSpoolRename(spool.id, title)}
             onRenameCancel={() => setEditingSpoolId(null)}
             startRename={() => setEditingSpoolId(spool.id)}
-            renderMember={(thread, index, isLast) => (
-              <DraggableThreadRow
-                threadId={thread.id}
-                dropData={{
-                  kind: "threaddrop",
-                  threadId: thread.id,
-                  sectionId: thread.sectionId,
-                }}
-                dropCue={
-                  rowDrop !== null && rowDrop.threadId === thread.id
-                    ? rowDrop.zone
-                    : null
-                }
-                renderRow={(handle) =>
-                  renderRow(thread, 1, null, isLast, handle, false)
-                }
-              />
-            )}
-            draggingThreadId={draggingThreadId}
+            renderMember={(thread, index, isLast) =>
+              renderRow(thread, 1, null, isLast, false)
+            }
             projectNameFor={projectNameFor}
             hasActiveThread={
               activeThreadId != null &&
@@ -1939,7 +1849,7 @@ export function SpoolerThreadList({
         >
           {() =>
             spoolCards.length === 0 && group.roots.length === 0 ? (
-              <p className="spooler-group-empty">Drop a thread here to file it.</p>
+              <p className="spooler-group-empty">Nothing here yet — file threads from their ⋯ menu.</p>
             ) : (
               <>
                 {/* Threads float to the top of the section; the spool deck
@@ -1953,9 +1863,7 @@ export function SpoolerThreadList({
                     group.projectId,
                     collapseIds,
                     index === group.roots.length - 1,
-                    draggable && !isSettled,
                     isCollapsed,
-                    rowDrop,
                   ),
                 )}
                 {spoolCards}
@@ -2026,24 +1934,7 @@ export function SpoolerThreadList({
         </section>
       );
 
-      return draggable && !isSettled ? (
-        <DroppableSectionSection
-          key={group.id}
-          group={group}
-          draggingThreadId={draggingThreadId}
-          draggingSpoolId={draggable ? draggingSpoolId : null}
-          draggingSpoolSectionId={
-            draggable && draggingSpoolId != null
-              ? spoolMenuSectionOf(draggingSpoolId)
-              : null
-          }
-          onDropThread={moveThreadToSection}
-        >
-          {plainSection}
-        </DroppableSectionSection>
-      ) : (
-        plainSection
-      );
+      return plainSection;
     },
     [
       collapsedGroupIds,
@@ -2053,17 +1944,12 @@ export function SpoolerThreadList({
       shownChildren,
       collapseIds,
       projectOrder.length,
-      draggingThreadId,
-      draggingSpoolId,
-      spoolMenuSectionOf,
-      moveThreadToSection,
       actions,
       archiveSpool,
       unspoolSpool,
       editingSpoolId,
       commitSpoolRename,
       setEditingSpoolId,
-      rowDrop,
       projectNameFor,
       spoolMenu,
       grouping,
@@ -2534,186 +2420,7 @@ export function SpoolerThreadList({
             ) : null}
             {pinnedGroup ? renderGroup(pinnedGroup, false) : null}
             {grouping === "section" ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={(event) => {
-                  const data = event.active.data.current as
-                    | { threadId?: string; spoolId?: string }
-                    | undefined;
-                  if (typeof data?.spoolId === "string") {
-                    setDraggingSpoolId(data.spoolId);
-                    setDraggingThreadId(null);
-                    draggingThreadIds.current = [];
-                    return;
-                  }
-                  const id = data?.threadId;
-                  setDraggingThreadId(typeof id === "string" ? id : null);
-                  setDraggingSpoolId(null);
-                  draggingThreadIds.current = typeof id === "string"
-                    ? selectedIds.has(id)
-                      ? [...selectedIds].filter((selected) => visibleThreadIds.has(selected))
-                      : [id]
-                    : [];
-                }}
-                onDragEnd={(event) => {
-                  const activeData = event.active.data.current as
-                    | { threadId?: string; spoolId?: string; memberIds?: string[] }
-                    | undefined;
-                  const target = event.over?.data.current as
-                    | {
-                        kind?: string;
-                        spoolId?: string;
-                        sectionId?: string | null;
-                        threadId?: string;
-                      }
-                    | undefined;
-                  const ids = draggingThreadIds.current;
-                  draggingThreadIds.current = [];
-                  setDraggingThreadId(null);
-                  setDraggingSpoolId(null);
-                  setRowDrop(null);
-                  if (typeof activeData?.spoolId === "string") {
-                    const spoolId = activeData.spoolId;
-                    // Dropping a spool onto another spool card is a no-op:
-                    // spools never nest, and without this guard the spool-on-
-                    // spool over target would unfile every member.
-                    if (target?.kind === "spool") return;
-                    const sectionId = target?.sectionId;
-                    moveSpoolToSection(spoolId, sectionId ?? null);
-                    return;
-                  }
-                  const threadId = activeData?.threadId;
-                  if (typeof threadId !== "string") return;
-                  if (!target || typeof target !== "object") return;
-                  if (target.kind === "spool" && typeof target.spoolId === "string") {
-                    // Throw the thread (and any selected batch) onto a spool.
-                    const thrownSpoolId = target.spoolId;
-                    void (async () => {
-                      const batch = ids.length ? ids : [threadId];
-                      for (const id of batch) {
-                        await spoolStore.throwOntoSpool(thrownSpoolId, id);
-                      }
-                    })();
-                    return;
-                  }
-                  if (target.kind === "threaddrop" && typeof target.threadId === "string") {
-                    const rowThreadId = target.threadId;
-                    // Positional zones: top/bottom 30% of the row say "move to
-                    // that row's section"; the middle 40% says "drop-onto" —
-                    // a plain thread pair becomes a new spool, target Top.
-                    const zone = rowDrop?.threadId === rowThreadId
-                      ? rowDrop.zone
-                      : ("onto" as const);
-                    if (zone === "onto") {
-                      const targetSpool = spoolIdByThreadId.get(rowThreadId);
-                      const draggedSpool = spoolIdByThreadId.get(threadId);
-                      // Same-spool drop-onto is a no-op: spools never nest and
-                      // there is no reordering inside a spool.
-                      if (threadId === rowThreadId || (draggedSpool && draggedSpool === targetSpool)) {
-                        return;
-                      }
-                      const batch = ids.length ? ids : [threadId];
-                      const extra = [
-                        ...new Set(batch.filter((id) => id !== rowThreadId)),
-                      ];
-                      void spoolStore
-                        .createSpoolFromThread(rowThreadId, {
-                          extraMemberIds: extra,
-                        })
-                        .then(() =>
-                          toast.success(
-                            `Spooled ${nThreads(extra.length + 1)} into “${
-                              rowById.get(rowThreadId)?.displayTitle ?? "new spool"
-                            }”.`,
-                          ),
-                        )
-                        .catch((cause: unknown) => toast.error(problem(cause)));
-                      return;
-                    }
-                    moveThreadToSection(threadId, target.sectionId ?? null, ids.length ? ids : [threadId]);
-                    return;
-                  }
-                  const sectionId = (target as { sectionId?: string | null }).sectionId;
-                  moveThreadToSection(threadId, sectionId ?? null, ids.length ? ids : [threadId]);
-                }}
-                onDragOver={(event) => {
-                  // Compute the positional zone while over a row droppable.
-                  const over = event.over;
-                  const activeData = event.active.data.current as
-                    | { threadId?: string }
-                    | undefined;
-                  if (!activeData?.threadId || !over) {
-                    setRowDrop((prev) => (prev === null ? prev : null));
-                    return;
-                  }
-                  const overData = over.data.current as
-                    | { kind?: string; threadId?: string }
-                    | undefined;
-                  if (overData?.kind !== "threaddrop" || typeof overData.threadId !== "string") {
-                    setRowDrop((prev) => (prev === null ? prev : null));
-                    return;
-                  }
-                  const rowThreadId = overData.threadId;
-                  if (rowThreadId === activeData.threadId) {
-                    setRowDrop((prev) => (prev === null ? prev : null));
-                    return;
-                  }
-                  const rowRect = event.collisions?.find(
-                    (entry) => String(entry.id) === String(over.id),
-                  )?.data;
-                  const draggingRect = event.active.rect.current.translated;
-                  let zone: "above" | "below" | "onto";
-                  const overRow = rowDrop && rowDrop.threadId === rowThreadId ? rowDrop : null;
-                  if (!rowRect || !draggingRect) {
-                    zone = overRow?.zone ?? "onto";
-                  } else {
-                    const centerY = draggingRect.top + draggingRect.height / 2;
-                    const rel =
-                      (centerY - rowRect.top) / Math.max(rowRect.height, 1);
-                    zone = rel < 0.3 ? "above" : rel > 0.7 ? "below" : "onto";
-                  }
-                  setRowDrop((prev) =>
-                    prev && prev.threadId === rowThreadId && prev.zone === zone
-                      ? prev
-                      : { threadId: rowThreadId, zone },
-                  );
-                }}
-                onDragCancel={() => {
-                  draggingThreadIds.current = [];
-                  setDraggingThreadId(null);
-                  setDraggingSpoolId(null);
-                  setRowDrop(null);
-                }}
-              >
-                {groups.map((group) => renderGroup(group, false, true))}
-                <DragOverlay dropAnimation={null}>
-                  {draggingThreadId ? (
-                    <div className="spooler-thread-drag-preview">
-                      <Icon name="DragDropVertical" aria-hidden="true" />
-                      <span>
-                        {
-                          rowById.get(draggingThreadId)?.displayTitle ??
-                          "Thread"
-                        }
-                      </span>
-                    </div>
-                  ) : draggingSpoolId ? (
-                    <div className="spooler-group-drag-preview">
-                      <span className="spooler-group-grip" aria-hidden="true">
-                        <Icon name="DragDropVertical" />
-                      </span>
-                      <Icon name="Spool" aria-hidden="true" className="spooler-group-drag-icon" />
-                      <span className="spooler-group-label">
-                        {spoolById.get(draggingSpoolId)?.title ?? "Spool"}
-                      </span>
-                      <span className="spooler-group-total">
-                        {spoolById.get(draggingSpoolId)?.members.length ?? 0}
-                      </span>
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+              groups.map((group) => renderGroup(group, false))
             ) : grouping === "project" ? (
               <DndContext
                 sensors={sensors}

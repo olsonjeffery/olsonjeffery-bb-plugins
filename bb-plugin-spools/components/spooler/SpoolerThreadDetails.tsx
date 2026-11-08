@@ -1,22 +1,30 @@
-// ThreadDetailFacts: the shared "definition list of facts" for a thread.
-// The inline Details panel (opened from a row's chevron) and the hover peek
-// both render it, so the two surfaces can never disagree about which facts
-// exist or how they read. The list is pure presentation: interactive bits
-// (branch copy, PR open) arrive as callbacks; the Open/Split footer belongs
-// to the inline panel and is not part of the facts.
-import { experimental_ProviderIcon as ProviderIcon } from "@get-bb/plugin-sdk/app";
+// ThreadDetailFacts: the shared "definition list of facts" for a thread's
+// inline Details panel. The list is pure presentation: interactive bits
+// (branch copy, PR open) arrive as callbacks; the provider lives in the
+// panel's header (the row renders it), so the list carries no Provider row —
+// and the section lives in the sidebar itself, so no Section row either.
+// Model/effort is always part of the list: defaults resolve for any thread.
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { prLabel, prIconName } from "./SpoolerThreadRow";
-import type { ContextUsage } from "./SpoolerHoverCard";
 import type {
   SpoolPullRequest,
 } from "./usePullRequest";
-import type { RowProviderIcon } from "./SpoolerThreadRow";
 
-export interface ThreadDetailReplyInfo {
-  hiddenTotal: number;
-  hiddenKids: { id: string; title: string }[];
+export interface ContextCategory {
+  id: string;
+  label: string;
+  kind: "used" | "reserved" | "free" | "deferred";
+  tokens: number;
+  entries: { id: string; label: string; tokens: number }[];
+}
+
+export interface ContextUsage {
+  usedTokens: number;
+  modelContextWindow: number;
+  estimated?: boolean;
+  autoCompactAtTokens?: number | null;
+  categories?: ContextCategory[];
 }
 
 /** Facts the row already knows; the component adds only formatting. */
@@ -25,14 +33,11 @@ export interface ThreadDetailFactsProps {
   statusLabel: string | null;
   model: string | null;
   thinking: string | null;
-  providerName: string;
-  providerIcon: RowProviderIcon | null;
   /** Away-from-home host only (the list filters it before us). */
   hostName: string | null;
   branch: string | null;
   isWorktree: boolean;
   pullRequest: SpoolPullRequest | null;
-  sectionName: string | null;
   replies: ThreadDetailReplyInfo | null;
   timeText: string;
   /** Usage recorded by BB; null omits the context section. */
@@ -40,6 +45,11 @@ export interface ThreadDetailFactsProps {
   copiedBranch: boolean;
   onCopyBranch?: () => void;
   onOpenPr?: () => void;
+}
+
+export interface ThreadDetailReplyInfo {
+  hiddenTotal: number;
+  hiddenKids: { id: string; title: string }[];
 }
 
 function formatTokens(n: number): string {
@@ -68,13 +78,10 @@ export function ThreadDetailFacts({
   statusLabel,
   model,
   thinking,
-  providerName,
-  providerIcon,
   hostName,
   branch,
   isWorktree,
   pullRequest,
-  sectionName,
   replies,
   timeText,
   context,
@@ -94,9 +101,6 @@ export function ThreadDetailFacts({
   const categories = (context?.categories ?? []).filter(
     (category) => category.kind !== "free" && category.tokens > 0,
   );
-  const topCategories = [...categories]
-    .sort((a, b) => b.tokens - a.tokens)
-    .slice(0, 4);
 
   return (
     <dl className="spooler-details-dl">
@@ -123,22 +127,11 @@ export function ThreadDetailFacts({
           <dd className="spooler-details-dd">
             {model}
             {thinking ? (
-              <span className="spooler-details-muted"> · thinking {thinking}</span>
+              <span className="spooler-details-muted"> · effort {thinking}</span>
             ) : null}
           </dd>
         </>
       ) : null}
-      <dt className="spooler-details-dt">Provider</dt>
-      <dd className="spooler-details-dd spooler-details-provider">
-        {providerIcon ? (
-          <span className="spooler-details-provider-icon">
-            <ProviderIcon providerKind="agent" provider={providerIcon} />
-          </span>
-        ) : (
-          <Icon name="Bot" aria-hidden="true" className="spooler-details-provider-fallback" />
-        )}
-        <span className="min-w-0 truncate">{providerName}</span>
-      </dd>
       {hostName ? (
         <>
           <dt className="spooler-details-dt">Host</dt>
@@ -197,12 +190,6 @@ export function ThreadDetailFacts({
               <span>#{pullRequest.number} · {prLabel(pullRequest.state, pullRequest.attention)}</span>
             </a>
           </dd>
-        </>
-      ) : null}
-      {sectionName ? (
-        <>
-          <dt className="spooler-details-dt">Section</dt>
-          <dd className="spooler-details-dd">{sectionName}</dd>
         </>
       ) : null}
       {replies && replies.hiddenTotal > 0 ? (

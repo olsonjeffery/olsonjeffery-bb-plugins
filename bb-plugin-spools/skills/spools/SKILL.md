@@ -12,16 +12,16 @@ without opening the app.
 
 The list reads at a glance and inspects on demand: every row answers three
 questions in one line — does this need me, what is it, when did it change —
-and everything else sits behind the row's hover cluster or its inline
-Details panel. Surfaces follow the approved `docs/glance-redesign-mockup`
+and everything else sits behind the row's permanent ⋯ menu or its inline
+Details panel, which is ALWAYS open for the selected thread. Surfaces follow the approved `docs/glance-redesign-mockup`
 reference.
 
 ## Surfaces
 
 - **Thread list** (`experimental_threadList`, id `spooler`): pinned threads,
   then Today / Yesterday / Previous 7 days / Previous 30 days / Older — or
-  group by project, or by **section** for drag-to-organise (New thread is
-  BB's own, above the list, so the list keeps no duplicate).
+  group by project, or by **section** to organise with the ⋯ menu
+  (New thread is BB's own, above the list, so the list keeps no duplicate).
 - **Filter header**, three rows. Row A: the search input (with the `/`
   keycap; `/` focuses it) and the collapse chevron. Row B: the
   Active / Archived / All switch, the grouping toggle, and the ⋯ **View
@@ -74,15 +74,16 @@ One lead, one title line, one meta line (depth-0 rows):
   check for finished-but-unseen — or, for a family parent, the fold chevron
   that used to live in the tree gutter. Selection replaces the lead with the
   checkbox (the family toggle stays, so folding still prunes selections).
-  The provider icon lives in Details now.
+  The provider icon rides the tree gutter — the slot where a drag grip
+  used to fade in — overlapping any nesting guide, never hiding it.
 - **Title line**: the title truncates, ranked by weight — 400 (quiet/child),
   500 (needs-you/queued/failed), 600 (unread/done); unread rows keep the ink
   dot and the bolded title. Trailing, in order: the unread ink dot, the
+  **permanent ⋯** (the row's only menu affordance — no hover cluster), the
   **short time** ("now", "12m", "2h", "2d" — `timeShort`; the full relative
   text is in the tooltip and Details and still re-renders on the minute
   tick), the jump-shortcut keycap, another plugin's row-status icon, and the
-  unsent-draft pip. The **hover cluster** overlays the time slot on hover
-  or focus-within.
+  unsent-draft pip.
 - **Meta line**: the status word or pill first — success text ("Working" or
   "Working · Agent / Command / Workflow / Goal / Plan"), or a pill ("Needs
   you" on the attention surface with ink text, "Queued" keeps its name,
@@ -94,42 +95,47 @@ One lead, one title line, one meta line (depth-0 rows):
   family shows "N replies · ● loudest-state" instead of the project —
   failed first, then needs-you, then unread, then working. Quiet rows
   (adaptive collapse) show title, project and time only.
-- Everything the glance row dropped — provider, model + thinking,
-  section, away-host, branch, the full time, folded kids, project colours —
-  lives in **Details**.
+- Everything the glance row dropped — provider (header), model + effort,
+  away-host, branch, the full time, folded kids, project colours — lives in
+  **Details**; the section lives in the sidebar itself.
 
-## Hover cluster, Details, peek
+## Details (always open), the ⋯ menu
 
-- **Hover cluster** (Pin · Archive · Details · More): a 24px button row,
-  absolute at the row's top right on the sidebar-accent surface, shown on
-  hover or focus-within. Pin and Archive keep their handlers; **Details**
-  (chevron, `aria-expanded`, `aria-controls`) toggles the inline panel;
-  **More** opens the existing context menu — rename moved into it
-  (double-click still renames). Row actions are `tabIndex={-1}`; the
-  cluster's buttons join the tab order only while the row holds focus
-  (the row is the roving tab stop). No arrow-key bindings were added.
-  Touch has no hover: the More menu gains a **Show details** item on
-  coarse pointers.
+- **Permanent ⋯**: threads carry it in the title line, just left of the
+  short time; spool cards carry it left of the "Spool" label and the count
+  pip (the pip is a count again, no longer the actions trigger). The ⋯ is
+  the row's only menu affordance — there is no hover cluster — and spool
+  glyphs show fully at rest (no hover swap any more). The ⋯ joins the tab
+  order only while its row holds focus (the row is the roving tab stop).
+- **Three ways to open the same menu**: click the ⋯, right-click the row
+  (or a spool header), or **press-and-hold** on touch/pen (~450ms, cancel
+  on an 8px move; the follow-up tap is swallowed so the touch that opened
+  the menu never navigates). Mouse keeps right-click.
+- **Context menu order** (threads): Open in split · Pin/Unpin · read /
+  unread (+ family read) · Rename… · **Archive** · **Delete…** (danger) ·
+  a **Spools** block (create / release / throw targets) · a **Move to
+  section** block · Copy link last. Renames still work inline via
+  double-click.
+- The menu clamps into the viewport from its MEASURED height: the top
+  shifts upward so the whole menu stays in view; it scrolls internally
+  only when even that cannot fit the viewport at all.
 - **Inline Details panel** (`SpoolerThreadDetails.tsx`): opens beneath the
-  row on the recessed surface as one definition list (4.75rem label column)
-  plus **Open** (primary) and **Split** (outline, the same split call the
-  peek used to make). Facts: Goal, Status, Model (+ thinking, only while
-  the thread is in flight), Provider (icon + name), Host (only away from
-  the home host), Branch (with copy), Pull request (opens in the browser),
-  Section (when present), Replies (folded families, names + remainder),
-  and the **context meter** — omitted entirely when BB records no usage.
-- **Shared facts** — one `ThreadDetailFacts` renders the list for both the
-  inline panel and the peek, so the two surfaces tell the same story.
-  Context usage is fetched lazily through the row's single cache: the first
-  open of Details or the peek triggers it once.
-- **Peek card** (`SpoolerHoverCard.tsx`): still a measured, portal'd,
-  clamped card (pre-paint `offsetWidth/Height` placement, right side
-  preferred, flipped + 8px-clamped, arrow tracking the row's mid-height,
-  gated by `canHoverPreview()` and the `hoverCard` setting, closed on
-  leave/scroll/blur/menu/actions). Its body is the header (title +
-  provider + status/time) plus the shared facts; the **action footer is
-  gone** (copy-branch and PR-open survive inside the facts). The peek is
-  **suppressed while that row's Details are open**.
+  row for the SELECTED thread, always — no chevron. It adopts the peek
+  card's playlist: a compact header (provider icon · title, then provider
+  · status · full time) over the recessed surface, the definition list,
+  and the Open (primary) / Split footer. Facts: Goal (tail-size type,
+  THREE clamped lines), Status, Model · effort (ALWAYS — the options
+  endpoint resolves defaults for idle threads too), Host (only away from
+  the home host), Branch (with copy), Pull request (opens in the
+  browser), Replies, and the **context meter** (omitted when BB records
+  no usage). No Provider row: the header carries it. No Section row: the
+  sidebar itself carries it. The panel hugs the icon rail (~24px),
+  spool-members' panels one roster step deeper.
+- **Context usage** is fetched lazily per row from the row's single cache;
+  the execution options fetch is gated to the selected row, so idle lists
+  never ping the model catalog for every row.
+- The on-hover peek card is RETIRED (component and `hoverCard` setting
+  both gone; hovering rows paints nothing but the hover tube).
 
 ## Active deck
 
@@ -180,32 +186,31 @@ One lead, one title line, one meta line (depth-0 rows):
   duplicate submissions blocked while pending and inline API errors that keep
   the name for retry. BB's realtime sidebar state supplies the new section;
   empty sections stay visible even with no threads or no filter matches.
-- **Drag to file**: in section grouping, hover a root thread to reveal its
-  grip, then drag it onto a section header (or the **Inbox** bucket — the
-  unfiled pseudo-section that leads the section list) to set its
-  `sectionId` through BB's own thread update — the drop target shows the
-  selected surface with a sidebar-ring outline, the thread's own section is
-  marked as a no-op, and a toast confirms. Dragging a selected thread files
-  the whole selection. For keyboard filing, focus the grip, press Space,
-  move with arrow keys, and press Enter to drop or Escape to cancel.
+- **File through the menu** (drag is retired): a row's ⋯ → the **Move to
+  section** block files it at a section (or **No section** → the unfiled
+  **Inbox** bucket that leads the section list), through BB's own thread
+  update; the current section carries a checkmark, and a toast confirms.
+  A member's move re-files the whole spool (the lead leads).
   Threads cannot be moved between *projects*: BB's update API has no
   `projectId` field, so project grouping is view-only.
 - **Smart views** (in the View menu): a Pinned preset plus any saved view.
   Configure query + status chip + lifecycle, hit **Save view**, name it —
   stored in `spools:smart-views:v1` with the same status ids as the chips
   (`failed` accepted). Pick a view to apply it (pick again to clear).
-- **Row context menu**: open in split, pin, mark read/unread, mark family
-  read (whole tree), rename, move to section, archive/unarchive, copy link,
-  delete (host confirmation). On coarse pointers it gains **Show details**.
+- **Row context menu** (⋯ click, right-click, or press-and-hold): Open in
+  split, pin, mark read/unread, mark family read (whole tree), rename,
+  **archive**, **delete…** (order: right below Rename, in the top block),
+  the Spools block, the Move-to-section block, then Copy link. Delete
+  routes the host's confirmation.
 
 ## Thread spools
 
 **Spools gather child threads under one label.** A spool is a first-class entry in section
-grouping only (other groupings keep ordinary rows): the SpoolIcon glyph and the drag
-grip share the icon rail (the grip fades in over the mark on hover), the title
-sits above one muted meta line reading **"Spool · N working"**, and the count
-pip doubles as the actions button — stored entirely in per-thread plugin
-metadata (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
+grouping only (other groupings keep ordinary rows): the SpoolIcon glyph owns the icon
+rail (there is no grip — dragging retired), the title sits above one muted meta line
+reading **"Spool · N working"**, and the trailing cluster reads ⋯ · label · count pip
+(the pip is a passive count now) — stored entirely in per-thread plugin metadata
+(pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
 
 - The card shows a FROZEN title, named ONCE at creation (`Spool: <lead title>` at that
@@ -228,18 +233,16 @@ by the spool's *lead* thread). Details:
 - Spools behave like families for sorting and navigation: open the lead via the
   card's glyph, jump to members, and the View menu's **Jump to spool…** lists
   every spool and its members for one-click navigation.
-- Drag & drop: dragging a card onto a section re-files **every member** to that section;
-  dragging a thread *onto another thread* (drop onto the middle 40% of a row; the outer
-  bands are the ordinary above/below filing) creates a new spool from the pair (a drag
-  with a selection sweeps the selection in).
-- Right-click affordances: one **Spools** menu section (a separator + header) holds it
-  all — threads gain *Create spool from this thread* or, for members, *Remove from
-  spool* followed by the *throw onto spool* targets (⏵); cards gain open-lead /
-  move-all-to-section / archive / **unspool**. Archive drops a single member's
-  membership silently; unspooling every thread is destructive-looking and asks behind
-  a confirm dialog (`roles=alertdialog`) every time.
+- Menu affordances: the card's ⋯ opens the **spool menu** (open lead /
+  move-all-to-section / archive-spool-threads / **unspool**); thread menus
+  carry the **Spools** block — *Create spool from this thread* or, for
+  members, *Remove from spool* followed by the throw-onto-spool targets.
+  Filing or throwing works from the menu, right-click, or press-and-hold.
+  Archive drops a single member's membership silently; unspooling every
+  thread is destructive-looking and asks behind a confirm dialog
+  (`roles=alertdialog`) every time.
 - Quick palette (Mod+Shift+P): *Spools: move thread to section…* and *Spools: throw
-  thread onto spool…* open side-panel pickers that mirror the drag semantics (spool
+  thread onto spool…* open side-panel pickers that mirror the menu semantics (spool
   members travel together).
 - Add position: the plugin's declarative **Behavior when adding thread to spool**
   setting (main Settings container, under Swipe left) decides where a new arrival
@@ -330,9 +333,9 @@ list; disabling this plugin falls back to BB's list automatically.
   Enter opens it, and Escape clears the query (or leaves the field when it
   is already empty).
 - ↑ / ↓ walk the rows, Enter opens, and Space, ← or → fold or unfold a
-  family. E archives and P pins or unpins the focused row. The hover
-  cluster is reachable while the row holds focus: Tab steps into
-  Pin/Archive/Details/More (never parked on hidden buttons of other rows).
+  family. E archives and P pins or unpins the focused row. The row's ⋯ is
+  reachable while the row holds focus: Tab steps into it (never parked on
+  an invisible button of any other row), and the menu walks with ↑↓/Home/End.
 - These shortcuts stay out of text fields, open dialogs and menus, and
   buttons or links outside the list, and never apply to a key another handler already consumed or one held
   with ⌘, Ctrl or Alt. The focused row (or the last one reached with ↑ / ↓)
@@ -354,7 +357,6 @@ rows paint at their final height.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `hoverCard` | `true` | Show the peek card with the same facts as Details on thread rows (no action buttons). |
 | `celebrate` | `true` | Pop the lead's check glyph once when a thread finishes. |
 | `motion` | `true` | Pulse the needs-you dot and spin the working glyph; failed rows stay still; off under `prefers-reduced-motion` regardless. |
 | `loudUnread` | `true` | Bold title on finished-but-unseen rows. Off means no bold title, and the ink unread dot still shows. |

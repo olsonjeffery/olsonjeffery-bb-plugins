@@ -56,12 +56,13 @@ function renderThreads(
     execution?: Record<string, unknown> | null;
     archived?: PluginSidebarThreadsState["experimental_archived"];
     sdk?: Record<string, unknown>;
+    activeThreadId?: string | null;
   } = {},
 ) {
   return renderSlot(
     threadList,
     {
-      activeThreadId: null,
+      activeThreadId: options.activeThreadId ?? null,
       activeProjectId: "proj_a",
       isCompactViewport: false,
       onNavigate: () => {},
@@ -392,27 +393,33 @@ describe("filtering", () => {
 });
 
 describe("actions", () => {
-  it("routes the archive hover action through the host", () => {
+  it("routes archive through the ⋯ menu (the hover cluster retired)", async () => {
     const thread = makeThread({ id: "t", title: "Archive me" });
     const slot = renderThreads([thread]);
 
-    fireEvent.click(screen.getByLabelText("Archive thread"));
-    expect(actionCalls(slot)).toContainEqual({
-      method: "archive",
-      threadId: "t",
-    });
+    fireEvent.click(screen.getByLabelText("More actions"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    await waitFor(() =>
+      expect(actionCalls(slot)).toContainEqual({
+        method: "archive",
+        threadId: "t",
+      }),
+    );
   });
 
-  it("routes pin through the host with the toggled state", () => {
+  it("routes pin through the ⋯ menu with the toggled state", async () => {
     const thread = makeThread({ id: "t", title: "Pin me" });
     const slot = renderThreads([thread]);
 
-    fireEvent.click(screen.getByLabelText("Pin thread"));
-    expect(actionCalls(slot)).toContainEqual({
-      method: "setPinned",
-      threadId: "t",
-      pinned: true,
-    });
+    fireEvent.click(screen.getByLabelText("More actions"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
+    await waitFor(() =>
+      expect(actionCalls(slot)).toContainEqual({
+        method: "setPinned",
+        threadId: "t",
+        pinned: true,
+      }),
+    );
   });
 });
 
@@ -1316,7 +1323,7 @@ describe("folded row work", () => {
     const slot = renderThreads([
       makeThread({ id: parentId }),
       makeThread({ id: childId, parentThreadId: parentId, status: "active", indicator: "runtime" }),
-    ], { settings: { swipeActions: true }, sdk: { ...sdkFakes(), threads: { defaultExecutionOptions: fetch } } });
+    ], { activeThreadId: childId, settings: { swipeActions: true }, sdk: { ...sdkFakes(), threads: { defaultExecutionOptions: fetch } } });
     const childRow = () => slot.container.querySelector(`[data-sidebar-thread-id="${childId}"]`)
       ?.closest<HTMLElement>(".spooler-row") ?? null;
     const gestures = (spy: typeof added, row: HTMLElement) => spy.mock.calls.filter(([type], index) =>
@@ -1340,14 +1347,16 @@ describe("folded row work", () => {
     expect(child.closest('[aria-hidden="true"]')).not.toBeNull();
     await waitFor(() => expect(childRow()).toBeNull());
     toggle(true);
-    // A fold is a pause, not a restart: an unchanged run reuses its cache.
+    // A fold is a pause: the still-selected row resumes and asks again for
+    // its execution options (enablement and visibility both re-arm once).
     expect(childRow()).not.toBeNull();
-    expect(fetch).toHaveBeenCalledOnce();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    const atPause = 2;
     toggle(false);
     fireEvent.focus(window);
-    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledTimes(atPause);
     toggle(true);
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
   });
 
   it("resumes a folded row when filtering reveals it, without changing saved folds", async () => {
@@ -1356,7 +1365,7 @@ describe("folded row work", () => {
     const fetch = vi.fn(async () => null);
     const slot = renderThreads([makeThread({
       id: "filter-reveals-live", title: "Needle", status: "active", indicator: "runtime",
-    })], { sdk: { ...sdkFakes(), threads: { defaultExecutionOptions: fetch } } });
+    })], { activeThreadId: "filter-reveals-live", sdk: { ...sdkFakes(), threads: { defaultExecutionOptions: fetch } } });
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "needle" } });
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
@@ -1368,21 +1377,33 @@ describe("folded row work", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("cancels a pending hover preview when its ancestor folds", () => {
-    vi.useFakeTimers();
-    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  it("opens no details behind a fold; the fetch lands only with the resumed row", async () => {
     const context = vi.fn(async () => ({ usage: null }));
+    localStorage.setItem(
+      "spooler-sidebar:collapsed-threads:v1",
+      JSON.stringify(["hover-fold-parent"]),
+    );
     const slot = renderThreads([
       makeThread({ id: "hover-fold-parent" }),
-      makeThread({ id: "hover-fold-child", parentThreadId: "hover-fold-parent" }),
-    ], { sdk: { ...sdkFakes(), threads: { context } } });
-    const child = slot.container.querySelector('[data-sidebar-thread-id="hover-fold-child"]')!
-      .closest(".spooler-row")!;
-    fireEvent.mouseEnter(child);
-    fireEvent.click(screen.getByRole("button", { name: "Collapse replies" }));
-    act(() => { vi.advanceTimersByTime(400); });
-    expect(screen.queryByRole("dialog")).toBeNull();
+      makeThread({ id: "hover-fold-child", parentThreadId: "hover-fold-parent", indicator: "runtime" }),
+    ], {
+      activeThreadId: "hover-fold-child",
+      sdk: {
+        ...sdkFakes(),
+        threads: {
+          ...(sdkFakes().threads as Record<string, unknown>),
+          context,
+        },
+      },
+    });
+    // Folded: nothing mounts, nothing fetches.
+    expect(slot.container.querySelector('[data-sidebar-thread-id="hover-fold-child"]')).toBeNull();
     expect(context).not.toHaveBeenCalled();
+    // Unfolding remounts the row, and its always-open Details fetch once.
+    fireEvent.click(screen.getByRole("button", { name: "Expand replies" }));
+    const child = slot.container.querySelector('[data-sidebar-thread-id="hover-fold-child"]')!;
+    expect(child).not.toBeNull();
+    await waitFor(() => expect(context).toHaveBeenCalledOnce());
   });
 
   it("keeps family summaries reactive while child rows stay unmounted", () => {
@@ -1550,15 +1571,12 @@ describe("model and thinking display", () => {
       status: "active",
       indicator: "runtime",
     });
-    const slot = renderThreads([live], { execution });
+    const slot = renderThreads([live], { execution, activeThreadId: "live" });
 
     await waitFor(() =>
       expect(slot.container.querySelector(".spooler-row")).toBeTruthy(),
     );
-    // The glance row does not carry the model; the Details panel does.
-    fireEvent.click(
-      slot.container.querySelector(".spooler-action-details")!,
-    );
+    // Details are always open for the selected thread — no chevron, no click.
     const panel = slot.container.querySelector(".spooler-row-details");
     expect(panel).toBeTruthy();
     await waitFor(() => {
@@ -1882,7 +1900,7 @@ describe("review regressions", () => {
     ).toBeNull();
   });
 
-  it("keeps empty sections available as drop targets", () => {
+  it("keeps empty sections available with their filing hint", () => {
     renderThreads([makeThread({ id: "unfiled" })], {
       sections: [makeSection({ id: "empty", name: "Empty bucket" })],
     });
@@ -1890,7 +1908,7 @@ describe("review regressions", () => {
       name: "Group by section (drag threads between them)",
     }));
     expect(screen.getByRole("region", { name: "Empty bucket" })).toBeTruthy();
-    expect(screen.getByText("Drop a thread here to file it.")).toBeTruthy();
+    expect(screen.getByText("Nothing here yet — file threads from their ⋯ menu.")).toBeTruthy();
   });
 
   it("keeps archived pagination available when loaded rows do not match", () => {

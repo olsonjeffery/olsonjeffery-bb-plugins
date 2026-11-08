@@ -4,6 +4,47 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.11.0 — 2026-11-08
+
+### Changed
+- **Details, always open for the selected thread** (the approved
+  `docs/details-revamp-mockup`). A selected thread's details panel is
+  simply open beneath its row — the disclosure chevron is gone.
+  - The panel adopts the retired peek card's table: a compact header —
+    provider icon, title, and a meta line of provider · status · full
+    time — over the details list, with Open / Split at its foot.
+  - **Model · effort** is always there: the options endpoint resolves
+    defaults for idle threads too, fetched only for the selected row.
+  - No **Provider** row (the header carries it) and no **Section** row
+    (the sidebar itself carries it).
+  - The **goal** prints at the tail of bb's type scale in up to THREE
+    clamped lines, weight 400.
+  - The panel hugs the icon rail (~24px; the old 42px text-column gap is
+    retired), spool rosters' panels one roster step deeper.
+- **The hover cluster is disbanded.** A permanent ⋯ replaces it — threads:
+  in the title line, left of the short time; spool cards: left of the
+  "Spool" label. The count pip is a count again. Hovering rows paints
+  nothing but the hover tube.
+- **The context menu is the one opener** — ⋯ click, right-click, or touch
+  press-and-hold (~450ms, cancel on 8px of movement; the follow-up tap is
+  swallowed). The top block reads Open in split · Pin · read/unread ·
+  family read · Rename… · **Archive · Delete…** (it moved up from the
+  menu's tail); Spools and Move-to-section blocks keep their place, Copy
+  link closes it. The menu clamps into the viewport from its measured
+  height: the top shifts upward first; it scrolls internally only when
+  even that cannot fit the viewport.
+- **All spool/thread drag is retired.** No grips (thread or spool), no
+  row HTML5 drag, no spool card drag/drop, no thread-on-thread spool
+  creation. Relocation is menu-only (plus the existing palette and
+  `bb spools` CLI); **Move to section** files rows, spools' menu moves
+  whole rosters. Project-header reorder drag survives.
+- The U.S. of the provider icon is back on the list: it rides every
+  thread row's gutter — the slot where the grip was — painting over the
+  nesting guides, which never hide.
+- The peek card and its `hoverCard` setting are gone (stored values are
+  harmlessly ignored); the empty-section hint asks for the menu, not a
+  drag.
+
 ## 0.10.0 — 2026-11-06
 
 ### Changed

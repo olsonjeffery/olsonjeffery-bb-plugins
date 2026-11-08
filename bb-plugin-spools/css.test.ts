@@ -117,30 +117,33 @@ describe("app.css", () => {
       .toEqual([]);
   });
 
-  it("overlays the hover cluster in the time slot on hover or focus-within", () => {
-    // The cluster (Pin · Archive · Details · More) sits top-right and
-    // reveals on row hover or focus-within; touch reaches it through the
-    // More menu. It must never be display:none — keyboard focus and the
-    // settled-shelf path both rely on opacity.
-    const cluster = rules().find(
-      (rule) => rule.selector === ".spooler-row-cluster",
-    );
-    expect(cluster?.body).toMatch(/top:\s*\d+px/);
-    expect(rules()
-      .filter((rule) => /\.spooler-row-cluster\b/.test(rule.selector) && /display:\s*none/.test(rule.body)))
+  it("keeps the permanent ellipsis in the trailing cluster, always visible", () => {
+    // The hover cluster retired: the row's one menu affordance is the ⋯
+    // that lives in the title line's trailing cluster, left of the short
+    // time, with no hover gating anywhere.
+    expect(rules().find((rule) => rule.selector === ".spooler-row-more")?.body)
+      .toMatch(/place-items:\s*center/);
+    expect(rules().filter((rule) => /\.spooler-row-cluster\b/.test(rule.selector)))
       .toEqual([]);
-    const reveal = rules().find(
-      (rule) =>
-        rule.selector.includes(".spooler-row:hover .spooler-row-cluster") &&
-        rule.selector.includes(".spooler-row:focus-within .spooler-row-cluster"),
-    );
-    expect(reveal?.body).toMatch(/opacity:\s*1/);
-    // The old actions bar is retired.
+    expect(rules()
+      .filter((rule) => /\.spooler-row-more/.test(rule.selector) && /opacity:\s*0/.test(rule.body)))
+      .toEqual([]);
+    // The spool card's ⋯ shares the recipe, left of the "Spool" meta.
+    expect(rules().find((rule) => rule.selector === ".spooler-spool-more")?.body)
+      .toMatch(/place-items:\s*center/);
+    // The old actions bar and lift machinery stay retired.
     expect(rules().filter((rule) => /\.spooler-row-actions\b/.test(rule.selector)))
       .toEqual([]);
-    // The per-line lift machinery is retired: the title line is the only
-    // surface the cluster ever overlays.
     expect(css).not.toContain("--spooler-actions-lift");
+  });
+
+  it("shows the provider icon in the gutter, over an unhiding guide", () => {
+    // The provider icon lives in the grip's old slot; guides — including
+    // the spool roster's — never hide on hover, so the icon overlays them.
+    const provider = rules().find((rule) => rule.selector === ".spooler-row-provider");
+    expect(provider?.body).toMatch(/place-items:\s*center/);
+    expect(rules().filter((rule) => /hover::before/.test(rule.selector) && /opacity:\s*0/.test(rule.body)))
+      .toEqual([]);
   });
 
   it("estimates unrendered two-line rows taller than one-line rows", () => {
@@ -491,6 +494,38 @@ describe("app.css", () => {
       /(^|\s)\.spooler-provider-icon\b/.test(rule.selector),
     )).toEqual([]);
     expect(css).toContain(".spooler-details-provider-icon");
+  });
+
+  it("lays the always-open details tight with a compact header", () => {
+    // The panel hugs the icon rail (the old 42px text-column indent is
+    // retired), members' panels ride one roster step deeper, and the goal
+    // packs at the tail size token with a THREE-line clamp.
+    const panel = rules().find((rule) => rule.selector === ".spooler-row-details");
+    expect(panel?.body).toMatch(/margin:[^;]*6px 24px/);
+    const member = rules().find(
+      (rule) => rule.selector === ".spooler-spool-member .spooler-row-details",
+    );
+    expect(member?.body).toMatch(/margin-left:\s*40px/);
+    const goal = rules().find((rule) => rule.selector === ".spooler-details-goal");
+    expect(goal?.body).toMatch(/-webkit-line-clamp:\s*3/);
+    expect(goal?.body).toMatch(/line-clamp:\s*3/);
+    expect(goal?.body).toMatch(/font-size:\s*var\(--text-2xs\)/);
+    expect(css).toContain(".spooler-details-head");
+    expect(css).toContain(".spooler-details-head-meta");
+    // The peek card is retired everywhere, styles included.
+    expect(css).not.toContain("spooler-hover-card");
+  });
+
+  it("menus scroll only under the measured viewport clamp", () => {
+    // No baked-in max-height: the vertical fit is measured by SpoolerMenu
+    // (shift-up first); the scrollbar arrives only with the scroll class.
+    const menu = rules().find((rule) => rule.selector === ".spooler-menu");
+    expect(menu?.body).not.toMatch(/max-height/);
+    expect(menu?.body).not.toMatch(/overflow-y/);
+    const scroll = rules().find(
+      (rule) => rule.selector === ".spooler-menu.spooler-menu-scroll",
+    );
+    expect(scroll?.body).toMatch(/overflow-y:\s*auto/);
   });
 
   it("keeps the stylesheet brace-balanced", () => {

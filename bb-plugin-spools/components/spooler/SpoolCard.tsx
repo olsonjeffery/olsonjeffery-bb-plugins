@@ -4,7 +4,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useDraggable, useDroppable } from "@dnd-kit/core";
 import {
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
@@ -26,7 +25,7 @@ export interface SpoolCardProps {
   onOpen(threadId: string): void;
   /** Spool glyph click opens the top (lead) thread. */
   onOpenTop(threadId: string): void;
-  /** Ellipsis click opens the spool menu (parent positions it). */
+  /** Ellipsis click opens the spool menu (the list positions it). */
   onOpenMenu(event: React.MouseEvent<HTMLButtonElement>): void;
   onContextMenu(event: React.MouseEvent<HTMLDivElement>): void;
   /** In-place rename of the spool title (double-click the title). */
@@ -41,8 +40,6 @@ export interface SpoolCardProps {
     index: number,
     isLast: boolean,
   ): ReactNode;
-  /** Current dragged thread id, for drop-affordance checks. */
-  draggingThreadId: string | null;
   /** Resolves a member thread's display project name (detail facts use it). */
   projectNameFor(thread: PluginSidebarThread): string;
   /** The thread being viewed is a member of this spool: while the card is
@@ -90,7 +87,6 @@ export function SpoolCardImpl({
   data,
   collapsed,
   onToggle,
-  onOpen,
   onOpenTop,
   onOpenMenu,
   onContextMenu,
@@ -99,23 +95,8 @@ export function SpoolCardImpl({
   onRenameCancel,
   startRename,
   renderMember,
-  draggingThreadId,
   hasActiveThread = false,
 }: SpoolCardProps) {
-  // ONE draggable (grip only) and ONE droppable, both on this card.
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `spool:${data.id}`,
-    data: {
-      spoolId: data.id,
-      memberIds: data.members.map((member) => member.id),
-    },
-  });
-  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
-    id: `spoolcard:${data.id}`,
-    data: { kind: "spool", spoolId: data.id },
-  });
-  const dropActive = draggingThreadId !== null && isOver;
-
   // Rollup counts: derived from the same member statuses the rows show.
   // Working liveness presents in the count pip itself (a success spinner
   // behind the numeral).
@@ -145,10 +126,6 @@ export function SpoolCardImpl({
 
   return (
     <div
-      ref={(node) => {
-        setNodeRef(node);
-        setDropNodeRef(node);
-      }}
       role="group"
       aria-label={`Spool ${data.label}, ${data.members.length} threads`}
       data-spool-id={data.id}
@@ -156,39 +133,21 @@ export function SpoolCardImpl({
         "spooler-spool-card",
         collapsed && "spooler-spool-card-collapsed",
         collapsed && hasActiveThread && "spooler-spool-card-active",
-        isDragging && "spooler-spool-card-dragging",
-        dropActive && "spooler-spool-drop-active",
       )}
       onContextMenu={onContextMenu}
     >
       {/* The header's own click toggles the fold; interactive children stop
-          propagation and keep their own behavior (drag, open-top, actions
-          pip); renaming guards the input. */}
+          propagation and keep their own behavior (open-top, ellipsis);
+          renaming guards the input. */}
       <div
         className="spooler-spool-header"
         onClick={() => {
           if (!isRenaming) onToggle();
         }}
       >
-        {/* The rail stacks the spool glyph over the drag grip: the grip fades
-            in on hover WITHOUT moving the mark, so the spool's icon axis
-            stays static. */}
+        {/* The rail carries the spool's glyph — where a drag grip used to
+            fade in on hover. Dragging is gone; the mark is just the mark. */}
         <span className="spooler-spool-rail">
-          {/* Grip only: a plain click never starts a drag. */}
-          <button
-            type="button"
-            className="spooler-row-grip"
-            aria-label="Drag spool onto a section header to file its threads"
-            title="Drag spool onto a section header to file its threads"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            {...attributes}
-            {...listeners}
-          >
-            <Icon name="DragDropVertical" aria-hidden="true" />
-          </button>
           <button
             type="button"
             className="spooler-spool-icon"
@@ -248,42 +207,49 @@ export function SpoolCardImpl({
             </button>
           )}
         </span>
-        {/* One muted meta line: "Spool · N working". Members carry their own
-            detail on their rows; the header keeps a single glanceable line. */}
-        <span
-          className="spooler-spool-meta"
-          title={`Spool · ${nWorking} working`}
-        >
-          {"Spool"}
-          {nWorking > 0 ? ` · ${nWorking} working` : ""}
-        </span>
-        {/* The count pip IS the actions button (the ellipsis never worked
-            reliably): clicking it opens the spool context menu. */}
-        <span className="spooler-spool-pip">
+        {/* Trailing cluster: the PERMANENT ellipsis (the spool's only menu
+            affordance) left of the "Spool" label, then the count pip — the
+            pip is a count again, no longer the actions button. */}
+        <span className="spooler-spool-trail">
           <button
             type="button"
             tabIndex={-1}
             aria-label="Spool actions"
-            title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool — actions`}
+            title="Spool actions"
             aria-haspopup="menu"
-            className="spooler-spool-count"
+            className="spooler-spool-more"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
               onOpenMenu(event);
             }}
           >
-            {nWorking > 0 ? (
-              <span
-                className="spooler-spool-pip-status spooler-spinner spooler-tone-success"
-                title={`${nWorking} working`}
-                aria-label={`${nWorking} working`}
-              >
-                <Icon name="Loading" aria-hidden="true" />
-              </span>
-            ) : null}
-            <span className="spooler-pip-numeral">{data.members.length}</span>
+            <Icon name="MoreHorizontal" aria-hidden="true" />
           </button>
+          <span
+            className="spooler-spool-meta"
+            title={`Spool · ${nWorking} working`}
+          >
+            {"Spool"}
+            {nWorking > 0 ? ` · ${nWorking} working` : ""}
+          </span>
+          <span className="spooler-spool-pip">
+            <span
+              className="spooler-spool-count"
+              title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool`}
+            >
+              {nWorking > 0 ? (
+                <span
+                  className="spooler-spool-pip-status spooler-spinner spooler-tone-success"
+                  title={`${nWorking} working`}
+                  aria-label={`${nWorking} working`}
+                >
+                  <Icon name="Loading" aria-hidden="true" />
+                </span>
+              ) : null}
+              <span className="spooler-pip-numeral">{data.members.length}</span>
+            </span>
+          </span>
         </span>
       </div>
 

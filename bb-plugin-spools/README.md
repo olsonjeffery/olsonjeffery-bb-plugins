@@ -66,8 +66,9 @@ Threads group by Today, Yesterday, Previous 7 days, Previous 30 days or Older,
 keyed off last *activity* — not last read. A thread you merely opened stays
 where it belongs, and anything running or waiting surfaces to Today. Group by
 project or section instead with one toggle. In section view, choose **New
-section**, enter a name, then **Create section**. Drag threads onto its header
-or use **Move to section** in a thread's right-click menu. Sections carry a
+section**, enter a name, then **Create section**. File threads with **Move to section** in a thread's
+⋯ / right-click menu (or press-and-hold on touch); drag handles are
+retired — relocation is menu-only. Sections carry a
 chosen icon in the header — identity is icon-only; the sidebar stays bb-app's
 plain flat rows, and status colour lives in the lead glyph, pills and words,
 never washes.
@@ -113,12 +114,15 @@ state inside.
 
 ### 🔎 Details on demand
 
-The row's hover cluster — Pin · Archive · Details · More — opens an inline
-details panel: goal, status, model and thinking, provider, away-hosts, branch
-(with copy), pull request, section, replies and a context-window meter marked
-at the auto-compaction threshold. Open and Split sit at its foot. Pause on a
-row (when peek is enabled) for the same facts as a pocket card with no action
-buttons; it stays out of the way while the row's own Details are open.
+Select a thread and its details are simply there — always open beneath the
+row, no chevron: a compact header (provider icon · title, then provider ·
+status · full time) over the shared facts — goal at small, readable type in
+up to three clamped lines, status, model · effort (idle threads included),
+away-hosts, branch (with copy), pull request, replies and a context-window
+meter marked at the auto-compaction threshold. Open and Split sit at its
+foot. There is no on-hover peek card: hover paints nothing but the row
+tube. The provider icon also rides every row's gutter — the slot where a
+drag grip used to fade in — over the nesting guides, never hiding them.
 
 </td>
 </tr>
@@ -128,9 +132,10 @@ buttons; it stays out of the way while the row's own Details are open.
 ### ⌨️ Keyboard and bulk control
 
 Arrow keys walk the list, <kbd>Enter</kbd> opens, <kbd>Space</kbd> folds,
-<kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. Focused
-rows expose the hover cluster's four actions to Tab (they join the tab order
-only while the row holds focus). Shortcuts
+<kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. The
+row's permanent <kbd>⋯</kbd> joins the tab order while the row holds focus —
+it is the row's only menu affordance (no hover cluster): threads carry it
+left of the short time; spool cards carry it left of "Spool (N)". Shortcuts
 stay out of text fields, open dialogs and menus, and buttons or links outside the
 list, so they never steal keys from the rest of BB. <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click also selects several,
 to act on them together from a floating dock. Save a query plus filters as a
@@ -145,7 +150,7 @@ to mark it read or archive it; each direction's action is a setting.
 <table>
 <tr>
 <td align="center"><img src="docs/screenshots/families.png" alt="Today group with needs-you, background-command, failed and finished rows, one expanded family and one folded family" width="440"><br><sub><b>Attention states and nested families</b></sub></td>
-<td align="center"><img src="docs/screenshots/hover-card.png" alt="Details opened from a row's cluster, showing goal, status, model, host, branch, pull request and context use" width="440"><br><sub><b>Inline details and the same-facts peek</b></sub></td>
+<td align="center"><img src="docs/screenshots/hover-card.png" alt="The inline details panel open under a selected row: goal, status, model · effort, host, branch, pull request and context use" width="440"><br><sub><b>Details, always open for the selected thread (mockup: docs/details-revamp-mockup.html)</b></sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/screenshots/group-by-project.png" alt="Threads grouped under Tidewater and Lantern project headers" width="440"><br><sub><b>Grouped by project</b></sub></td>
@@ -197,7 +202,7 @@ bb plugin install path:$PWD --yes
 | Where | What |
 | --- | --- |
 | **Sidebar thread list** | Grouped, folded threads with a filter; status chips (All · Needs you · Failed · Working · Unread, with counts) wrap onto a second row on narrow lists instead of hiding labels. |
-| **Hover cluster (Pin · Archive · Details · More)** | Pin and archive, the inline details panel, and the rest — rename, split, read, spool filing — under More; a same-facts peek card after a pause. |
+| **Rows and the ⋯ menu** | Every row keeps a stock ⋯ in its trailing cluster (threads: left of the time; spool cards: left of "Spool (N)" — the pip is a count again). It, right-click and touch press-and-hold all open one context menu: Open in split, Pin, read, Rename…, Archive, Delete… (top block), Spools filing, Move to section, then Copy link. The menu clamps into the viewport — it shifts upward first, and scrolls only when the whole menu still cannot fit. |
 | **View menu (⋯ in the header)** | Smart views, density, expand/collapse all folders, and the spool jump. |
 | **Settings → Appearance** | Choose Spools for the sidebar. |
 
@@ -226,13 +231,14 @@ flowchart LR
 - **Derivation stays out of the components.** Grouping, tree building and
   filter matching live in one hook, `useThreadGroups`, and time bucketing is
   a plain function with no React, so the rows only render.
-- **Model info is fetched, then cached per window.** The options endpoint
-  resolves *defaults*, so model and thinking are shown only while a thread is
-  actually in flight. Remounts within the same run reuse cached values;
-  new activity, a restart or window focus triggers a refresh.
+- **Model info is fetched, then cached per session.** The options endpoint
+  resolves *defaults*, so model and effort are shown for any thread — the
+  selected row only, so idle lists never storm the model catalog.
+  Remounts within the same session reuse cached values; new activity, a
+  restart or window focus triggers a refresh.
 - **It will not move a thread between projects.** BB's thread API exposes no
-  `projectId` on update, so project grouping is view-only; drag-to-organise
-  files threads into sections, which BB does allow.
+  `projectId` on update, so project grouping is view-only; menu filing
+  (**Move to section**) files threads into sections, which BB does allow.
 
 ## Privacy
 
@@ -251,7 +257,6 @@ flowchart LR
 
 | Setting | Default | |
 | --- | --- | --- |
-| `hoverCard` | `true` | Show the peek card with the same facts as Details on thread rows (no action buttons). |
 | `celebrate` | `true` | Pop the lead's check glyph once when a thread finishes. |
 | `motion` | `true` | Pulse the needs-you dot and spin the working glyph. Also respects `prefers-reduced-motion`. |
 | `loudUnread` | `true` | Bold title on finished-but-unseen threads. Off means no bold title, and the ink unread dot still shows. |
@@ -265,8 +270,8 @@ flowchart LR
 
 The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last
-saw, so rows paint at their final height. The hover cluster sits over the
-title line's trailing time slot in every layout and never changes the row's
+saw, so rows paint at their final height. The permanent ⋯ and the provider
+icon share the title line and the gutter without ever changing the row's
 layout.
 
 </details>
@@ -299,7 +304,7 @@ bb plugin dev                      # rebuild and reload on every save
 server.ts               the settings the frontend reads; no storage, no CLI
 app.tsx                 registers the thread-list slot
 app.css                 styles on BB theme tokens, behind the spooler- prefix
-components/spooler/       the list, rows, menus, peek card and smart views
+components/spooler/       the list, rows, menus, details panel and smart views
 components/spooler/*.ts   grouping hook, time bucketing, model cache
 lib/swipe.ts            swipe actions and gesture math, shared with server.ts
 components/storage.ts   one-time migration of codex-sidebar: preferences

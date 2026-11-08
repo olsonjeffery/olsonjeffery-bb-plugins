@@ -19,13 +19,6 @@ export default async function plugin(bb: BbPluginApi) {
   // Read in the frontend through useSettings(); every value has a default,
   // so the sidebar keeps working before the first load resolves.
   bb.settings.define({
-    hoverCard: {
-      type: "boolean",
-      label: "Hover peek card",
-      description:
-        "When you pause on a thread, show a peek card carrying the same facts as the row's inline Details — no action buttons.",
-      default: true,
-    },
     celebrate: {
       type: "boolean",
       label: "Completion pop",
@@ -100,7 +93,7 @@ export default async function plugin(bb: BbPluginApi) {
       type: "select",
       label: "Behavior when adding thread to spool",
       description:
-        "Where a new arrival lands when a thread joins a spool — by drag-in, menu throw or palette throw. Members stay sorted oldest-first regardless.",
+        "Where a new arrival lands when a thread joins a spool — thrown by context menu or palette. Members stay sorted oldest-first regardless.",
       options: ["bottom", "top"],
       experimental_optionLabels: {
         bottom: "Add to bottom of spool",

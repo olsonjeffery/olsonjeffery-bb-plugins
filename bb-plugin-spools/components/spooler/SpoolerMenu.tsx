@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -18,11 +18,35 @@ export type SpoolerMenuItem =
   | { kind: "separator" }
   | { kind: "header"; label: string };
 
+/** Page margin the menu keeps to the viewport's edges. */
+export const MENU_MARGIN = 8;
+/** Fixed menu width; the clamp is horizontal-only at open time. */
+export const MENU_WIDTH = 248;
+
+/**
+ * Vertical clamp for the context menu: the menu's TOP shifts upward so the
+ * whole menu stays in view; only when the menu cannot fit the viewport at
+ * all does it cap at the margins and scroll internally.
+ */
+export function clampMenuY(
+  y: number,
+  height: number,
+  viewportHeight: number,
+): { top: number; scrolls: boolean } {
+  const top = Math.min(y, viewportHeight - MENU_MARGIN - height);
+  if (top < MENU_MARGIN) {
+    return { top: MENU_MARGIN, scrolls: true };
+  }
+  return { top, scrolls: false };
+}
+
 /**
  * A small viewport-fixed context menu. Rendered with `position: fixed` from
- * client coordinates, clamped into the window. It closes on outside
- * pointer-down, Escape, scroll, or resize, and every listener is removed on
- * unmount.
+ * client coordinates, clamped into the window — horizontally at open time,
+ * vertically from its MEASURED height (the top shifts upward so the whole
+ * menu stays in view; it scrolls internally only when even that cannot fit).
+ * It closes on outside pointer-down, Escape, scroll, or resize, and every
+ * listener is removed on unmount.
  */
 export function SpoolerMenu({
   x,
@@ -39,10 +63,30 @@ export function SpoolerMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const width = 248;
-  const estimatedHeight = Math.min(items.length * 32 + 16, 420);
-  const left = Math.max(8, Math.min(x, window.innerWidth - width - 8));
-  const top = Math.max(8, Math.min(y, window.innerHeight - estimatedHeight - 8));
+  const left = Math.max(8, Math.min(x, window.innerWidth - MENU_WIDTH - 8));
+
+  // Measure the real height before paint, then clamp vertically: the top
+  // shifts upward when the menu would overflow the viewport; an internal
+  // scrollbar appears only when the menu cannot fit the viewport at all.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const height = el.offsetHeight;
+    const { top, scrolls } = clampMenuY(
+      y,
+      height,
+      window.innerHeight,
+    );
+    el.style.top = `${Math.round(top)}px`;
+    if (scrolls) {
+      el.style.maxHeight = `${window.innerHeight - MENU_MARGIN * 2}px`;
+      el.classList.add("spooler-menu-scroll");
+    } else {
+      el.style.maxHeight = "";
+      el.classList.remove("spooler-menu-scroll");
+    }
+  }, [y, items]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -103,7 +147,7 @@ export function SpoolerMenu({
       tabIndex={-1}
       aria-label="Thread actions"
       className="spooler-menu"
-      style={{ left, top, width }}
+      style={{ left, width: MENU_WIDTH }}
       onKeyDown={(event) => {
         if (event.key === "ArrowDown") {
           event.preventDefault();

@@ -15,6 +15,8 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { makeThread, makeProject, makeSection, NOW } from "./fixtures";
 import { useThreadGroups } from "./useThreadGroups";
 import { requestPaletteIntent } from "./paletteBus";
+import { findLongPressTarget } from "./longPress";
+import { clampMenuY } from "./SpoolerMenu";
 
 const probes = vi.hoisted(() => ({
   rowRenders: 0,
@@ -240,82 +242,6 @@ describe("sidebar behavior regressions", () => {
     expect(probes.rowRenders).toBe(before);
   });
 
-  it("moves the whole selection when its grip is dropped onto a section", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    const slot = renderSlot(list, props, {
-      sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: "a" }), makeThread({ id: "b" })],
-        projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
-    });
-    for (const id of ["a", "b"]) fireEvent.click(slot.container.querySelector(`[data-sidebar-thread-id="${id}"]`)!, { ctrlKey: true });
-    expect(screen.getByText("2 selected")).toBeTruthy();
-    expect(probes.onDragEnd).not.toBeNull();
-    act(() => { probes.onDragStart!({ active: { data: { current: { threadId: "a" } } } }); });
-    await act(async () => { probes.onDragEnd!({
-      active: { data: { current: { threadId: "a" } } },
-      over: { data: { current: { sectionId: "dest" } } },
-    }); });
-    const moved = slot.inspection.sdkCalls.filter(call => call.method === "threads.update");
-    expect(moved.map(call => (call.args[0] as { threadId: string }).threadId).sort()).toEqual(["a", "b"]);
-  });
-
-  it("reports partial section move failures after every selected update settles", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    const success = vi.spyOn(toast, "success");
-    const error = vi.spyOn(toast, "error");
-    const slot = renderSlot(list, props, {
-      sdk: { ...sdk, threads: { ...(sdk.threads as object), update: async ({ threadId }: { threadId: string }) => {
-        if (threadId === "b") throw new Error("Host refused the update");
-        return makeThreadResponse({ id: threadId });
-      } } },
-      sidebarThreads: { status: "ready", threads: [makeThread({ id: "a" }), makeThread({ id: "b" })],
-        projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
-    });
-    for (const id of ["a", "b"]) fireEvent.click(slot.container.querySelector(`[data-sidebar-thread-id="${id}"]`)!, { ctrlKey: true });
-    act(() => { probes.onDragStart!({ active: { data: { current: { threadId: "a" } } } }); });
-    await act(async () => { probes.onDragEnd!({
-      active: { data: { current: { threadId: "a" } } }, over: { data: { current: { sectionId: "dest" } } },
-    }); });
-    expect(success).toHaveBeenCalledWith("Moved 1 thread to Destination");
-    expect(error).toHaveBeenCalledWith("Couldn’t move 1 thread to Destination.");
-  });
-
-  it("moves only the dragged thread when its grip is outside the selection", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    const slot = renderSlot(list, props, {
-      sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: "a" }), makeThread({ id: "b" })],
-        projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
-    });
-    fireEvent.click(slot.container.querySelector('[data-sidebar-thread-id="b"]')!, { ctrlKey: true });
-    act(() => { probes.onDragStart!({ active: { data: { current: { threadId: "a" } } } }); });
-    await act(async () => { probes.onDragEnd!({
-      active: { data: { current: { threadId: "a" } } }, over: { data: { current: { sectionId: "dest" } } },
-    }); });
-    expect(slot.inspection.sdkCalls.filter((call) => call.method === "threads.update")).toEqual([
-      { method: "threads.update", args: [{ threadId: "a", sectionId: "dest" }] },
-    ]);
-  });
-
-  it.each(["more", "context"])("closes the preview before opening the row action menu (%s)", async (trigger) => {
-    vi.stubGlobal("matchMedia", () => ({ matches: true }));
-    const slot = mount([makeThread({ id: "hover" })]);
-    fireEvent.mouseEnter(slot.container.querySelector(".spooler-row")!);
-    await screen.findByRole("dialog");
-    if (trigger === "more") fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    else fireEvent.contextMenu(slot.container.querySelector('[data-sidebar-thread-id="hover"]')!);
-    expect(screen.getByRole("menu")).toBeTruthy();
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("cancels a pending preview when the row menu opens", async () => {
-    vi.stubGlobal("matchMedia", () => ({ matches: true }));
-    const slot = mount([makeThread({ id: "hover" })]);
-    fireEvent.mouseEnter(slot.container.querySelector(".spooler-row")!);
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
-    expect(screen.getByRole("menu")).toBeTruthy();
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
   it("counts every active descendant in the group status", () => {
     const threads = [makeThread({ id: "parent" }), ...["a", "b", "c"].map(id =>
       makeThread({ id, parentThreadId: "parent", status: "active", indicator: "runtime" }))];
@@ -324,57 +250,7 @@ describe("sidebar behavior regressions", () => {
     expect(hook.result.current.groups[0].live).toBe(3);
   });
 
-  it("can keyboard-drag a non-sortable thread toward a section", () => {
-    const node = document.createElement("div");
-    const rect = { top: 100, bottom: 200, left: 0, right: 200, width: 200, height: 100 };
-    const target = { id: "section:s", disabled: false, node: { current: node },
-      data: { current: { sectionId: "s" } }, rect: { current: rect } };
-    // useDraggable does not register the active thread as a droppable container.
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    mount([makeThread({ id: "t" })]);
-    expect(probes.keyboardCoordinates).not.toBeNull();
-    const coordinates = probes.keyboardCoordinates!(new KeyboardEvent("keydown", { code: "ArrowDown" }), {
-      currentCoordinates: { x: 0, y: 0 },
-      context: {
-        active: { id: "thread:t", data: { current: { threadId: "t" } } },
-        collisionRect: { ...rect, top: 0, bottom: 40, height: 40 },
-        droppableRects: new Map([[target.id, rect]]),
-        droppableContainers: { getEnabled: () => [target], get: (id: string) => id === target.id ? target : undefined },
-        over: null, scrollableAncestors: [],
-      },
-    } as unknown as Parameters<KeyboardCoordinateGetter>[1]);
-    expect(coordinates).toEqual({ x: 0, y: 25 });
-  });
-
-  it("files a thread through the real keyboard sensor and section collision detection", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-      const destination = this.querySelector(".spooler-group-label")?.textContent === "Destination";
-      return new DOMRect(0, destination ? 100 : 300, 200, this.classList.contains("spooler-row-draggable") ? 40 : 100);
-    });
-    const slot = renderSlot(list, props, {
-      sdk, sidebarThreads: { status: "ready", threads: [makeThread({ id: "keyboard" })],
-        projects: [makeProject({ id: "proj_a" })], sections: [makeSection({ id: "dest", name: "Destination" })] },
-    });
-    const grip = screen.getByRole("button", { name: "Drag onto a section header to file this thread" });
-    act(() => { grip.focus(); });
-    fireEvent.keyDown(grip, { key: " ", code: "Space" });
-    await waitFor(() => expect(slot.container.querySelector(".spooler-thread-drag-preview")).not.toBeNull());
-    // KeyboardSensor installs its document listener after the start event.
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    for (let step = 0; step < 5; step += 1) {
-      fireEvent.keyDown(grip, { key: "ArrowUp", code: "ArrowUp" });
-    }
-    await waitFor(() => expect(slot.container.querySelector(".spooler-group-drop-active .spooler-group-label")?.textContent).toBe("Destination"));
-    fireEvent.keyDown(grip, { key: "Enter", code: "Enter" });
-    await waitFor(() => expect(slot.inspection.sdkCalls).toContainEqual({
-      method: "threads.update", args: [{ threadId: "keyboard", sectionId: "dest" }],
-    }));
-  });
-
-});
-
-describe("thread row layout", () => {
+  describe("thread row layout", () => {
   it("keeps the time on the title line and the status word on the meta line", () => {
     const slot = mount([makeThread({ id: "busy", title: "Busy thread", indicator: "runtime" })]);
     const row = slot.container.querySelector(".spooler-row") as HTMLElement;
@@ -418,6 +294,8 @@ describe("thread row layout", () => {
   });
 });
 
+});
+
 describe("section bucket layout", () => {
   it("floats threads above the spool deck in a section bucket", async () => {
     localStorage.setItem("spooler-sidebar:grouping:v1", "section");
@@ -452,79 +330,6 @@ describe("section bucket layout", () => {
     expect(
       cluster!.compareDocumentPosition(deck!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-  });
-});
-
-describe("spool drags across section buckets", () => {
-  it("moves every member when a spool card lands on a section bucket", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    const slot = renderSlot(list, props, {
-      sdk: spoolSdk([
-        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
-        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
-      ]),
-      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "old" })],
-        projects: [makeProject({ id: "proj_a" })],
-        sections: [makeSection({ id: "old", name: "Old" }), makeSection({ id: "dest", name: "Destination" })] },
-    });
-    await act(async () => {});
-    expect(slot.container.querySelector(".spooler-spool-slot")).not.toBeNull();
-    expect(probes.onDragEnd).not.toBeNull();
-    act(() => { probes.onDragStart!({ active: { data: { current: { spoolId: "spool_a" } } } }); });
-    await act(async () => { probes.onDragEnd!({
-      active: { data: { current: { spoolId: "spool_a" } } },
-      over: { data: { current: { sectionId: "dest" } } },
-    }); });
-    const moved = slot.inspection.sdkCalls
-      .filter((call) => call.method === "threads.update")
-      .map((call) => (call.args[0] as { threadId: string }).threadId);
-    expect(moved.sort()).toEqual(["t1", "t2"]);
-  });
-
-  it("does nothing when a spool card lands on another spool card", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    const slot = renderSlot(list, props, {
-      sdk: spoolSdk([
-        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
-        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
-        { threadId: "t3", metadata: { spool: "spool_b", spoolJoined: 1, spoolLead: true } },
-      ]),
-      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "old" }), makeThread({ id: "t3", sectionId: "old" })],
-        projects: [makeProject({ id: "proj_a" })],
-        sections: [makeSection({ id: "old", name: "Old" }), makeSection({ id: "dest", name: "Destination" })] },
-    });
-    await act(async () => {});
-    act(() => { probes.onDragStart!({ active: { data: { current: { spoolId: "spool_a" } } } }); });
-    await act(async () => { probes.onDragEnd!({
-      active: { data: { current: { spoolId: "spool_a" } } },
-      over: { data: { current: { kind: "spool", spoolId: "spool_b" } } },
-    }); });
-    // Without the guard the undefined sectionId would unfile spool_a's members.
-    expect(slot.inspection.sdkCalls.filter((call) => call.method === "threads.update")).toEqual([]);
-  });
-
-  it("highlights section buckets while a spool is dragged over them", async () => {
-    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
-    const slot = renderSlot(list, props, {
-      sdk: spoolSdk([
-        { threadId: "t1", metadata: { spool: "spool_a", spoolJoined: 1, spoolLead: true } },
-        { threadId: "t2", metadata: { spool: "spool_a", spoolJoined: 2 } },
-      ]),
-      sidebarThreads: { status: "ready", threads: [makeThread({ id: "t1", sectionId: "old" }), makeThread({ id: "t2", sectionId: "old" })],
-        projects: [makeProject({ id: "proj_a" })],
-        sections: [makeSection({ id: "old", name: "Old" }), makeSection({ id: "dest", name: "Destination" })] },
-    });
-    await act(async () => {});
-    act(() => { probes.onDragStart!({ active: { data: { current: { spoolId: "spool_a" } } } }); });
-    // The spool sits in "Old" (the lead's section): that bucket reads as
-    // "already here", every other bucket reads as a new destination.
-    probes.isOver = true;
-    slot.rerender(createElement(list.component, { ...props }));
-    const cueFor = (name: string): string =>
-      slot.container.querySelector(`section[aria-label="${name}"]`)
-        ?.closest(".spooler-group-section")?.className ?? "";
-    expect(cueFor("Destination")).toContain("spooler-group-drop-active");
-    expect(cueFor("Old")).toContain("spooler-group-drop-same");
   });
 });
 
@@ -584,3 +389,66 @@ describe("palette commands drive the sidebar directly", () => {
   });
 });
 
+
+describe("press-and-hold targeting", () => {
+  // Pure: the long-press timer only decides WHAT menu to open; these tests
+  // pin the targeting rules. The timer itself runs on the list root.
+  it("resolves a thread row from its link, a spool header from the card, members to threads", () => {
+    const row = document.createElement("a");
+    row.setAttribute("data-sidebar-thread-id", "t1");
+    const inner = document.createElement("span");
+    row.appendChild(inner);
+    expect(findLongPressTarget(inner)).toEqual({ kind: "thread", threadId: "t1" });
+
+    const spool = document.createElement("div");
+    spool.setAttribute("data-spool-id", "spool_x");
+    const title = document.createElement("span");
+    spool.appendChild(title);
+    expect(findLongPressTarget(title)).toEqual({ kind: "spool", spoolId: "spool_x" });
+    // Member rows inside the card resolve to the thread, never the spool.
+    const memberLink = document.createElement("a");
+    memberLink.setAttribute("data-sidebar-thread-id", "m1");
+    spool.appendChild(memberLink);
+    expect(findLongPressTarget(memberLink)).toEqual({ kind: "thread", threadId: "m1" });
+  });
+
+  it("declines details panels, fields, and nothing-at-all", () => {
+    const details = document.createElement("div");
+    details.className = "spooler-row-details";
+    const copy = document.createElement("button");
+    details.appendChild(copy);
+    expect(findLongPressTarget(copy)).toBeNull();
+
+    expect(findLongPressTarget(document.createElement("input"))).toBeNull();
+    const rename = document.createElement("div");
+    rename.className = "spooler-rename";
+    expect(findLongPressTarget(rename)).toBeNull();
+
+    expect(findLongPressTarget(document.body)).toBeNull();
+    expect(findLongPressTarget(null)).toBeNull();
+  });
+});
+
+describe("context-menu vertical clamp", () => {
+  // Pure: the menu sits at y only while it fits; otherwise the top shifts
+  // upward, and a scrollbar arrives only when even that cannot fit.
+  it("keeps y when the whole menu fits under it", () => {
+    expect(clampMenuY(300, 200, 800)).toEqual({ top: 300, scrolls: false });
+  });
+
+  it("shifts the top upward when the menu would overflow the viewport", () => {
+    // A 600px menu opened at y=500 in a 700px viewport would land its
+    // bottom at 1100; the clamp parks it at 692 and scrolls nothing.
+    expect(clampMenuY(500, 600, 700)).toEqual({ top: 92, scrolls: false });
+  });
+
+  it("scrolls internally only when the menu cannot fit the viewport at all", () => {
+    expect(clampMenuY(500, 900, 700)).toEqual({ top: 8, scrolls: true });
+  });
+
+  it("caps at the margin with the scroll class when the top would go under", () => {
+    // 700-−8−692 = 0: the top would land under the 8px margin, so the menu
+    // parks at 8 and scrolls.
+    expect(clampMenuY(600, 692, 700)).toEqual({ top: 8, scrolls: true });
+  });
+});
