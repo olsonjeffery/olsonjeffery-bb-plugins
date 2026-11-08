@@ -199,9 +199,9 @@ export function ThreadDetailFacts({
         <>
           <dt className="spooler-details-dt">Context</dt>
           <dd className="spooler-details-dd spooler-details-context">
-            // The bar is never empty: a base fill from used/max always
-            // paints (2px floor), and real tone categories overlay on top
-            // of it only when they account for the usage they claim.
+            {/* The bar is never empty: a base fill from used/max always
+                paints (2px floor), and real tone categories overlay on top
+                of it only when they account for the usage they claim. */}
             <div
               className="spooler-details-bar"
               role="img"
