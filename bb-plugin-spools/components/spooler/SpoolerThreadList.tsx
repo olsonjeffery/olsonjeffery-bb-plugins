@@ -1549,6 +1549,15 @@ export function SpoolerThreadList({
         : []),
       { kind: "separator" },
       { kind: "header", label: "Move to section" },
+      // The unfiled bucket leads the block — it IS a section option now, not
+      // a trailing "No section" (same update: sectionId -> null).
+      {
+        kind: "item",
+        id: "section-none",
+        label: "Inbox",
+        icon: "Inbox",
+        checked: menuThread.sectionId === null,
+      },
       ...sections.map(
         (section): SpoolerMenuItem => ({
           kind: "item",
@@ -1558,16 +1567,6 @@ export function SpoolerThreadList({
           checked: menuThread.sectionId === section.id,
         }),
       ),
-      ...(menuThread.sectionId
-        ? [
-            {
-              kind: "item",
-              id: "section-none",
-              label: "No section",
-              icon: "Folder",
-            } as SpoolerMenuItem,
-          ]
-        : []),
       { kind: "item", id: "copy-link", label: "Copy link", icon: "Copy" },
     ];
     return items;
