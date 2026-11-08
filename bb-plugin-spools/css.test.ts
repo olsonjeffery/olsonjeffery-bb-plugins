@@ -491,7 +491,7 @@ describe("app.css", () => {
     // retired), members' panels ride one roster step deeper, and the goal
     // packs at the tail size token with a THREE-line clamp.
     const panel = rules().find((rule) => rule.selector === ".spooler-row-details");
-    expect(panel?.body).toMatch(/margin:[^;]*6px 2px/);
+    expect(panel?.body).toMatch(/margin:\s*0 0 6px/);
     expect(panel?.body).toMatch(/border-radius:\s*0 0 8px 8px/);
     expect(rules().find((rule) => rule.selector === ".spooler-row-details-sep")?.body)
       .toMatch(/margin:\s*0 -12px 10px/);

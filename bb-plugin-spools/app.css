@@ -1948,7 +1948,11 @@ a.spooler-row-main:hover {
    Split (outline) on the recessed surface. Vertical layering, never a
    floating card beside stranded tones. */
 .spooler-row-details {
-  margin: 2px 8px 6px 2px;
+  /* The panel is the header tube's lower half: flush left+right (no side
+     inset — the off-by-pixels sliver read as a misaligned card on selected
+     rows) and attached directly beneath (no top gap; the hairline carries
+     the seam). Same width, corners joined with the tube's rounded top. */
+  margin: 0 0 6px;
   padding: 0 12px 10px;
   border-radius: 0 0 8px 8px;
   background: var(--surface-recessed, var(--muted));
