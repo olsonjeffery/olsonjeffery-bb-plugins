@@ -60,45 +60,36 @@ describe("app.css", () => {
     expect(fold?.body).toMatch(/height var\(--spooler-swipe-fold,/);
   });
 
-  it("lays row metadata as one meta line with one rhetoric slot per fact", () => {
-    // The old wrapping chip grid is retired: rows read title line + meta
-    // line. The meta carries at most one status pill/word, the project
-    // (first to truncate), and the PR.
-    const meta = rules().find((rule) => rule.selector === ".spooler-row-meta");
-    expect(meta?.body).toMatch(/display:\s*flex/);
-    expect(meta?.body).toMatch(/white-space:\s*nowrap/);
-    expect(rules().find((rule) => rule.selector === ".spooler-thread-title")?.body)
-      .toMatch(/display:\s*contents/);
-    // The metadata grid is retired outright.
-    expect(rules().filter((rule) => /\.spooler-row-grid\b/.test(rule.selector)))
-      .toEqual([]);
-    // Quiet rows keep the meta line (it is where the project lives) but
-    // compact clamps it to one unwrapped line.
-    const compactMeta = rules().find(
-      (rule) => rule.selector === ".spooler-density-compact .spooler-row-meta,\n.spooler-row-compact .spooler-row-meta",
+  it("lays the sub-head as one line: status · provider · time over the right-justified side", () => {
+    const sub = rules().find((rule) => rule.selector === ".spooler-row-sub");
+    expect(sub?.body).toMatch(/display:\s*flex/);
+    expect(sub?.body).toMatch(/margin-left:\s*24px/);
+    expect(sub?.body).toMatch(/white-space:\s*nowrap/);
+    expect(rules().find((rule) => rule.selector === ".spooler-row-sub-right")?.body)
+      .toMatch(/max-width:\s*60%/);
+    const project = rules().find((rule) => rule.selector === ".spooler-row-project");
+    expect(project?.body).toMatch(/border-left:\s*1px solid var\(--border\)/);
+    expect(project?.body).toMatch(/text-overflow:\s*ellipsis/);
+    expect(rules().find((rule) => rule.selector === ".spooler-status-wording")?.body)
+      .toMatch(/font-weight:\s*500/);
+    expect(rules().find((rule) => rule.selector === ".spooler-status-pill")?.body)
+      .toMatch(/border-radius:\s*4px/);
+    const compactSub = rules().find(
+      (rule) => rule.selector === ".spooler-density-compact .spooler-row-sub,\n.spooler-row-compact .spooler-row-sub",
     );
-    expect(compactMeta?.body).toMatch(/flex-wrap:\s*nowrap/);
-    expect(compactMeta?.body).toMatch(/overflow:\s*hidden/);
-    // The retired extra wrapper must not come back.
-    expect(rules().filter((rule) => /\.spooler-row-extra\b/.test(rule.selector)))
+    expect(compactSub?.body).toMatch(/flex-wrap:\s*nowrap/);
+    expect(compactSub?.body).toMatch(/overflow:\s*hidden/);
+    expect(rules().filter((rule) => /\.spooler-row-meta\.?$/.test(rule.selector)))
       .toEqual([]);
   });
 
-  it("clamps the whole title instead of the last SDK segment", () => {
-    const title = rules().find((rule) =>
-      rule.selector === ".spooler-title-wrap .spooler-thread-title",
-    );
-    expect(title?.body).toMatch(/-webkit-line-clamp:\s*2/);
-    expect(title?.body).toMatch(/overflow-wrap:\s*anywhere/);
-    expect(rules().filter((rule) => /spooler-title-wrap/.test(rule.selector) && /-webkit-line-clamp/.test(rule.body))
-      .map((rule) => rule.selector)).toEqual([
-      // Ordinary thread titles honor the two-line setting; no wrap-scoped
-      // third rule may sneak a clamp in.
-      ".spooler-title-wrap .spooler-thread-title",
-    ]);
-    // The redesigned section list runs the two-row grammar structurally:
-    // spool titles and section header titles clamp on their own, outside
-    // the wrap setting.
+  it("keeps thread titles at one line; only spool and group labels wrap", () => {
+    expect(rules().filter((rule) =>
+      /spooler-thread-title/.test(rule.selector) && /-webkit-line-clamp/.test(rule.body)))
+      .toEqual([]);
+    expect(rules().find((rule) => rule.selector === ".spooler-title-wrap .spooler-row-title")?.body)
+      .toMatch(/flex-wrap:\s*nowrap/);
+    // The redesigned section list keeps the structurally clamped titles:
     for (const selector of [
       ".spooler-spool-title",
       ".spooler-group-header-right .spooler-group-label",
@@ -109,12 +100,11 @@ describe("app.css", () => {
     }
   });
 
-  it("sizes wrapping titles from content and keeps the grid out of two-line mode", () => {
-    expect(rules().find((rule) => rule.selector === ".spooler-title-wrap .spooler-row-title-text")?.body)
-      .toMatch(/flex:\s*1 1 auto/);
-    // The metadata grid needs no two-line variant: it wraps itself.
+  it("keeps the wrap class inert for thread rows (spool titles wrap on their own)", () => {
     expect(rules().filter((rule) => /\.spooler-title-wrap .*spooler-row-grid/.test(rule.selector)))
       .toEqual([]);
+    expect(rules().find((rule) => rule.selector === ".spooler-spool-title")?.body)
+      .toMatch(/-webkit-line-clamp:\s*2/);
   });
 
   it("keeps the permanent ellipsis in the trailing cluster, always visible", () => {
@@ -146,16 +136,17 @@ describe("app.css", () => {
       .toEqual([]);
   });
 
-  it("estimates unrendered two-line rows taller than one-line rows", () => {
+  it("estimates unrendered rows by the header tube + sub-head", () => {
     const estimate = (selector: RegExp) => Number(
       rules()
         .find((rule) => selector.test(rule.selector) && /contain-intrinsic-size/.test(rule.body))
         ?.body.match(/contain-intrinsic-size:\s*auto\s+(\d+)px/)?.[1],
     );
-    expect(estimate(/^\.spooler-title-wrap \.spooler-row$/))
-      .toBeGreaterThan(estimate(/^\.spooler-row$/));
-    expect(estimate(/^\.spooler-title-wrap\.spooler-density-compact \.spooler-row,/))
-      .toBeGreaterThan(estimate(/^\.spooler-density-compact \.spooler-row,/));
+    expect(rules().filter((rule) => /spooler-title-wrap/.test(rule.selector) && /contain-intrinsic-size/.test(rule.body)))
+      .toEqual([]);
+    expect(estimate(/^\.spooler-row$/)).toBe(58);
+    expect(estimate(/^\.spooler-row-compact$/)).toBe(46);
+    expect(estimate(/^\.spooler-density-compact \.spooler-row$/)).toBe(46);
   });
 
   it("never resets the row margin with the shorthand", () => {
@@ -478,40 +469,41 @@ describe("app.css", () => {
       "spooler-settings-swatch",
       "spooler-settings-colorstrip",
       "spooler-menu-swatch",
-      // The status pip overlay over the section count is gone; the Active
-      // bar still hosts one, so the class survives scoped.
       "spooler-chip-iconic",
+      // v2 retired the panel's own header and provider icon: the row's
+      // header carries them, so nothing duplicates inside the details.
+      "spooler-details-head",
+      "spooler-details-head-meta",
+      "spooler-details-provider-icon",
     ]) {
       expect(css.includes(gone)).toBe(false);
     }
-    // The bare 9px uppercase status word retired; only the meta-line
-    // "wording" slot survives.
     expect(css.includes("spooler-status-word {")).toBe(false);
     expect(css.includes("spooler-status-word.")).toBe(false);
-    // The provider icon rides Details now; the row slot is retired. The
-    // details variant is a different class and must stay.
     expect(rules().filter((rule) =>
       /(^|\s)\.spooler-provider-icon\b/.test(rule.selector),
     )).toEqual([]);
-    expect(css).toContain(".spooler-details-provider-icon");
+    expect(rules().find((rule) => rule.selector === ".spooler-row-provider")).toBeTruthy();
   });
 
-  it("lays the always-open details tight with a compact header", () => {
+  it("lays the appended details flush beneath the header tube", () => {
     // The panel hugs the icon rail (the old 42px text-column indent is
     // retired), members' panels ride one roster step deeper, and the goal
     // packs at the tail size token with a THREE-line clamp.
     const panel = rules().find((rule) => rule.selector === ".spooler-row-details");
-    expect(panel?.body).toMatch(/margin:[^;]*6px 24px/);
-    const member = rules().find(
-      (rule) => rule.selector === ".spooler-spool-member .spooler-row-details",
-    );
-    expect(member?.body).toMatch(/margin-left:\s*40px/);
+    expect(panel?.body).toMatch(/margin:[^;]*6px 2px/);
+    expect(panel?.body).toMatch(/border-radius:\s*0 0 8px 8px/);
+    expect(rules().find((rule) => rule.selector === ".spooler-row-details-sep")?.body)
+      .toMatch(/margin:\s*0 -12px 10px/);
     const goal = rules().find((rule) => rule.selector === ".spooler-details-goal");
     expect(goal?.body).toMatch(/-webkit-line-clamp:\s*3/);
     expect(goal?.body).toMatch(/line-clamp:\s*3/);
     expect(goal?.body).toMatch(/font-size:\s*var\(--text-2xs\)/);
-    expect(css).toContain(".spooler-details-head");
-    expect(css).toContain(".spooler-details-head-meta");
+    expect(rules().find((rule) => rule.selector === ".spooler-row-toggle")?.body)
+      .toMatch(/place-items:\s*center/);
+    expect(rules().find((rule) =>
+      rule.selector === ".spooler-row-open > .spooler-row-main .spooler-row-toggle [data-icon-root]")?.body)
+      .toMatch(/rotate\(180deg\)/);
     // The peek card is retired everywhere, styles included.
     expect(css).not.toContain("spooler-hover-card");
   });

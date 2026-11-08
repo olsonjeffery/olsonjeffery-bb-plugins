@@ -1272,7 +1272,7 @@ describe("settings gates", () => {
     expect(slot.container.querySelector(".spooler-title-wrap")).toBeNull();
   });
 
-  it("quiet rows show title, project and time only", () => {
+  it("quiet rows keep the sub-head; no PR chip and no status word on them", () => {
     const quiet = makeThread({
       id: "quiet",
       title: "Idle read thread",
@@ -1280,32 +1280,31 @@ describe("settings gates", () => {
     });
     const sections = [makeSection({ id: "s1", name: "Backlog" })];
 
-    // Adaptive collapse off: the meta line renders its facts.
+    // Adaptive collapse off: the sub-head keeps its slots (no status word
+    // exists on an idle thread; the PR chip keeps its slot when a PR rides
+    // the row).
     const expanded = renderThreads([quiet], {
       settings: { adaptiveCollapse: false },
       sections,
     });
-    expect(expanded.container.querySelector(".spooler-row-meta")).toBeTruthy();
-    expect(
-      expanded.container.querySelector(".spooler-row-collapsed"),
-    ).toBeNull();
+    expect(expanded.container.querySelector(".spooler-row-sub")).toBeTruthy();
+    expect(expanded.container.querySelector(".spooler-row-collapsed")).toBeNull();
     cleanup();
 
     const folded = renderThreads([quiet], {
       settings: { adaptiveCollapse: true },
       sections,
     });
-    // The row marks itself collapsed; time still rides the title line and
-    // the project stays on the meta line — the quiet row shows exactly
-    // title, project, time.
-    expect(
-      folded.container.querySelector(".spooler-row-collapsed"),
-    ).toBeTruthy();
-    const meta = folded.container.querySelector(".spooler-row-meta");
-    expect(meta).toBeTruthy();
-    expect(meta?.querySelector(".spooler-row-project")).toBeTruthy();
-    expect(folded.container.querySelector(".spooler-row-time")).toBeTruthy();
-    expect(meta?.querySelector(".spooler-status-pill")).toBeNull();
+    expect(folded.container.querySelector(".spooler-row-collapsed")).toBeTruthy();
+    const sub = folded.container.querySelector(".spooler-row-sub") as HTMLElement;
+    expect(sub).toBeTruthy();
+    // No status word (idle reads nothing), no PR chip; the provider name and
+    // the short time still ride the left cluster, project right.
+    expect(sub.querySelector(".spooler-status-wording")).toBeNull();
+    expect(sub.querySelector(".spooler-pr-link")).toBeNull();
+    expect(sub.querySelector(".spooler-row-sub-prov")).not.toBeNull();
+    expect(sub.querySelector(".spooler-row-time")).not.toBeNull();
+    expect(sub.querySelector(".spooler-row-project")?.textContent).toContain("proj_a");
   });
 });
 
@@ -1338,6 +1337,8 @@ describe("folded row work", () => {
     }));
     toggle(true);
     const child = childRow()!;
+    // The execution fetch waits for the row's own details chevron.
+    fireEvent.click(child.querySelector(".spooler-row-toggle")!);
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     expect(fetch).toHaveBeenCalledWith({ threadId: childId });
     expect(gestures(added, child)).toHaveLength(3);
@@ -1347,16 +1348,20 @@ describe("folded row work", () => {
     expect(child.closest('[aria-hidden="true"]')).not.toBeNull();
     await waitFor(() => expect(childRow()).toBeNull());
     toggle(true);
-    // A fold is a pause: the still-selected row resumes and asks again for
-    // its execution options (enablement and visibility both re-arm once).
+    // A fold is a pause: the resumed row starts with its details closed
+    // (no auto-fetch), then the chevron re-opens them and the panel asks
+    // for the execution options again.
     expect(childRow()).not.toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(childRow()!.querySelector(".spooler-row-toggle")!);
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    const atPause = 2;
     toggle(false);
-    fireEvent.focus(window);
-    expect(fetch).toHaveBeenCalledTimes(atPause);
+    await waitFor(() => expect(childRow()).toBeNull());
     toggle(true);
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    // Remounting with a closed panel costs nothing.
+    const atResubscribe = fetch.mock.calls.length;
+    expect(childRow()).not.toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(atResubscribe);
   });
 
   it("resumes a folded row when filtering reveals it, without changing saved folds", async () => {
@@ -1368,6 +1373,11 @@ describe("folded row work", () => {
     })], { activeThreadId: "filter-reveals-live", sdk: { ...sdkFakes(), threads: { defaultExecutionOptions: fetch } } });
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "needle" } });
+    // The revealed row still waits for its own chevron before fetching.
+    fireEvent.click(
+      slot.container.querySelector('[data-sidebar-thread-id="filter-reveals-live"]')!
+        .closest(".spooler-row")!.querySelector(".spooler-row-toggle")!,
+    );
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     expect(slot.container.querySelector('[data-sidebar-thread-id="filter-reveals-live"]')!
       .closest('[aria-hidden="true"]')).toBeNull();
@@ -1377,7 +1387,7 @@ describe("folded row work", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("opens no details behind a fold; the fetch lands only with the resumed row", async () => {
+  it("opens no details behind a fold; the fetch lands only when the chevron opens them", async () => {
     const context = vi.fn(async () => ({ usage: null }));
     localStorage.setItem(
       "spooler-sidebar:collapsed-threads:v1",
@@ -1387,7 +1397,6 @@ describe("folded row work", () => {
       makeThread({ id: "hover-fold-parent" }),
       makeThread({ id: "hover-fold-child", parentThreadId: "hover-fold-parent", indicator: "runtime" }),
     ], {
-      activeThreadId: "hover-fold-child",
       sdk: {
         ...sdkFakes(),
         threads: {
@@ -1399,10 +1408,13 @@ describe("folded row work", () => {
     // Folded: nothing mounts, nothing fetches.
     expect(slot.container.querySelector('[data-sidebar-thread-id="hover-fold-child"]')).toBeNull();
     expect(context).not.toHaveBeenCalled();
-    // Unfolding remounts the row, and its always-open Details fetch once.
+    // Unfolding remounts the row (selection never opens details).
     fireEvent.click(screen.getByRole("button", { name: "Expand replies" }));
     const child = slot.container.querySelector('[data-sidebar-thread-id="hover-fold-child"]')!;
     expect(child).not.toBeNull();
+    expect(context).not.toHaveBeenCalled();
+    // The row's chevron opens the details; context arrives once.
+    fireEvent.click(child.querySelector(".spooler-row-toggle")!);
     await waitFor(() => expect(context).toHaveBeenCalledOnce());
   });
 
@@ -1576,7 +1588,8 @@ describe("model and thinking display", () => {
     await waitFor(() =>
       expect(slot.container.querySelector(".spooler-row")).toBeTruthy(),
     );
-    // Details are always open for the selected thread — no chevron, no click.
+    // The chevron opens the panel; the model/error level rides one row.
+    fireEvent.click(slot.container.querySelector(".spooler-row-toggle")!);
     const panel = slot.container.querySelector(".spooler-row-details");
     expect(panel).toBeTruthy();
     await waitFor(() => {

@@ -43,7 +43,7 @@ export interface RowCollapse {
   hiddenLive: boolean;
   hiddenNeedsUser: boolean;
   hiddenFailed: boolean;
-  /** Counts behind the booleans: the meta line's rollup reads "1 needs you". */
+  /** Counts behind the booleans: the sub-head's rollup reads "1 needs you". */
   hiddenNeedsUserCount: number;
   hiddenFailedCount: number;
   hiddenKids: { id: string; title: string; dot: string | null }[];
@@ -173,7 +173,7 @@ export function prLabel(state: string, attention: string): string {
   }
 }
 
-/** Visual tone for a pull request's attention, shared with the spool card. */
+/** Visual tone for a pull request's attention. */
 export function prToneClass(attention: string): string {
   switch (attention) {
     case "checks_failed":
@@ -193,7 +193,7 @@ export function prToneClass(attention: string): string {
   }
 }
 
-/** Pill class for a pull request state, shared with the spool card. */
+/** Pill class for a pull request state. */
 export function prBadgeClass(state: string, attention: string): string {
   if (state === "merged" || attention === "merged") return "spooler-pr-merged";
   if (state === "closed" || attention === "closed") return "spooler-pr-closed";
@@ -201,7 +201,7 @@ export function prBadgeClass(state: string, attention: string): string {
   return "spooler-pr-open";
 }
 
-/** Icon for a pull request state, shared with the spool card. */
+/** Icon for a pull request state. */
 export function prIconName(state: string, attention: string): string {
   if (state === "merged" || attention === "merged") return "GitMerge";
   if (state === "closed" || attention === "closed") return "GitPullRequestClosed";
@@ -210,10 +210,10 @@ export function prIconName(state: string, attention: string): string {
 }
 
 /**
- * The meta line's first slot: a pill (attention/failed) or a plain tinted
- * word (working). The kind suffix rides the word, so a working agent reads
- * "Working · Agent" the way the mockup writes it. Done reads nothing: the
- * check glyph and the unread dot carry it.
+ * The sub-head's first slot: a pill (attention/failed) or a plain tinted
+ * word (working). Canonical wording only — the host's raw indicator label
+ * stays in the row's accessible name. Done reads nothing: the check glyph
+ * and the unread dot carry it.
  */
 function statusMetaFor(
   indicator: string,
@@ -346,10 +346,9 @@ function SpoolerThreadRowImpl({
   /** False inside a folded group or ancestor; suspend requests and gestures. */
   isVisible?: boolean;
   actions: SpoolerThreadActions;
-  /** Relative activity time, e.g. "5m ago". A string rather than the clock,
-   * so the minute tick re-renders only rows whose label actually moved. */
+  /** Relative activity time, e.g. "5m ago" — the SUB-head's full tooltip. */
   timeText: string;
-  /** The short row form of the same age: "now", "12m", "2d". */
+  /** The short sub-head form of the same age: "now", "12m", "2d". */
   timeShortText?: string;
   onNavigate: () => void;
   onOpenMenu: (clientX: number, clientY: number, thread: PluginSidebarThread) => void;
@@ -401,17 +400,15 @@ function SpoolerThreadRowImpl({
   const inputRef = useRef<HTMLInputElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
-  // Inline Details: ALWAYS open while this thread is the selected one — the
-  // chevron, the hover cluster and the peek card are all retired, and the
-  // details (the peek's replacement) carry the facts on their own. Local to
-  // the row: only this row's panel cares.
-  const detailsOpen = isActive && isVisible;
+  // Inline Details: per-row disclosure behind the chevron. Selecting a
+  // thread only paints the selected tone — the panel never opens on its
+  // own. Per-row state means several boxes can be open side by side.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = `spooler-details-${thread.id.replace(/[^a-zA-Z0-9-]/g, "_")}`;
-  // The row's ⋯ joins the tab order only while the row itself holds focus:
-  // the row is the roving tab stop, so Tab reaches it without parking on an
-  // invisible button of every row.
+  // The row's trailing buttons join the tab order only while the row itself
+  // holds focus: the row is the roving tab stop.
   const [rowFocusWithin, setRowFocusWithin] = useState(false);
-  // Context usage is fetched once per row, lazily, when its Details open.
+  // Context usage is fetched once per row, lazily on first open.
   // `undefined` in the cache means "not resolved yet", as a marker for the
   // in-flight fetch.
   const contextCacheRef = useRef<ContextUsage | null | undefined>(undefined);
@@ -464,8 +461,7 @@ function SpoolerThreadRowImpl({
       });
   }, [fetchThreadContext, thread.id]);
 
-  // Details open when the row becomes the selected one (and when it is shown
-  // again after a fold): fetch the row's one-shot context then.
+  // Context arrives on first open only (the cache suppresses re-fetches).
   useEffect(() => {
     if (!detailsOpen) return;
     ensureContext();
@@ -479,6 +475,25 @@ function SpoolerThreadRowImpl({
       }
     };
   }, []);
+
+  // Model + effort live in the details and resolve for ANY thread — the
+  // options endpoint answers with the thread's defaults, so idle rows show
+  // them too. The fetch is gated to the OPEN row's details: nothing pays for
+  // the request while the panel is closed.
+  const execution = useThreadExecution(
+    thread.id,
+    sdk,
+    modelEpoch,
+    detailsOpen,
+    thread.latestAttentionAt,
+    isVisible,
+  );
+  const modelName = useModelDisplayName(
+    thread.providerId,
+    execution?.model ?? null,
+    sdk,
+    detailsOpen,
+  );
 
   // Seed the input when editing starts only: an auto-generated title arriving
   // mid-edit must not overwrite what the user is typing.
@@ -524,6 +539,13 @@ function SpoolerThreadRowImpl({
   const openInSplit = () => {
     actions.open(thread.id, { split: true });
     onNavigate();
+  };
+  const toggleDetails = () => {
+    setDetailsOpen((open) => {
+      const next = !open;
+      if (next) ensureContext();
+      return next;
+    });
   };
   const runSwipeAction = (action: SwipeActionView, offset: number) => {
     switch (action.id) {
@@ -582,25 +604,16 @@ function SpoolerThreadRowImpl({
   ]
     .filter((part): part is string => !!part)
     .join(" — ");
-  // The meta line's first slot: a pill (Needs you / Queued / Failed) or a
-  // tinted working word ("Working · Command"). Done reads nothing: the check
-  // glyph and the unread dot carry it.
+  // The sub-head's first slot: a pill (Needs you / Queued / Failed) or a
+  // tinted working word ("Working · Command"). Canonical wording only.
   const statusMeta = statusMetaFor(thread.indicator);
-  // The details header keeps its own word tint; pill tones don't apply there.
-  const headTone = statusMeta
-    ? statusMeta.pill
-      ? statusMeta.tone === "spooler-pill-failed"
-        ? "spooler-tone-error"
-        : "spooler-tone-warning"
-      : statusMeta.tone
-    : null;
 
   const prNeedsAttention =
     !!pullRequest &&
     !["none", "merged", "closed", "draft"].includes(pullRequest.attention);
-  // Quiet rows are title + project + time only; anything worth a glance
-  // keeps the full row. Unknown indicators default to full (never hide
-  // the unknown).
+  // Quiet rows are sub-head + action chrome only: no PR chip (the PR already
+  // needs attention or it belongs in the details), no status word (idle rows
+  // have none). Anything worth a glance keeps its slots.
   const collapsed =
     adaptiveCollapse &&
     !isEditing &&
@@ -609,25 +622,6 @@ function SpoolerThreadRowImpl({
     !hasUnsubmittedDraft &&
     !rowStatus &&
     !prNeedsAttention;
-
-  // Model + effort live in Details and resolve for ANY thread — the options
-  // endpoint answers with the thread's defaults, so idle rows show them too.
-  // The fetch is gated to the selected row: its details are the only ones
-  // open, so nothing else pays for the request.
-  const execution = useThreadExecution(
-    thread.id,
-    sdk,
-    modelEpoch,
-    isActive && isVisible,
-    thread.latestAttentionAt,
-    isVisible,
-  );
-  const modelName = useModelDisplayName(
-    thread.providerId,
-    execution?.model ?? null,
-    sdk,
-    isVisible,
-  );
 
   const branch = thread.environment?.branchName ?? null;
   const hostName = thread.host?.name ?? null;
@@ -666,9 +660,8 @@ function SpoolerThreadRowImpl({
     navigate.openUrl(pullRequest.url);
   };
 
-  // A folded family swaps the row's project for a one-line rollup of who is
-  // hidden: "3 replies · ● 1 needs you". Loudest hidden state first: failed,
-  // needs-you, unread, then running.
+  // A folded family keeps status · provider · time on the sub-head's left,
+  // and adds the rollup to the right cluster: "N replies · ● loudest".
   const familyFolded = !!collapse?.collapsed && collapse.hiddenTotal > 0;
   const familyRollup = familyFolded
     ? collapse!.hiddenFailedCount > 0
@@ -698,16 +691,15 @@ function SpoolerThreadRowImpl({
             : null
     : null;
 
-  // Shared facts for the Details panel. Provider and section are absent on
-  // purpose: the header carries the provider; the sidebar itself carries the
-  // section.
+  // Shared facts for the details body. Provider and section are absent on
+  // purpose (the row's header carries the provider; the sidebar carries the
+  // section); status lives in the sub-head too, so no Status row here.
   const facts = {
     goal:
       thread.titleFallback && thread.titleFallback !== thread.displayTitle
         ? thread.titleFallback
         : null,
-    statusLabel: thread.indicatorLabel ?? statusMeta?.text ?? null,
-    model: isActive && isVisible ? (execution === undefined ? null : modelName) : null,
+    model: detailsOpen ? (execution === undefined ? null : modelName) : null,
     thinking,
     hostName: detailHostName,
     branch,
@@ -717,15 +709,22 @@ function SpoolerThreadRowImpl({
       collapse && collapse.hiddenTotal > 0
         ? { hiddenTotal: collapse.hiddenTotal, hiddenKids: collapse.hiddenKids }
         : null,
-    timeText,
     context,
+  };
+
+  const commit = () => {
+    if (cancelledRef.current) return;
+    onCommitRename(thread, renameValue);
   };
 
   // -- Row anatomy ----------------------------------------------------------
   //
-  // One icon rail (the old grip slot, now the provider's), one lead (status
-  // glyph or family chevron), one title line (title + trailing ⋯/time) and,
-  // on depth-0 rows, one meta line. Selection replaces the lead.
+  // The box: a header tube (the row's default content — provider icon,
+  // stateful lead, title over provider · time | PR · project) plus the
+  // details appended flush beneath it when the chevron opens them. The
+  // washes (hover/selected) paint the tube only; the panel is its own
+  // surface, so tones layer vertically and never squeeze sideways.
+
   const gutterNode = (
     <span className="spooler-tree-gutter" aria-hidden="true">
       {providerIcon ? (
@@ -814,10 +813,10 @@ function SpoolerThreadRowImpl({
     </span>
   );
 
-  // The title line's trailing cluster (the read side): unread ink dot, the
-  // PERMANENT ⋯ (the row's only menu affordance — no hover cluster), the
-  // short time, a keyboard shortcut, another plugin's row status, then an
-  // unsent-draft pip.
+  // The main line's trailing cluster (fixed to the right, never wrapped):
+  // unread ink dot, keyboard shortcut, another plugin's row status, the
+  // unsent-draft pip, then the PERMANENT ⋯ and the details chevron. The
+  // short time is NOT here — it lives on the sub-head.
   const titleTrailNode = (
     <span className="spooler-row-badges">
       {thread.isUnread ? (
@@ -828,25 +827,6 @@ function SpoolerThreadRowImpl({
           title="Unread"
         />
       ) : null}
-      <button
-        type="button"
-        tabIndex={rowFocusWithin ? 0 : -1}
-        aria-label="More actions"
-        title="More actions"
-        aria-haspopup="menu"
-        className="spooler-row-more"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const rect = event.currentTarget.getBoundingClientRect();
-          onOpenMenu(rect.left, rect.bottom + 4, thread);
-        }}
-      >
-        <Icon name="MoreHorizontal" aria-hidden="true" />
-      </button>
-      <span key="time" className="spooler-row-time" title={timeText}>
-        {timeShortText}
-      </span>
       {shortcut ? (
         <kbd className="spooler-kbd">{shortcut.label}</kbd>
       ) : null}
@@ -870,18 +850,50 @@ function SpoolerThreadRowImpl({
           aria-label="Unsent draft"
         />
       ) : null}
+      <button
+        type="button"
+        tabIndex={rowFocusWithin ? 0 : -1}
+        aria-label="More actions"
+        title="More actions"
+        aria-haspopup="menu"
+        className="spooler-row-more"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onOpenMenu(rect.left, rect.bottom + 4, thread);
+        }}
+      >
+        <Icon name="MoreHorizontal" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        tabIndex={rowFocusWithin ? 0 : -1}
+        aria-label={detailsOpen ? "Hide details" : "Show details"}
+        title={detailsOpen ? "Hide details" : "Show details"}
+        aria-expanded={detailsOpen}
+        aria-controls={detailsId}
+        className="spooler-row-toggle"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleDetails();
+        }}
+      >
+        <Icon name="ChevronDown" aria-hidden="true" />
+      </button>
     </span>
   );
 
-  // The meta line, depth-0 rows only. Composition: status word/pill (tone),
-  // then the project (muted, first to truncate), then the pull request. A
-  // folded family shows its rollup instead of the project — and it shows it
-  // even on a quiet row, so a fold is never silent. Quiet rows keep the
-  // meta line too: it is where the project lives.
-  const metaNode =
-    depth === 0 ? (
-      <span className="spooler-row-meta">
-        {statusMeta && !familyFolded ? (
+  // The sub-head: status word/pill (tone) · provider · short time on the
+  // left; the folded-family rollup, the pull request chip and the project —
+  // RIGHT-justified — on the right. Project truncates first; the same
+  // geometry serves the collapsed and the expanded box, so the outer row
+  // never duplicates or jams next to the panel.
+  const subHeadNode = (
+    <span className="spooler-row-sub">
+      <span className="spooler-row-sub-left">
+        {statusMeta && !collapsed ? (
           statusMeta.pill ? (
             <span
               key="status-pill"
@@ -900,6 +912,21 @@ function SpoolerThreadRowImpl({
             </span>
           )
         ) : null}
+        <span
+          className="spooler-row-sub-prov"
+          title={`Provider: ${providerName}`}
+        >
+          {providerName}
+        </span>
+        <span className="spooler-row-meta-sep" aria-hidden="true">
+          ·
+        </span>
+        <span className="spooler-row-time" title={timeText}>
+          {timeShortText}
+        </span>
+      </span>
+      <span className="spooler-row-sub-push" />
+      <span className="spooler-row-sub-right">
         {familyFolded ? (
           <>
             <span
@@ -933,23 +960,8 @@ function SpoolerThreadRowImpl({
               </>
             ) : null}
           </>
-        ) : projectTag ? (
-          <>
-            {statusMeta && !statusMeta.pill ? (
-              <span
-                key="proj-sep"
-                className="spooler-row-meta-sep"
-                aria-hidden="true"
-              >
-                ·
-              </span>
-            ) : null}
-            <span key="project" className="spooler-row-project" title={projectTag}>
-              {projectTag}
-            </span>
-          </>
         ) : null}
-        {pullRequest ? (
+        {pullRequest && !collapsed ? (
           <button
             key="pr"
             type="button"
@@ -965,17 +977,69 @@ function SpoolerThreadRowImpl({
           >
             <Icon name={prIconName(pullRequest.state, pullRequest.attention)} aria-hidden="true" />
             <span>
-              #{pullRequest.number} {prLabel(pullRequest.state, pullRequest.attention)}
+              #{pullRequest.number}
             </span>
           </button>
         ) : null}
+        {projectTag ? (
+          <span key="project" className="spooler-row-project" title={projectTag}>
+            {projectTag}
+          </span>
+        ) : null}
       </span>
-    ) : null;
+    </span>
+  );
 
-  const commit = () => {
-    if (cancelledRef.current) return;
-    onCommitRename(thread, renameValue);
-  };
+  const mainBodyNode = (input: boolean) => (
+    <span className="spooler-row-text">
+      <span className="spooler-row-head">
+        {input ? (
+          <span className="spooler-row-title">
+            <input
+              ref={inputRef}
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commit();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  cancelledRef.current = true;
+                  onCancelRename();
+                }
+              }}
+              onBlur={commit}
+              aria-label="Rename thread"
+              placeholder={thread.displayTitle}
+              maxLength={200}
+              className="spooler-rename"
+            />
+          </span>
+        ) : (
+          <span className="spooler-row-title">
+            <span className="spooler-row-title-text">
+              {thread.isPinned ? (
+                <span
+                  className="spooler-pin-marker"
+                  title="Pinned"
+                  role="img"
+                  aria-label="Pinned"
+                >
+                  <Icon name="Pin" aria-hidden="true" />
+                </span>
+              ) : null}
+              <span className="spooler-thread-title">
+                <ThreadTitle threadId={thread.id} />
+              </span>
+            </span>
+          </span>
+        )}
+        {titleTrailNode}
+      </span>
+      {subHeadNode}
+    </span>
+  );
 
   if (isEditing) {
     return (
@@ -991,68 +1055,15 @@ function SpoolerThreadRowImpl({
         )}
         ref={rowRef}
       >
-        {gutterNode}
-        <div className="spooler-row-main">
+        <a
+          href={thread.href}
+          onClick={(event) => event.preventDefault()}
+          className="spooler-row-main"
+        >
+          {gutterNode}
           {leadNode}
-          <span className="spooler-row-text">
-            <span className="spooler-row-head spooler-row-rename">
-              <span className="spooler-row-title">
-                <input
-                  ref={inputRef}
-                  value={renameValue}
-                  onChange={(event) => setRenameValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commit();
-                    } else if (event.key === "Escape") {
-                      event.preventDefault();
-                      cancelledRef.current = true;
-                      onCancelRename();
-                    }
-                  }}
-                  onBlur={commit}
-                  aria-label="Rename thread"
-                  placeholder={thread.displayTitle}
-                  maxLength={200}
-                  className="spooler-rename"
-                />
-              </span>
-              {titleTrailNode}
-            </span>
-            {depth === 0 ? (
-              <span className="spooler-row-meta">
-                {statusMeta ? (
-                  statusMeta.pill ? (
-                    <span className={cn("spooler-status-pill", statusMeta.tone)}>
-                      {statusMeta.text}
-                    </span>
-                  ) : (
-                    <span className={cn("spooler-status-wording", statusMeta.tone)}>
-                      {statusMeta.text}
-                    </span>
-                  )
-                ) : null}
-                {collapse && collapse.hiddenTotal > 0 ? (
-                  <span className="spooler-row-replies">
-                    {collapse.hiddenTotal} replies
-                  </span>
-                ) : projectTag ? (
-                  <>
-                    {statusMeta && !statusMeta.pill ? (
-                      <span className="spooler-row-meta-sep" aria-hidden="true">
-                        ·
-                      </span>
-                    ) : null}
-                    <span className="spooler-row-project" title={projectTag}>
-                      {projectTag}
-                    </span>
-                  </>
-                ) : null}
-              </span>
-            ) : null}
-          </span>
-        </div>
+          {mainBodyNode(true)}
+        </a>
       </div>
     );
   }
@@ -1076,6 +1087,7 @@ function SpoolerThreadRowImpl({
         failed && "spooler-row-failed",
         done && "spooler-row-done",
         collapsed && "spooler-row-collapsed",
+        detailsOpen && "spooler-row-open",
       )}
       ref={rowRef}
       onFocusCapture={() => setRowFocusWithin(true)}
@@ -1100,7 +1112,6 @@ function SpoolerThreadRowImpl({
           </span>
         </span>
       ) : null}
-      {gutterNode}
       <a
         href={thread.href}
         data-sidebar-thread-shortcut-target={isShortcutTarget ? "" : undefined}
@@ -1130,65 +1141,18 @@ function SpoolerThreadRowImpl({
         }}
         className="spooler-row-main"
       >
+        {gutterNode}
         {leadNode}
-        <span className="spooler-row-text">
-          <span className="spooler-row-head">
-            <span className="spooler-row-title">
-              <span className="spooler-row-title-text">
-                {thread.isPinned ? (
-                  <span
-                    className="spooler-pin-marker"
-                    title="Pinned"
-                    role="img"
-                    aria-label="Pinned"
-                  >
-                    <Icon name="Pin" aria-hidden="true" />
-                  </span>
-                ) : null}
-                <span className="spooler-thread-title">
-                  <ThreadTitle threadId={thread.id} />
-                </span>
-              </span>
-            </span>
-            {titleTrailNode}
-          </span>
-          {metaNode}
-        </span>
+        {mainBodyNode(false)}
       </a>
-      {detailsOpen && !isEditing ? (
+      {detailsOpen ? (
         <div
           id={detailsId}
           className="spooler-row-details"
           role="region"
           aria-label={`${thread.displayTitle} details`}
         >
-          <div className="spooler-details-head">
-            <span
-              className="spooler-details-provider-icon"
-              title={`Provider: ${providerName}`}
-            >
-              {providerIcon ? (
-                <ProviderIcon providerKind="agent" provider={providerIcon} />
-              ) : (
-                <Icon
-                  name="Bot"
-                  aria-hidden="true"
-                  className="spooler-details-provider-fallback"
-                />
-              )}
-            </span>
-            <span className="spooler-details-title">{thread.displayTitle}</span>
-          </div>
-          <div className="spooler-details-head-meta">
-            {statusMeta ? (
-              <span className={cn("spooler-details-head-status", headTone)}>
-                {statusMeta.text}
-              </span>
-            ) : null}
-            <span title={`Provider: ${providerName}`}>{providerName}</span>
-            <span aria-hidden="true">·</span>
-            <span>{timeText}</span>
-          </div>
+          <div className="spooler-row-details-sep" aria-hidden="true" />
           <ThreadDetailFacts
             {...facts}
             copiedBranch={copiedBranch}

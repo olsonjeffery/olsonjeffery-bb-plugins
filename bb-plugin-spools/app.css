@@ -873,54 +873,53 @@
 
 .spooler-row {
   position: relative;
-  display: flex;
-  align-items: stretch;
+  display: block;
   margin: 2px 0;
   border-radius: 8px;
-  /* Typical comfortable row is now title + meta line with 8px block padding. */
+  /* Typical comfortable row is now the header tube + its sub-head
+     (about 58px, 46px compact). */
   content-visibility: auto;
-  contain-intrinsic-size: auto 50px;
+  contain-intrinsic-size: auto 58px;
   box-shadow: inset 3px 0 0 transparent;
   transition:
     background-color 250ms ease,
     box-shadow 250ms ease;
 }
 
-.spooler-row:hover {
+.spooler-row:hover > .spooler-row-main {
   /* The hover tube comes from the sidebar family of tokens, matching
-     bb's own list rows. */
+     bb's own list rows — and paints the HEADER only, so the details
+     appended beneath keep their own surface (vertical layering). */
   background: var(--sidebar-accent, var(--accent, var(--muted)));
 }
 
-.spooler-row-keyboard-focused {
+.spooler-row-keyboard-focused > .spooler-row-main {
   outline: 2px solid var(--sidebar-ring, var(--primary));
   outline-offset: -2px;
 }
 
-.spooler-row-active {
-  /* Shannon style: the viewed thread paints the same quiet wash bb's own
-     sidebar rows use (state-active), not a danger ring; the status chips
-     carry the color now. Kept after the keyboard rule so the wash survives
-     focus navigation. */
+.spooler-row-active > .spooler-row-main {
+  /* Selecting paints the same quiet state-active wash — on the header
+     tube ONLY. Selection never opens the details and never tints them. */
   background: var(--state-active, var(--accent, var(--muted)));
 }
 
-.spooler-row-active:hover {
+.spooler-row-active:hover > .spooler-row-main {
   background: var(--state-active, var(--accent, var(--muted)));
 }
 
-.spooler-row-selected {
+.spooler-row-selected > .spooler-row-main {
   /* Selection is interaction chrome, not status color: the host's selected
      surface with the visible checkbox carrying the state. */
   background: var(--surface-selected, var(--muted)) !important;
   box-shadow: inset 0 0 0 1px var(--surface-selected-border, var(--border)) !important;
 }
 
-.spooler-row-selected:hover {
+.spooler-row-selected:hover > .spooler-row-main {
   background: var(--surface-selected, var(--muted)) !important;
 }
 
-.spooler-row-selected.spooler-row-active {
+.spooler-row-selected.spooler-row-active > .spooler-row-main {
   background: var(--state-active, var(--accent, var(--muted))) !important;
 }
 
@@ -1124,22 +1123,19 @@
   padding: 2px 8px;
 }
 
-/* Compact keeps the meta line but never wraps it: a squeezed line clips
+/* Compact keeps the sub-head but never wraps it: a squeezed line clips
    at the row edge instead of growing taller. */
-.spooler-density-compact .spooler-row-meta,
-.spooler-row-compact .spooler-row-meta {
+.spooler-density-compact .spooler-row-sub,
+.spooler-row-compact .spooler-row-sub {
   flex-wrap: nowrap;
   overflow: hidden;
 }
 
 .spooler-density-compact .spooler-tree-gutter,
 .spooler-row-compact .spooler-tree-gutter {
-  padding-top: 0;
-}
-
-.spooler-density-compact .spooler-tree-gutter,
-.spooler-row-compact .spooler-tree-gutter {
-  padding-top: 0;
+  /* Compact first line starts higher: keep the icon on the title line. */
+  align-self: flex-start;
+  padding-top: 4px;
 }
 
 .spooler-select-checkbox {
@@ -1212,9 +1208,11 @@
 .spooler-tree-gutter {
   width: 18px;
   flex: none;
-  /* The chevron/grip centers over the row's full height, matching the
-     lead's icon column. */
-  align-self: stretch;
+  /* The provider icon centres on the first (title) line, not the full
+     two-line header — the old full-height stretch stranded icons beside
+     the details panel. */
+  align-self: flex-start;
+  padding-top: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1269,7 +1267,7 @@
 
 /* Open-in-split rows paint the same quiet tint bb's own sidebar uses for
    them — half-strength sidebar accent against the sidebar. */
-.spooler-row-split {
+.spooler-row-split > .spooler-row-main {
   background: color-mix(
     in oklch,
     var(--sidebar-accent, var(--accent, var(--muted))) 50%,
@@ -1277,17 +1275,25 @@
   );
 }
 
-.spooler-row-split.spooler-row-active,
-.spooler-row-split:hover {
+.spooler-row-split.spooler-row-active > .spooler-row-main,
+.spooler-row-split:hover > .spooler-row-main {
   background: var(--accent, var(--muted));
 }
 
 .spooler-row-main {
   display: flex;
-  flex: 1;
   min-width: 0;
-  /* One title line, one meta line; the lead's 16px slot aligns with the
-     first text line. */
+  /* The header tube: provider icon · lead · title · chrome over the
+     sub-head (provider · time | PR · project). When the details are open
+     the tube's bottom corners square off against the panel beneath. */
+  border-radius: 8px;
+}
+
+.spooler-row-open > .spooler-row-main {
+  border-radius: 8px 8px 0 0;
+}
+
+.spooler-row-main__unused {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
@@ -1303,14 +1309,17 @@ a.spooler-row-main:hover {
 
 .spooler-row-lead {
   /* The lead IS a 16px status slot: the status glyph, or — for a family
-     parent — the collapse chevron. It stretches the row's height and
-     centers its content so two-line rows keep it mid-line. */
+     parent — the collapse chevron. It centres on the first (title) line,
+     not on the full two-line header. */
   display: flex;
   flex: none;
-  align-self: stretch;
+  align-self: flex-start;
   align-items: center;
   justify-content: center;
   width: 16px;
+  padding-top: 9px;
+  box-sizing: content-box;
+  height: 16px;
 }
 
 .spooler-lead-empty {
@@ -1372,17 +1381,50 @@ a.spooler-row-main:hover {
   }
 }
 
-/* The meta line: status word or pill (tone), then the project (muted,
-   first to truncate), then the pull request. One line, never a wrap. */
-.spooler-row-meta {
+/* The sub-head: status word/pill · provider · time on the left; the
+   folded-family rollup, the pull request chip and the project —
+   RIGHT-justified — on the right. The project truncates first. One line,
+   never a wrap; identical when the details are open (the box's header
+   never duplicates its own facts). */
+.spooler-row-sub {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
+  margin-left: 24px;
+  padding-right: 2px;
   font-size: var(--text-xs);
   line-height: 1.45;
   color: var(--muted-foreground);
   white-space: nowrap;
+}
+
+.spooler-row-sub-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.spooler-row-sub-prov {
+  flex: none;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.spooler-row-sub-push {
+  flex: 1 1 0;
+  min-width: 12px;
+}
+
+.spooler-row-sub-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
 }
 
 /* Working/gentle word: tinted ink (success tone), never a shell. */
@@ -1425,9 +1467,10 @@ a.spooler-row-main:hover {
 .spooler-row-project {
   flex: 0 1 auto;
   min-width: 28px;
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
 }
 
 .spooler-row-replies {
@@ -1526,63 +1569,24 @@ a.spooler-row-main:hover {
   text-overflow: ellipsis;
 }
 
-/* Two-line titles. Size from the title's content so short titles can keep
-   their metadata beside them. Clamp the whole SDK title, including mentions. */
+/* Titles truncate at ONE line in v2 (the wrap grammar retired — a wrapped
+   title pushed the trailing chrome into the left margin). The
+   spooler-title-wrap class survives on the root for the spool-card titles,
+   which keep their own two-line clamp. */
 .spooler-title-wrap .spooler-row-title {
-  position: relative;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  row-gap: 1px;
-  padding-inline-start: var(--spooler-title-indent, 0px);
+  flex-wrap: nowrap;
+  align-items: center;
 }
 
-.spooler-title-wrap .spooler-row-title-text {
-  flex: 1 1 auto;
-  max-width: 100%;
-  align-items: flex-start;
-}
-
-.spooler-title-wrap .spooler-thread-title {
-  display: -webkit-box;
-  flex: 1;
-  min-width: 0;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.spooler-title-wrap .spooler-thread-title > * {
-  flex: initial;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-/* Keep wrapped metadata beneath the text, rather than beneath the pin. Taking
-   the marker out of flex sizing also keeps its indent on line two. */
-.spooler-title-wrap .spooler-row-title:has(.spooler-pin-marker) {
-  --spooler-title-indent: 16px;
-}
-
-.spooler-title-wrap .spooler-pin-marker {
-  position: absolute;
-  inset-inline-start: 0;
-  top: 3px;
-}
-
-/* Height estimates for rows not yet rendered. Comfortable rows sit on a
-   title + meta line (about 50px, 40px compact); two-line titles stack
-   taller (about 64px, 50px compact). The auto form remembers each row's
+/* Height estimates for rows not yet rendered: the header tube + its
+   sub-head (about 58px, 46px compact). The auto form remembers each row's
    real size once it has rendered. */
-.spooler-title-wrap .spooler-row {
-  contain-intrinsic-size: auto 64px;
+.spooler-row-compact {
+  contain-intrinsic-size: auto 46px;
 }
 
-.spooler-title-wrap.spooler-density-compact .spooler-row,
-.spooler-title-wrap .spooler-row-compact {
-  contain-intrinsic-size: auto 50px;
+.spooler-density-compact .spooler-row {
+  contain-intrinsic-size: auto 46px;
 }
 
 .spooler-pin-marker {
@@ -1795,10 +1799,7 @@ a.spooler-row-main:hover {
   text-overflow: ellipsis;
 }
 
-.spooler-row:hover .spooler-row-time,
-.spooler-row:focus-within .spooler-row-time {
-  opacity: 0;
-}
+
 
 .spooler-dot-running {
   background: color-mix(in srgb, var(--success) 72%, var(--foreground));
@@ -1865,8 +1866,10 @@ a.spooler-row-main:hover {
   white-space: nowrap;
 }
 
-/* The permanent ⋯: the row's only menu affordance. It lives in the trailing
-   cluster, left of the short time, and never hides — no hover cluster. */
+/* The trailing chrome: the permanent ⋯ and the details chevron, fixed at
+   the main line's right edge (the header title truncates to one line, so
+   the cluster can never wrap into any margin). The chevron rotates when
+   the row's box is open. */
 .spooler-row-more {
   display: grid;
   place-items: center;
@@ -1890,6 +1893,34 @@ a.spooler-row-main:hover {
   height: 14px;
 }
 
+.spooler-row-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--subtle-foreground, var(--muted-foreground));
+  cursor: pointer;
+}
+
+.spooler-row-toggle:hover {
+  background: var(--state-hover, var(--muted));
+  color: var(--foreground);
+}
+
+.spooler-row-toggle [data-icon-root] {
+  width: 14px;
+  height: 14px;
+  transition: transform 160ms ease;
+}
+
+.spooler-row-open > .spooler-row-main .spooler-row-toggle [data-icon-root] {
+  transform: rotate(180deg);
+}
+
 /* The provider icon lives in the tree gutter — the slot where a drag grip
    used to fade in. It sits over the nesting guide; guides never hide. */
 .spooler-row-provider {
@@ -1911,70 +1942,26 @@ a.spooler-row-main:hover {
 }
 
 /* ---- Inline Details --------------------------------------------------------
-   Always open for the selected thread, beneath its row: a compact header
-   (provider icon · title, then provider · status · time), the shared
-   definition list, then Open (primary) and Split (outline). Background is
-   the recessed surface — and it hugs the icon rail, no wide gap. */
+   The chevron appends the facts UNDER the header tube, flush — the panel
+   carries no header of its own (the row's header IS the header), just a
+   hairline separator, the shared definition list, then Open (primary) and
+   Split (outline) on the recessed surface. Vertical layering, never a
+   floating card beside stranded tones. */
 .spooler-row-details {
-  /* Aligns with the provider-icon rail: row padding 8 + gutter 18 minus one
-     gap — the old 42px text-column indent is retired. */
-  margin: 0 8px 6px 24px;
-  padding: 10px;
-  border-radius: 6px;
+  margin: 2px 8px 6px 2px;
+  padding: 0 12px 10px;
+  border-radius: 0 0 8px 8px;
   background: var(--surface-recessed, var(--muted));
   font-size: var(--text-xs);
   line-height: 1.45;
 }
 
-/* Spool rosters hang one depth step deeper; their panels follow. */
-.spooler-spool-member .spooler-row-details {
-  margin-left: 40px;
-}
-
-.spooler-details-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.spooler-details-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.spooler-details-head-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  margin-top: 3px;
-  /* The title's icon slot is 14px wide: align the meta under the text. */
-  padding-left: 21px;
-  color: var(--muted-foreground);
-}
-
-.spooler-details-head-meta > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spooler-details-head-status.spooler-tone-success {
-  color: var(--success);
-}
-
-.spooler-details-head-status.spooler-tone-warning {
-  color: var(--warning);
-}
-
-.spooler-details-head-status.spooler-tone-error {
-  color: var(--destructive);
+/* The hairline that separates the appended facts from the header's
+   sub-head, spanning the panel's full width. */
+.spooler-row-details-sep {
+  height: 1px;
+  margin: 0 -12px 10px;
+  background: var(--border);
 }
 
 .spooler-details-dl {
@@ -2013,42 +2000,6 @@ a.spooler-row-main:hover {
   overflow: hidden;
   font-size: var(--text-2xs);
   line-height: 1.55;
-}
-
-.spooler-details-provider {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.spooler-details-provider-icon {
-  display: inline-flex;
-  flex: none;
-  width: 14px;
-  height: 14px;
-  overflow: hidden;
-  border-radius: 3px;
-  line-height: 0;
-}
-
-.spooler-details-provider-icon * {
-  width: 14px !important;
-  height: 14px !important;
-  max-width: 14px;
-  max-height: 14px;
-  object-fit: contain;
-}
-
-.spooler-details-provider-fallback {
-  display: inline-flex;
-  flex: none;
-  color: var(--muted-foreground);
-}
-
-.spooler-details-provider-fallback [data-icon-root],
-.spooler-details-provider-fallback[data-icon-root] {
-  width: 12px;
-  height: 12px;
 }
 
 .spooler-details-branch {

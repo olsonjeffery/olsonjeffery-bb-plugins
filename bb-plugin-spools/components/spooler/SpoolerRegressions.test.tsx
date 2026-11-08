@@ -251,20 +251,26 @@ describe("sidebar behavior regressions", () => {
   });
 
   describe("thread row layout", () => {
-  it("keeps the time on the title line and the status word on the meta line", () => {
+  it("keeps the sub-head one line: provider name · time over the right side", () => {
     const slot = mount([makeThread({ id: "busy", title: "Busy thread", indicator: "runtime" })]);
     const row = slot.container.querySelector(".spooler-row") as HTMLElement;
     const head = row.querySelector(".spooler-row-head") as HTMLElement;
     expect(head.querySelector(".spooler-row-title")).not.toBeNull();
-    // The time is a trailing member of the title line...
-    expect(head.querySelector(".spooler-row-badges")?.querySelector(".spooler-row-time"))
-      .not.toBeNull();
-    // ...and the status word is its own slot on the meta line beneath.
-    const meta = row.querySelector(".spooler-row-meta") as HTMLElement;
-    expect(meta).not.toBeNull();
-    expect(meta.querySelector(".spooler-status-wording")?.textContent).toContain("Working");
-    expect(head.querySelector(".spooler-status-wording")).toBeNull();
-    expect(row.querySelector(".spooler-row-badges")?.closest(".spooler-row-head")).toBe(head);
+    // The sub-head carries the status word, the provider name and the short
+    // time; the title line keeps only the title and the trailing chrome.
+    const sub = row.querySelector(".spooler-row-sub") as HTMLElement;
+    expect(sub).not.toBeNull();
+    expect(sub.querySelector(".spooler-status-wording")?.textContent).toContain("Working");
+    expect(sub.querySelector(".spooler-row-sub-prov")).not.toBeNull();
+    expect(sub.querySelector(".spooler-row-time")).not.toBeNull();
+    // The project rides the right-justified cluster, NOT the left.
+    const left = sub.querySelector(".spooler-row-sub-left") as HTMLElement;
+    expect(left.textContent).not.toContain("proj_a");
+    const right = sub.querySelector(".spooler-row-sub-right") as HTMLElement;
+    expect(right.textContent).toContain("proj_a");
+    // No time on the title line any more; the ⋯ and chevron live there.
+    expect(row.querySelector(".spooler-row-badges")?.querySelector(".spooler-row-time")).toBeNull();
+    expect(row.querySelector(".spooler-row-badges")?.querySelector(".spooler-row-toggle")).not.toBeNull();
   });
 
   it("draws no person glyph on family children", () => {

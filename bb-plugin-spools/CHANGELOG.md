@@ -4,6 +4,42 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.12.0 — 2026-11-08
+
+### Changed
+- **The thread box, v2** (the approved `docs/details-revamp-mockup-v2`).
+  - **The details header IS the row's default content.** Every thread box
+    reads: provider icon · stateful lead · title (one line, truncate) over
+    the sub-head — status word/pill (canonical "Working / Needs you /
+    Queued / Failed") · provider name · short time on the left; the
+    folded-family rollup, the PR chip and the project RIGHT-justified on
+    the right (project truncates first, hairline pivot). The old meta
+    line retired; the row's raw indicator label ("Thread working")
+    survives only in the accessible name.
+  - **The details append flush beneath the header tube** when the chevron
+    opens them: a full-width hairline separator, then the facts —
+    Goal (tail-size, 3 lines), Model · effort, away-Host, Branch (copy),
+    Pull request, Replies, Context — then Open/Split. NO header of its
+    own, NO Status row: the panel never duplicates the row (root cause of
+    the stranded-icons jank). The panel's own left indent is retired —
+    it sits directly under the tube; spool recipients include.
+  - **Selection never opens details** — a selected row is only the wash,
+    now painting the HEADER TUBE alone (no full-row wash squeezing the
+    panel into a two-tone side strip). `spooler-row-open` squares the
+    tube's bottom corners against the panel; washes retarget to the tube.
+  - **The chevron is back** (`.spooler-row-toggle`), fixed at the main
+    line's right edge next to the permanent ⋯; the header title truncates
+    to one line, so the trailing chrome can never wrap into any margin.
+    Per-row disclosure: several boxes can be open side by side; the
+    execution-options fetch fires only while a panel is open.
+  - **The context bar is always filled**: a base fill from used/max
+    paints regardless of the category snapshot (2px floor), tone
+    categories overlay on top only when they account for the usage they
+    claim, and the auto-compact tick rides it.
+  - Hover never hides the time (the hover-time swap rule retired with the
+    cluster); the two-line title grammar retired for thread rows (spool
+    card titles keep theirs).
+
 ## 0.11.0 — 2026-11-08
 
 ### Changed

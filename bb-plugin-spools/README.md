@@ -114,15 +114,17 @@ state inside.
 
 ### 🔎 Details on demand
 
-Select a thread and its details are simply there — always open beneath the
-row, no chevron: a compact header (provider icon · title, then provider ·
-status · full time) over the shared facts — goal at small, readable type in
-up to three clamped lines, status, model · effort (idle threads included),
-away-hosts, branch (with copy), pull request, replies and a context-window
-meter marked at the auto-compaction threshold. Open and Split sit at its
-foot. There is no on-hover peek card: hover paints nothing but the row
-tube. The provider icon also rides every row's gutter — the slot where a
-drag grip used to fade in — over the nesting guides, never hiding them.
+Every thread box reads as its own details header: provider icon · lead
+status glyph · title on the main line, and a sub-head of status word ·
+provider name · time on the left with the pull-request chip and the
+project RIGHT-justified on the right. The chevron at the box's upper-right
+appends the details flush beneath that header — a hairline separator, then
+the goal (three small-type lines), model · effort, branch, pull request,
+replies and a context-window meter that is never an empty bar. No
+duplicate header inside the panel, no Status row: the row IS the header.
+Selecting a thread only paints the selected wash on the header tube; the
+details never open on their own (several boxes can be open side by side).
+There is no on-hover peek card: hover paints nothing but the tube.
 
 </td>
 </tr>
@@ -132,10 +134,10 @@ drag grip used to fade in — over the nesting guides, never hiding them.
 ### ⌨️ Keyboard and bulk control
 
 Arrow keys walk the list, <kbd>Enter</kbd> opens, <kbd>Space</kbd> folds,
-<kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. The
-row's permanent <kbd>⋯</kbd> joins the tab order while the row holds focus —
-it is the row's only menu affordance (no hover cluster): threads carry it
-left of the short time; spool cards carry it left of "Spool (N)". Shortcuts
+<kbd>E</kbd> archives, <kbd>P</kbd> pins and <kbd>X</kbd> selects. The row's
+permanent <kbd>⋯</kbd> and the details <kbd>⌄</kbd> join the tab order while
+the row holds focus — fixed at the main line's right edge, so they can never
+wrap into a margin; spool cards carry their ⋯ left of "Spool (N)". Shortcuts
 stay out of text fields, open dialogs and menus, and buttons or links outside the
 list, so they never steal keys from the rest of BB. <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click also selects several,
 to act on them together from a floating dock. Save a query plus filters as a
@@ -202,7 +204,7 @@ bb plugin install path:$PWD --yes
 | Where | What |
 | --- | --- |
 | **Sidebar thread list** | Grouped, folded threads with a filter; status chips (All · Needs you · Failed · Working · Unread, with counts) wrap onto a second row on narrow lists instead of hiding labels. |
-| **Rows and the ⋯ menu** | Every row keeps a stock ⋯ in its trailing cluster (threads: left of the time; spool cards: left of "Spool (N)" — the pip is a count again). It, right-click and touch press-and-hold all open one context menu: Open in split, Pin, read, Rename…, Archive, Delete… (top block), Spools filing, Move to section, then Copy link. The menu clamps into the viewport — it shifts upward first, and scrolls only when the whole menu still cannot fit. |
+| **Rows and the ⋯ menu** | Every row keeps a stock ⋯ next to the details chevron at the main line's right edge (fixed, never wrapped); spool cards carry theirs left of "Spool (N)". ⋯, right-click and touch press-and-hold all open one context menu: Open in split, Pin, read, Rename…, Archive, Delete… (top block), Spools filing, Move to section, then Copy link. The menu clamps into the viewport — it shifts upward first, and scrolls only when the whole menu still cannot fit. |
 | **View menu (⋯ in the header)** | Smart views, density, expand/collapse all folders, and the spool jump. |
 | **Settings → Appearance** | Choose Spools for the sidebar. |
 
@@ -270,9 +272,9 @@ flowchart LR
 
 The list never waits on settings: until they load it uses the defaults above,
 except that `defaultDensity` and `twoLineTitles` use the value this client last
-saw, so rows paint at their final height. The permanent ⋯ and the provider
-icon share the title line and the gutter without ever changing the row's
-layout.
+saw, so rows paint at their final height. The provider icon, ⋯ and chevron
+share the header without ever changing the row's layout; two-line titles
+retired for thread rows (spool card titles keep theirs).
 
 </details>
 

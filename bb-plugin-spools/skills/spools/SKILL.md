@@ -65,39 +65,30 @@ both.
 
 ## Row anatomy
 
-One lead, one title line, one meta line (depth-0 rows):
+Every thread box IS its details' header — the same two-line content runs
+collapsed and expanded, so the outer row never duplicates the panel:
 
-- **Lead (16px slot)**: the status glyph — a success spinner (working, incl.
-  working-draft), pulsing success glyphs for background agent (bot) /
-  command (terminal) / workflow / goal (target) / plan mode (checklist), an
-  amber pulsing dot for needs-you and queued, a red ✕ for failed, a green
-  check for finished-but-unseen — or, for a family parent, the fold chevron
-  that used to live in the tree gutter. Selection replaces the lead with the
-  checkbox (the family toggle stays, so folding still prunes selections).
-  The provider icon rides the tree gutter — the slot where a drag grip
-  used to fade in — overlapping any nesting guide, never hiding it.
-- **Title line**: the title truncates, ranked by weight — 400 (quiet/child),
-  500 (needs-you/queued/failed), 600 (unread/done); unread rows keep the ink
-  dot and the bolded title. Trailing, in order: the unread ink dot, the
-  **permanent ⋯** (the row's only menu affordance — no hover cluster), the
-  **short time** ("now", "12m", "2h", "2d" — `timeShort`; the full relative
-  text is in the tooltip and Details and still re-renders on the minute
-  tick), the jump-shortcut keycap, another plugin's row-status icon, and the
-  unsent-draft pip.
-- **Meta line**: the status word or pill first — success text ("Working" or
-  "Working · Agent / Command / Workflow / Goal / Plan"), or a pill ("Needs
-  you" on the attention surface with ink text, "Queued" keeps its name,
-  "Failed" on the destructive surface); done shows no word. Then the
-  project (muted, first to truncate), then the **pull request link**
-  (icon + `#N Label`, tone only: destructive for failed checks/conflicts,
-  warning for changes-requested/blocked, success-foreground for
-  ready-to-merge/merged, muted otherwise; click opens the PR). A folded
-  family shows "N replies · ● loudest-state" instead of the project —
-  failed first, then needs-you, then unread, then working. Quiet rows
-  (adaptive collapse) show title, project and time only.
-- Everything the glance row dropped — provider (header), model + effort,
-  away-host, branch, the full time, folded kids, project colours — lives in
-  **Details**; the section lives in the sidebar itself.
+- **Main line**: the **provider icon** rides the tree gutter (the slot a
+  drag grip used to fade in), overlapping any guide and never hiding it;
+  the **16px lead** carries the status glyph — a success spinner (working,
+  incl. working-draft), pulsing glyphs for background agent / command /
+  workflow / goal / plan, an amber needs-you dot, a red ✕, a green done
+  check — or the family fold chevron; selection replaces the lead with
+  its checkbox. Then the **title, truncating to ONE line** (the wrap
+  grammar retired — a wrapped title pushed the trailing chrome into the
+  margin), the unread ink dot, the jump-shortcut keycap, another plugin's
+  row-status icon, the unsent-draft pip, and the two fixed controls at the
+  right edge: the **permanent ⋯** and the **details chevron**.
+- **Sub-head**: left — the status word or pill (canonical "Working[ ·
+  kind]" in success text; "Needs you" / "Queued" amber pills; "Failed"
+  red; done shows none), the **provider name**, and the **short time**
+  ("now", "12m", "2h" — the full relative text is the tooltip and still
+  re-renders on the minute tick); right — the folded-family rollup ("N
+  replies · ● loudest"), the **pull-request chip** (`#N` in its tone;
+  the full label is the tooltip and lives in the details), and the
+  **project, right-justified** with a hairline pivot (truncates first).
+  Quiet rows (adaptive collapse) drop the PR chip; idle threads have no
+  status slot at all.
 
 ## Details (always open), the ⋯ menu
 
@@ -119,23 +110,27 @@ One lead, one title line, one meta line (depth-0 rows):
 - The menu clamps into the viewport from its MEASURED height: the top
   shifts upward so the whole menu stays in view; it scrolls internally
   only when even that cannot fit the viewport at all.
-- **Inline Details panel** (`SpoolerThreadDetails.tsx`): opens beneath the
-  row for the SELECTED thread, always — no chevron. It adopts the peek
-  card's playlist: a compact header (provider icon · title, then provider
-  · status · full time) over the recessed surface, the definition list,
-  and the Open (primary) / Split footer. Facts: Goal (tail-size type,
-  THREE clamped lines), Status, Model · effort (ALWAYS — the options
-  endpoint resolves defaults for idle threads too), Host (only away from
-  the home host), Branch (with copy), Pull request (opens in the
-  browser), Replies, and the **context meter** (omitted when BB records
-  no usage). No Provider row: the header carries it. No Section row: the
-  sidebar itself carries it. The panel hugs the icon rail (~24px),
-  spool-members' panels one roster step deeper.
-- **Context usage** is fetched lazily per row from the row's single cache;
-  the execution options fetch is gated to the selected row, so idle lists
-  never ping the model catalog for every row.
-- The on-hover peek card is RETIRED (component and `hoverCard` setting
-  both gone; hovering rows paints nothing but the hover tube).
+- **Inline Details panel** (`SpoolerThreadDetails.tsx`): the chevron opens
+  it FLUSH beneath the header tube — a full-width hairline separator, the
+  definition list, then the Open (primary) / Split footer. It carries no
+  header of its own and no Status/Provider/Section rows: the row's header
+  carries provider, status and time, and the sidebar carries the section.
+  Facts: Goal (tail-size type, THREE clamped lines), Model · effort
+  (ALWAYS — the options endpoint resolves defaults for idle threads
+  too), Host (only away from the home host), Branch (copy), Pull request,
+  Replies, and the **context meter** — never empty: a base fill from
+  used/token-window always paints (2px floor), tone categories overlay
+  only when they account for the usage they claim, and the auto-compact
+  tick rides it. Per-row disclosure: several boxes can be open; selection
+  NEVER opens a panel (the selected tone paints the header tube only, and
+  the washes retarget to the tube so tones layer vertically, never
+  squeezed into a two-tone side strip). The row root gains
+  `spooler-row-open` when a panel is out.
+- **Fetches**: context usage lazily per row from the single cache; the
+  execution options fire only while a panel is open, so idle lists never
+  pay for the model catalog.
+- The on-hover peek card is RETIRED (component and setting gone; hovering
+  rows paints nothing but the hover tube).
 
 ## Active deck
 

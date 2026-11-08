@@ -18,13 +18,13 @@ A thread list you can read at a glance, for BB.
   guides, and a family sorts by its freshest activity. Fold one and the
   summary tells you how many are hidden, how many are unseen, and the loudest
   state inside.
-- **Details on demand.** Select a thread and its details are open — no
-  chevron: a compact header (provider icon · title; provider · status ·
-  time) over the facts — goal at small type in three clamped lines, status,
-  model · effort (idle threads included), away-host, branch with copy,
-  pull request, replies and a stacked context-window meter — with Open and
-  Split at its foot. No on-hover peek card; the glance row keeps one
-  pull-request link whose tone follows its state.
+- **Details on demand.** Every thread box is its own details header —
+  provider icon · status glyph · title over provider name · time, with the
+  pull-request chip and the project right-justified — and the chevron
+  appends the rest flush beneath its tube: goal at small type in three
+  clamped lines, model · effort, branch with copy, pull request, replies
+  and a context meter that never renders empty, with Open and Split at the
+  foot. Selecting only paints the header wash; no on-hover peek card.
 - **For working fast.** Status filter chips (All · Needs you · Failed ·
   Working · Unread), smart views in the header's View menu, a text filter,
   comfortable or compact density, keyboard traversal with quick archive and

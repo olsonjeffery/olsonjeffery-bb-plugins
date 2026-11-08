@@ -1,9 +1,9 @@
-// ThreadDetailFacts: the shared "definition list of facts" for a thread's
-// inline Details panel. The list is pure presentation: interactive bits
-// (branch copy, PR open) arrive as callbacks; the provider lives in the
-// panel's header (the row renders it), so the list carries no Provider row —
-// and the section lives in the sidebar itself, so no Section row either.
-// Model/effort is always part of the list: defaults resolve for any thread.
+// ThreadDetailFacts: the "definition list of facts" appended beneath a
+// thread's header when it opens. Pure presentation: interactive bits (branch
+// copy, PR open) arrive as callbacks. Provider, section AND status are
+// absent by design — the row's own header (provider icon, provider name,
+// status word·pill, time) carries them, so the panel never duplicates its
+// host. Model/effort is always here: defaults resolve for any thread.
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { prLabel, prIconName } from "./SpoolerThreadRow";
@@ -30,7 +30,6 @@ export interface ContextUsage {
 /** Facts the row already knows; the component adds only formatting. */
 export interface ThreadDetailFactsProps {
   goal: string | null;
-  statusLabel: string | null;
   model: string | null;
   thinking: string | null;
   /** Away-from-home host only (the list filters it before us). */
@@ -39,7 +38,6 @@ export interface ThreadDetailFactsProps {
   isWorktree: boolean;
   pullRequest: SpoolPullRequest | null;
   replies: ThreadDetailReplyInfo | null;
-  timeText: string;
   /** Usage recorded by BB; null omits the context section. */
   context: ContextUsage | null;
   copiedBranch: boolean;
@@ -75,7 +73,6 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 export function ThreadDetailFacts({
   goal,
-  statusLabel,
   model,
   thinking,
   hostName,
@@ -83,7 +80,6 @@ export function ThreadDetailFacts({
   isWorktree,
   pullRequest,
   replies,
-  timeText,
   context,
   copiedBranch,
   onCopyBranch,
@@ -101,6 +97,13 @@ export function ThreadDetailFacts({
   const categories = (context?.categories ?? []).filter(
     (category) => category.kind !== "free" && category.tokens > 0,
   );
+  // Tone-category weight, in %: the overlay only renders when it actually
+  // accounts for usage (a category snapshot that sums to zero can never
+  // leave the bar empty — the base fill paints regardless).
+  const categoryTotal = categories.reduce(
+    (sum, category) => sum + (category.tokens / maxTokens) * 100,
+    0,
+  );
 
   return (
     <dl className="spooler-details-dl">
@@ -108,17 +111,6 @@ export function ThreadDetailFacts({
         <>
           <dt className="spooler-details-dt">Goal</dt>
           <dd className="spooler-details-dd spooler-details-goal">{goal}</dd>
-        </>
-      ) : null}
-      {statusLabel ? (
-        <>
-          <dt className="spooler-details-dt">Status</dt>
-          <dd className="spooler-details-dd">
-            {statusLabel}
-            {timeText ? (
-              <span className="spooler-details-muted"> · {timeText}</span>
-            ) : null}
-          </dd>
         </>
       ) : null}
       {model ? (
@@ -207,23 +199,36 @@ export function ThreadDetailFacts({
         <>
           <dt className="spooler-details-dt">Context</dt>
           <dd className="spooler-details-dd spooler-details-context">
+            // The bar is never empty: a base fill from used/max always
+            // paints (2px floor), and real tone categories overlay on top
+            // of it only when they account for the usage they claim.
             <div
               className="spooler-details-bar"
               role="img"
               aria-label={`${pct}% of ${formatTokens(maxTokens)} tokens used`}
             >
-              {categories.length > 0
-                ? categories.map((category) => (
-                    <span
-                      key={category.id}
-                      className="spooler-details-bar-seg"
-                      style={{
-                        width: `${(category.tokens / maxTokens) * 100}%`,
-                        background: CATEGORY_COLOR[category.kind],
-                      }}
-                      title={`${category.label}: ${formatTokens(category.tokens)}`}
-                    />
-                  ))
+              {categories.length > 0 && categoryTotal > 0
+                ? (
+                    <>
+                      {pct > categoryTotal + 1 ? (
+                        <span
+                          className="spooler-details-bar-seg spooler-token-normal"
+                          style={{ width: `${pct - categoryTotal}%` }}
+                        />
+                      ) : null}
+                      {categories.map((category) => (
+                        <span
+                          key={category.id}
+                          className="spooler-details-bar-seg"
+                          style={{
+                            width: `${(category.tokens / maxTokens) * 100}%`,
+                            background: CATEGORY_COLOR[category.kind],
+                          }}
+                          title={`${category.label}: ${formatTokens(category.tokens)}`}
+                        />
+                      ))}
+                    </>
+                  )
                 : (
                     <span
                       className={cn(
