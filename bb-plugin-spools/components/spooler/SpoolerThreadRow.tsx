@@ -613,10 +613,10 @@ function SpoolerThreadRowImpl({
     !["none", "merged", "closed", "draft"].includes(pullRequest.attention);
   // Quiet rows are sub-head + action chrome only: no PR chip (the PR already
   // needs attention or it belongs in the details), no status word (idle rows
-  // have none). Anything worth a glance keeps its slots.
+  // have none). Editing does NOT release the fold: the sub-head reads the
+  // same while the title is being renamed, so no badge reshuffles mid-edit.
   const collapsed =
     adaptiveCollapse &&
-    !isEditing &&
     !thread.isUnread &&
     thread.indicator === "none" &&
     !hasUnsubmittedDraft &&
