@@ -1,0 +1,1154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Spooler — Thread-details revamp (mockup)</title>
+<style>
+/* ============================================================================
+   Spooler · Thread-details revamp — interactive mockup
+   Painted with bb-style tokens (warm neutrals, ink primary), light + dark.
+   Runs locally: no fetches, no build step.
+   ========================================================================== */
+
+:root {
+  --bg: #f4f4f2;
+  --card: #ffffff;
+  --muted: #f2f2f0;
+  --accent: #f0f0ee;
+  --active: #e8e8e4;
+  --border: #e4e4e0;
+  --guide: #d9d9d3;
+  --fg: #1b1b18;
+  --muted-fg: #74746c;
+  --subtle: #a4a49a;
+  --primary: #18181b;
+  --primary-fg: #f8f8fa;
+  --success: #15803d;
+  --success-fg: #22a055;
+  --warning: #b45309;
+  --warning-soft: #fdf4e6;
+  --error: #b91c1c;
+  --error-soft: #fdeeee;
+  --shadow: 0 10px 30px rgb(0 0 0 / 0.10);
+  --menu-w: 248px;
+}
+.dark {
+  --bg: #121211;
+  --card: #1c1c1a;
+  --muted: #232320;
+  --accent: #242422;
+  --active: #2c2c29;
+  --border: #2e2e2b;
+  --guide: #3a3a36;
+  --fg: #ececeb;
+  --muted-fg: #96968d;
+  --subtle: #6f6f68;
+  --primary: #ececeb;
+  --primary-fg: #171719;
+  --success: #4ade80;
+  --success-fg: #4ade80;
+  --warning: #f0a44c;
+  --warning-soft: #382a17;
+  --error: #f87171;
+  --error-soft: #3a1b1b;
+  --shadow: 0 12px 34px rgb(0 0 0 / 0.45);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background 160ms ease, color 160ms ease;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--muted-fg);
+  font: 500 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------- page chrome ---------------------------------------------------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .brand { font-weight: 600; letter-spacing: -0.1px; }
+.topbar .brand small { color: var(--muted-fg); font-weight: 400; margin-left: 6px; }
+.topbar .spacer { flex: 1; }
+.topbar .tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted-fg);
+  font-size: 12px;
+}
+.topbar .tool:hover { color: var(--fg); border-color: var(--guide); }
+.topbar .tool.on { color: var(--fg); background: var(--active); }
+
+.shell { max-width: 420px; margin: 22px auto 40px; padding: 0 14px; }
+.sidebar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px 0 20px;
+  overflow: clip;
+}
+
+/* ---------- filter header -------------------------------------------------- */
+.fh { padding: 8px 10px 0; }
+.fh-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+  color: var(--muted-fg);
+}
+.fh-search input {
+  flex: 1; min-width: 0;
+  border: 0; outline: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+}
+.fh-b { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.fh-seg {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px; border-radius: 8px;
+  background: var(--muted);
+  font-size: 12px; color: var(--muted-fg);
+}
+.fh-seg button { padding: 3px 9px; border-radius: 6px; }
+.fh-seg button.on { background: var(--card); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+.fh-group {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--muted-fg);
+  font-size: 12px;
+}
+.fh-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted-fg);
+  font-size: 12px;
+}
+.chip.on { background: var(--active); border-color: transparent; color: var(--fg); }
+.chip .c { color: var(--subtle); font-variant-numeric: tabular-nums; }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+.chip .dot.amber { background: var(--warning); }
+.chip .dot.red { background: var(--error); }
+.chip .dot.ink { background: var(--fg); }
+
+/* ---------- caption rows --------------------------------------------------- */
+.g-cap {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 30px;
+  margin: 2px 8px 2px 4px;
+  padding: 0 8px 0 4px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted-fg);
+  user-select: none;
+  cursor: pointer;
+}
+.g-cap:hover { background: var(--accent); color: var(--fg); }
+.g-cap .chev { color: var(--subtle); display: grid; place-items: center; }
+.g-cap .lbl { color: var(--fg); font-weight: 600; letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-cap .tot { color: var(--subtle); }
+.g-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 500;
+}
+.g-pill.failed { background: var(--error-soft); color: var(--error); }
+.g-pill.working { color: var(--success-fg); }
+
+/* ============ rows (the revamp) ============================================
+   Geometry: guide axis 1 at x=26 (spool glyph / freestanding provider icon);
+   roster axis 2 at x=44 (member + reply provider icons). Icons paint OVER the
+   line — the guide is never hidden. Text columns: 58px at level 1, 76px deep.
+   ========================================================================== */
+.tr, .spool-head {
+  position: relative;
+  display: block;
+  padding: 3px 8px 3px 0;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tr:hover, .spool-head:hover { background: var(--accent); }
+.tr.active { background: var(--active); }
+.tr.unread .ttl { font-weight: 600; }
+
+.axis1, .axis2 { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--guide); pointer-events: none; }
+.axis1 { left: 26px; }
+.axis2 { left: 44px; }
+
+.prov {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  color: #fff;
+  font: 700 9px/1 ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  flex: none;
+}
+.prov.pi { background: linear-gradient(160deg, #a855f7, #7c3aed); }
+.prov.acp { background: linear-gradient(160deg, #2dd4bf, #0d9488); }
+/* rails */
+.tr > .prov, .spool-head > .prov { position: absolute; top: 50%; transform: translateY(-50%); left: 19px; }
+.member .tr > .prov, .kid .tr > .prov { left: 37px; }
+.spool-head > .spool-glyph {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  left: 18px;
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  color: var(--muted-fg);
+}
+.spool-head > .spool-glyph:hover { color: var(--fg); }
+
+/* lead glyph (status / family toggle) */
+.tr > .lead {
+  position: absolute;
+  top: 8px;
+  left: 34px;
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  color: var(--muted-fg);
+}
+.member .tr > .lead, .kid .tr > .lead { left: 52px; }
+.tr.unread > .lead.gcheck { color: var(--success-fg); }
+
+.spin { display: inline-grid; place-items: center; color: var(--success-fg); animation: rot 1s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.dot.amber { background: var(--warning); animation: pulse 1.6s ease infinite; }
+.dot.red { background: var(--error); }
+.dot.ink { background: var(--fg); width: 6px; height: 6px; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.tr-head { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.ttl {
+  flex: 1; min-width: 0;
+  padding-left: 58px;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+.member .ttl, .kid .ttl { padding-left: 76px; }
+
+/* trailing cluster: the ellipsis sits LEFT of the time — always visible */
+.trail { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.ell {
+  display: grid; place-items: center;
+  width: 20px; height: 20px;
+  border-radius: 5px;
+  color: var(--muted-fg);
+}
+.ell:hover { background: var(--active); color: var(--fg); }
+.ell:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.ftime { font-size: 11px; color: var(--subtle); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* meta line (level-0 rows) */
+.meta {
+  display: flex; align-items: center; gap: 6px;
+  min-width: 0;
+  padding-left: 58px;
+  padding-right: 4px;
+  padding-bottom: 1px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.member .meta, .kid .meta { padding-left: 76px; }
+.meta .word { color: var(--success-fg); font-weight: 500; white-space: nowrap; }
+.meta .pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; font-weight: 500; white-space: nowrap; }
+.meta .pill.red { background: var(--error-soft); color: var(--error); }
+.meta .sep { color: var(--subtle); }
+.meta .prj { color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta .pr { display: inline-flex; align-items: center; gap: 4px; color: var(--muted-fg); text-decoration: none; white-space: nowrap; max-width: 150px; overflow: hidden; }
+.meta .pr.ok { color: var(--success-fg); }
+.meta .pr.warn { color: var(--warning); }
+.meta .pr .n { font-weight: 500; }
+.meta .roll { color: var(--muted-fg); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+/* ---------- spool cards ----------------------------------------------------- */
+.spool-title {
+  flex: 1; min-width: 0;
+  padding-left: 58px;
+  font-size: 13px; font-weight: 500;
+  letter-spacing: -0.1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.spool-trail { display: inline-flex; align-items: center; gap: 6px; }
+.spool-meta { color: var(--muted-fg); font-size: 12px; white-space: nowrap; }
+.spool-meta .wd { color: var(--success-fg); }
+.spool-pip {
+  display: inline-grid; place-items: center; gap: 2px;
+  min-width: 20px; height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--muted-fg);
+  font: 500 11px/1 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  grid-auto-flow: column;
+}
+.spool-pip .spin { width: 10px; height: 10px; }
+.spool-pip.on { background: var(--active); color: var(--fg); }
+
+/* ---------- inline details panel (the revamp) ------------------------------- */
+.details {
+  margin: 3px 8px 8px 20px;    /* was the 42px+ gap — now hugs the icon rail */
+  padding: 10px 11px 11px;
+  border-radius: 8px;
+  background: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  animation: drop 150ms ease;
+  min-width: 0;
+}
+.member > .tr-wrap .details { margin-left: 36px; }
+@keyframes drop { from { opacity: 0; transform: translateY(-3px); } }
+.d-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.d-title {
+  min-width: 0;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: -0.1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.d-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; padding-left: 21px; font-size: 12px; color: var(--muted-fg); }
+.d-meta .sm { color: var(--success-fg); }
+.d-dl { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 6px 10px; margin: 10px 0 0; align-items: start; }
+.d-dl dt { color: var(--muted-fg); font-size: 12px; }
+.d-dl dt::after { content: ":"; }
+.d-dl dd { margin: 0; min-width: 0; color: var(--fg); font-size: 12px; overflow-wrap: anywhere; }
+.d-muted { color: var(--muted-fg); }
+/* The goal: bb-standard small type (the tail of the scale), weight 400, and
+   THREE lines before the ellipsis. */
+.d-goal {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.d-branch { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.d-branch .bt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.d-copy { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 4px; color: var(--muted-fg); }
+.d-copy:hover { background: var(--active); color: var(--fg); }
+.d-copy.copied { color: var(--success-fg); }
+.d-prlink { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 500; color: var(--muted-fg); font-size: 12px; max-width: 100%; overflow: hidden; }
+.d-prlink:hover { text-decoration: underline; }
+.d-prlink.ok { color: var(--success-fg); }
+.d-prlink.warn { color: var(--warning); }
+
+.d-ctx { min-width: 0; }
+.d-bar { position: relative; display: flex; gap: 1px; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--muted-fg) 16%, transparent); overflow: hidden; }
+.d-bar .seg { height: 100%; min-width: 2px; }
+.d-bar .seg.used { background: var(--primary); }
+.d-bar .mark { position: absolute; top: -1px; bottom: -1px; width: 2px; border-radius: 1px; background: var(--warning); }
+.d-note { margin: 5px 0 0; font-size: 11px; color: var(--subtle); }
+.d-acts { display: flex; gap: 6px; margin-top: 10px; }
+.btn-open, .btn-split {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 26px; padding: 0 11px;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 500;
+}
+.btn-open { background: var(--primary); color: var(--primary-fg); }
+.btn-open:hover { filter: brightness(1.08); }
+.btn-split { border: 1px solid var(--border); background: transparent; }
+.btn-split:hover { background: var(--active); }
+
+/* ---------- context menu ---------------------------------------------------- */
+/* One clamp pass after paint: shift the top upward so the whole menu stays in
+   view; scroll only when the menu cannot fit the viewport at all. */
+.menu {
+  position: fixed;
+  z-index: 100;
+  width: var(--menu-w);
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  transform-origin: top right;
+  animation: pop 110ms ease;
+}
+.menu.scroll { overflow-y: auto; }
+@keyframes pop { from { opacity: 0; transform: scale(0.97) translateY(2px); } }
+.menu .mi {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--fg);
+}
+.menu .mi:hover { background: var(--accent); }
+.menu .mi.danger { color: var(--error); }
+.menu .mi .ic { display: grid; place-items: center; width: 16px; color: var(--muted-fg); flex: none; }
+.menu .mi.danger .ic { color: inherit; }
+.menu .mi .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu .mi .tick { width: 14px; color: var(--subtle); flex: none; }
+.menu .hr { height: 1px; background: var(--border); margin: 5px 4px; }
+.menu .hd { padding: 3px 8px; font-size: 11px; letter-spacing: 0.02em; color: var(--subtle); text-transform: uppercase; font-weight: 600; }
+
+/* ---------- mobile / coarse pointers ---------------------------------------- */
+@media (max-width: 640px) {
+  .shell { margin: 8px 0 20px; padding: 0 8px; max-width: none; }
+  .details { margin-left: 14px; margin-right: 6px; }
+  .member > .tr-wrap .details { margin-left: 28px; }
+  .fh-chips { gap: 4px; }
+}
+@media (hover: none) {
+  .hintbar {
+    display: flex; gap: 8px; align-items: center;
+    margin: 0 10px 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: var(--warning-soft);
+    color: var(--warning);
+    font-size: 12px;
+  }
+}
+@media (hover: hover) { .hintbar { display: none; } }
+
+/* toasts */
+#toasts { position: fixed; z-index: 120; bottom: 18px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; }
+.toast {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: 12px;
+  box-shadow: var(--shadow);
+  animation: rise 160ms ease;
+  max-width: min(86vw, 420px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+/* help popover */
+.help {
+  position: fixed;
+  z-index: 101;
+  top: 52px;
+  right: 12px;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  color: var(--muted-fg);
+}
+.help h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--subtle); }
+.help ul { margin: 0 0 8px; padding-left: 16px; }
+.help li { margin: 5px 0; }
+.help li b { color: var(--fg); font-weight: 500; }
+.help .x { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--muted-fg); }
+.help .x:hover { background: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">Spooler <small>— thread-details revamp · mockup</small></span>
+  <span class="spacer"></span>
+  <button class="tool" id="tallBtn" type="button">Stack 12 sections</button>
+  <button class="tool" id="themeBtn" type="button">Theme: light</button>
+  <button class="tool" id="helpBtn" type="button">？ How to try</button>
+</div>
+
+<main class="shell">
+  <aside class="sidebar" aria-label="Spooler thread list (mockup)">
+    <div class="fh">
+      <div class="fh-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input placeholder="Search" id="q" />
+        <kbd>/</kbd>
+      </div>
+      <div class="fh-b">
+        <div class="fh-seg" role="group" aria-label="Lifecycle">
+          <button type="button" class="on">Active</button>
+          <button type="button">Archived</button>
+          <button type="button">All</button>
+        </div>
+        <span class="fh-group">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+          Section
+        </span>
+      </div>
+      <div class="fh-chips" id="chips"></div>
+    </div>
+    <div class="hintbar">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      Touch: tap selects · press-and-hold a row or spool for actions
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+</main>
+
+<div id="menuRoot"></div>
+<div id="helpRoot"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+/* ============================ data ======================================== */
+const PROVIDERS = {
+  pi:  { name: "Pi",  cls: "pi",  glyph: "π" },
+  acp: { name: "ACP", cls: "acp", glyph: "A" },
+};
+
+const SECTIONS_BASE = [
+  { id: "ready",    name: "1.2. Ready" },
+  { id: "progress", name: "2. In Progress" },
+  { id: "queue",    name: "3. Merge Queue" },
+];
+const SECTIONS_EXTRA = [
+  { id: "x1", name: "1.1. Backlog" }, { id: "x2", name: "1.3. Blocked" },
+  { id: "x3", name: "4. Done" }, { id: "x4", name: "sandbox" },
+  { id: "x5", name: "triage-nightly" }, { id: "x6", name: "deploy-watch" },
+  { id: "x7", name: "reviews" }, { id: "x8", name: "labs" },
+  { id: "x9", name: "ops" }, { id: "x10", name: "long-haul" },
+  { id: "x11", name: "mood-board" }, { id: "x12", name: "warden" },
+];
+const ALL_SECTIONS = SECTIONS_BASE.concat(SECTIONS_EXTRA);
+
+const THREADS = [
+  {
+    id: "t106", group: "ready", depth: 0,
+    title: "Spawn AI actors for the harbor arena",
+    status: "plan", indLabel: "Working · Plan",
+    time: "6d", full: "6 days ago", project: "mtc", unread: false,
+    provider: "pi", model: "Qwen3 Coder Max", effort: "high",
+    goal: "@Plan #106 Spawn, path and despawn AI/script-controlled actors for the harbor arena; stagger the waves by scene budget, keep despawn quiet near the docks, and mirror every tuning change into the design doc tables so the demo match stays honest.",
+    branch: "bb/spawn-actors-wave-budget", worktree: true, pr: null,
+    ctx: { used: 187000, win: 1000000, est: true },
+  },
+  {
+    id: "t113a", spool: "s1", depth: 1,
+    title: "Implement atlas UV bounds fix",
+    status: "runtime", indLabel: "Working",
+    time: "2h", full: "2 hours ago",
+    provider: "pi", model: "Qwen3 Coder Max", effort: "high",
+    goal: "@Implement for #113 — rebuild the orphaned sandbox0 atlas texture UV bounds, re-pack the drifted rows, and record per-tile drift numbers in the PR description so review can verify without re-running the packer.",
+    branch: "bb/implement-113-repack", worktree: true,
+    pr: { num: 150, state: "open", label: "Open" },
+    ctx: { used: 319000, win: 1000000, est: true },
+  },
+  {
+    id: "t113b", spool: "s1", depth: 1,
+    title: "Thread list status vocabulary and failed filter",
+    status: "failed", indLabel: "Failed",
+    time: "19h", full: "19 hours ago",
+    provider: "pi", model: "Claude Opus 4.6", effort: "medium",
+    goal: "@Sweep the spool impls for the whole thread-list status vocabulary and fix the failed filter branches — rename the stored live/waiting ids, and keep every chip count in step with the row rollups so no state is colour-only.",
+    branch: null, worktree: false, pr: null,
+    ctx: { used: 41000, win: 1000000, est: false },
+  },
+  {
+    id: "texq", group: "progress", depth: 0,
+    title: "Rebuild forgotten textures queue",
+    status: "runtime", indLabel: "Working",
+    time: "2h", full: "2 hours ago", project: "mtc", unread: false,
+    provider: "pi", model: "Qwen3 Coder Max", effort: "high",
+    goal: "@Implement a small queue that rebuilds every texture whose mtime predates the atlas manifest, so nightly sandboxes stop shipping stale tiles into the demo scene.",
+    branch: "bb/rebuild-textures-queue", worktree: false, pr: null,
+    ctx: { used: 96000, win: 500000, est: true },
+  },
+  {
+    id: "tedge", group: "queue", depth: 0,
+    title: "Fix atlas edge bleed",
+    status: "done", indLabel: "Done", unread: true,
+    time: "21m", full: "21 minutes ago", project: "mtc",
+    provider: "acp", model: "Claude Sonnet 4.6", effort: "medium",
+    goal: "@Fix the edge bleed visible on the 4k harbor canvases; clamp bicubic sampling at the boundary, then verify against the render-diff fixture before it merges into the queue spool.",
+    branch: "bb/atlas-edge-bleed", worktree: false,
+    pr: { num: 151, state: "draft", label: "Draft" },
+    ctx: { used: 91000, win: 500000, est: false },
+    kids: [
+      { id: "ked1", title: "Reproduce the bleed on 4k canvases", status: "none", time: "12m", full: "12 minutes ago", unread: true },
+      { id: "ked2", title: "Land bicubic clamp — verify 4k", status: "none", time: "5h", full: "5 hours ago" },
+    ],
+  },
+];
+const SPOOLS = [
+  { id: "s1", label: "#113: orphaned sandbox0 atlas texture", members: ["t113a", "t113b"], section: "progress" },
+];
+
+const state = {
+  selected: "t106",       // selected thread → details are always open beneath it
+  menu: null,             // {kind:'thread'|'spool'|'section', id, x, y}
+  tallSections: false,
+  secFolded: {}, famFolded: {},
+  sectionOrder: SECTIONS_BASE.map((s) => s.id),
+  theme: "light",
+};
+
+/* ============================ icons ======================================= */
+const P = {
+  more: '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  chevD: '<path d="m6 9 6 6 6-6"/>',
+  chevR: '<path d="m9 6 6 6-6 6"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.6a2 2 0 0 1-1.1 1.8l-1.5.8A2 2 0 0 0 5.3 15v.5a1 1 0 0 0 1 1h11.4a1 1 0 0 0 1-1V15a2 2 0 0 0-1.1-1.8l-1.5-.8a2 2 0 0 1-1.1-1.8V7h1V5H8v2h1z"/>',
+  archive: '<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>',
+  edit: '<path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9L9.6 3.9A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  branch: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  gpr: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/>',
+  gprd: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/><path d="M7.5 12.5 5 10l-2.5 2.5"/>',
+  gcheckic: '<circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/>',
+  xic: '<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>',
+  cols: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
+  spool: '<path d="M7 4h10M7 20h10M8.5 4v16M15.5 4v16"/><path d="M10 8.5c3.2 1 3.2 3.5 0 4.5s3.2 3.5 0 4.5"/>',
+  layers: '<path d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2Z"/><path d="m3.5 12 8.5 4.7 8.5-4.7"/><path d="m3.5 17 8.5 4.7 8.5-4.7"/>',
+  listcol: '<path d="M3 5h18M3 12h18M3 19h18"/><path d="m10 9-3 3 3 3"/>',
+  xplain: '<path d="M18 6 6 18M6 6l12 12"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  load: '<path d="M21 12a9 9 0 1 1-9-9"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.5 1Z"/>',
+};
+function ic(name, size, cls) {
+  return '<svg class="' + (cls || "") + '" width="' + (size || 14) + '" height="' + (size || 14) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[name] + "</svg>";
+}
+
+/* ============================ helpers ===================================== */
+const byId = (id) => THREADS.find((t) => t.id === id);
+const sections = () => (state.tallSections ? SECTIONS_EXTRA.concat(SECTIONS_BASE) : state.sectionOrder.map((id) => ALL_SECTIONS.find((s) => s.id === id)));
+const secName = (sid) => (ALL_SECTIONS.find((s) => s.id === sid) || {}).name || "";
+const provHtml = (key, withTitle, cls) => {
+  const p = PROVIDERS[key] || PROVIDERS.pi;
+  return '<span class="prov ' + p.cls + (cls ? " " + cls : "") + '"' + (withTitle ? ' title="Provider: ' + p.name + '"' : "") + ">" + p.glyph + "</span>";
+};
+
+function toast(msg) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+}
+
+/* ============================ chips ======================================= */
+function renderChips() {
+  let fail = 0, work = 0, unread = 0;
+  THREADS.forEach((t) => {
+    if (t.status === "failed") fail++;
+    if (t.status === "runtime" || t.status === "plan") work++;
+    if (t.unread) unread++;
+    (t.kids || []).forEach((k) => { if (k.unread) unread++; });
+  });
+  const chips = [
+    ["All", null, "on", null],
+    ["Needs you", 0, null, "amber"],
+    ["Failed", fail, null, "red"],
+    ["Working", work, null, "spin"],
+    ["Unread", unread, null, "ink"],
+  ];
+  document.getElementById("chips").innerHTML = chips.map(([label, n, on, dot]) =>
+    '<span class="chip ' + (on || "") + '" role="radio" aria-checked="' + (on === "on") + '">' +
+    (dot === "spin" ? '<span class="spin" style="width:11px;height:11px">' + ic("load", 11) + "</span>" : dot ? '<span class="dot ' + dot + '"></span>' : "") +
+    label + (n ? ' <span class="c">' + n + "</span>" : "") +
+    "</span>").join("");
+}
+
+/* ============================ glyphs / trail ============================== */
+function leadGlyph(t, extra) {
+  if (t.kids) {
+    return '<button class="lead" data-act="fam" data-id="' + t.id + (extra || "") + '" aria-label="Toggle replies" title="Toggle replies">' +
+      ic(state.famFolded[t.id] ? "chevR" : "chevD", 14) + "</button>";
+  }
+  if (t.status === "runtime" || t.status === "plan") {
+    return '<span class="lead" title="' + t.indLabel + '"><span class="spin">' + ic("load", 13) + "</span></span>";
+  }
+  if (t.status === "failed") return '<span class="lead" style="color:var(--error)" title="Failed">' + ic("xic", 14) + "</span>";
+  if (t.status === "done") return '<span class="lead gcheck" title="Finished">' + ic("gcheckic", 14) + "</span>";
+  return '<span class="lead"></span>';
+}
+function trailHtml(t, extra) {
+  const readDot = t.unread && t.status !== "failed" ? '<span class="dot ink" title="Unread"></span>' : "";
+  return '<span class="trail">' + readDot +
+    '<button class="ell" data-act="menu" data-id="' + t.id + (extra || "") + '" aria-haspopup="menu" aria-label="Thread actions" title="Actions">' + ic("more", 14) + "</button>" +
+    '<span class="ftime" title="' + t.full + '">' + t.time + "</span></span>";
+}
+
+/* ============================ details panel ================================ */
+function detailsHtml(t) {
+  const p = PROVIDERS[t.provider] || PROVIDERS.pi;
+  const word = t.indLabel || "";
+  const ctx = t.ctx;
+  const usedPct = Math.round((ctx.used / ctx.win) * 100);
+  const rows = [];
+  if (t.goal) rows.push('<dt>Goal</dt><dd class="d-goal">' + t.goal + "</dd>");
+  rows.push("<dt>Status</dt><dd>" + word + ' <span class="d-muted">· ' + t.full + "</span></dd>");
+  rows.push("<dt>Model</dt><dd>" + t.model + '<span class="d-muted"> · effort ' + t.effort + "</span></dd>");
+  if (t.branch) {
+    rows.push('<dt>Branch</dt><dd><span class="d-branch"><span class="bt" title="' + t.branch + '">' + t.branch + "</span>" +
+      '<button class="d-copy' + (t._copied ? " copied" : "") + '" data-act="copy" data-id="' + t.id + '" title="Copy branch">' +
+      ic(t._copied ? "check" : "branch", 12) + "</button>" +
+      (t.worktree ? ' <span class="d-muted" title="Worktree">⌂</span>' : "") + "</span></dd>");
+  }
+  if (t.pr) {
+    rows.push('<dt>Pull request</dt><dd><a class="d-prlink ' + (t.pr.state === "draft" ? "warn" : "ok") + '" href="#" data-act="pr" data-id="' + t.id + '">' +
+      ic(t.pr.state === "draft" ? "gprd" : "gpr", 12) + "<span>#" + t.pr.num + " · " + t.pr.label + "</span></a></dd>");
+  }
+  if (t.kids) {
+    rows.push("<dt>Replies</dt><dd>" + t.kids.map((k) => k.title).join(", ") + "</dd>");
+  }
+  rows.push('<dt>Context</dt><dd class="d-ctx"><div class="d-bar" role="img" aria-label="' + usedPct + '% used">' +
+    '<span class="seg used" style="width:' + usedPct + '%"></span>' +
+    '<span class="mark" style="left:80%"></span></div>' +
+    '<p class="d-note">' + fmtK(ctx.used) + " of " + fmtM(ctx.win) + " used" + (ctx.est ? " · estimated" : "") + "</p></dd>");
+
+  return '<div class="details" role="region" aria-label="Thread details">' +
+    '<div class="d-head">' + provHtml(t.provider, false, "dhead") + '<span class="d-title">' + t.title + "</span></div>" +
+    '<div class="d-meta">' + (word ? '<span class="sm">' + word + "</span>" : "") +
+    '<span aria-hidden="true">·</span><span>' + p.name + "</span><span aria-hidden=\"true\">·</span><span>" + t.full + "</span></div>" +
+    '<dl class="d-dl">' + rows.join("") + "</dl>" +
+    '<div class="d-acts"><button class="btn-open" data-act="open" data-id="' + t.id + '">Open</button>' +
+    '<button class="btn-split" data-act="split" data-id="' + t.id + '">Split</button></div></div>';
+}
+function fmtK(n) { return n >= 1000 ? Math.round(n / 1000) + "k" : "" + n; }
+function fmtM(n) { return n >= 1000000 ? (n / 1000000).toFixed(1) + "M" : fmtK(n); }
+/* provider glyph for the details header needs a distinct size; small override */
+const styleExtra = document.createElement("style");
+styleExtra.textContent = ".prov.dhead{width:15px;height:15px}";
+document.head.appendChild(styleExtra);
+
+/* ============================ rows ======================================== */
+function threadRowHtml(t, opts) {
+  opts = opts || {};
+  const sel = state.selected === t.id;
+  const axes = opts.deep ? '<span class="axis2"></span><span class="axis1"></span>' : '<span class="axis1"></span>';
+  const word = t.status === "failed"
+    ? '<span class="pill red" title="' + (t.indLabel || "Failed") + '">Failed</span>'
+    : (t.status === "runtime" || t.status === "plan")
+      ? '<span class="word" title="' + t.indLabel + '">' + t.indLabel + "</span>"
+      : "";
+  const metaLine = [];
+  if (opts.folded) {
+    metaLine.push('<span class="meta"><span class="roll">' + t.kids.length + " replies" +
+      '<span class="sep">·</span><span class="dot ink" style="width:5px;height:5px"></span>' +
+      (t.kids.filter((k) => k.unread).length) + " unread</span></span>");
+  } else if (opts.meta) {
+    const bits = [];
+    if (word) bits.push(word);
+    if (t.project) bits.push((bits.length ? '<span class="sep">·</span>' : "") + '<span class="prj" title="Project">' + t.project + "</span>");
+    if (t.pr) bits.push('<a class="pr ' + (t.pr.state === "draft" ? "warn" : "ok") + '" href="#" data-act="pr" data-id="' + t.id + '">' +
+      ic(t.pr.state === "draft" ? "gprd" : "gpr", 11) + '<span class="n">#' + t.pr.num + "</span> <span>" + t.pr.label + "</span></a>");
+    if (bits.length) metaLine.push('<span class="meta">' + bits.join("") + "</span>");
+  }
+  return '<div class="tr-wrap">' +
+    '<div class="tr' + (sel ? " active" : "") + (t.unread ? " unread" : "") + '" data-thread="' + t.id + '" data-press="thread">' +
+      axes +
+      (t.id ? provHtml(t.provider, true) : "") +
+      leadGlyph(t, opts.suffix || "") +
+      '<span class="tr-head">' +
+        '<span class="ttl">' + t.title + "</span>" +
+        trailHtml(t, opts.suffix || "") +
+      "</span>" +
+      metaLine.join("") +
+    "</div>" +
+    (sel ? detailsHtml(t) : "") +
+  "</div>";
+}
+
+function spoolCardHtml(s) {
+  const members = s.members.map(byId).filter(Boolean);
+  const work = members.filter((m) => m.status === "runtime").length;
+  const anySel = state.selected && members.some((m) => m.id === state.selected);
+  return '<div class="spool-card" data-spool="' + s.id + '">' +
+    '<div class="spool-head" data-press="spool" data-spool="' + s.id + '">' +
+      '<span class="axis1"></span>' +
+      '<button class="spool-glyph" data-act="openTop" data-id="' + s.id + '" title="Open top thread" aria-label="Open top thread" type="button">' + ic("spool", 15) + "</button>" +
+      '<span class="spool-title" title="' + s.label + '">' + s.label + "</span>" +
+      '<span class="spool-trail">' +
+        '<button class="ell" data-act="spoolmenu" data-id="' + s.id + '" aria-haspopup="menu" aria-label="Spool actions" title="Spool actions" type="button">' + ic("more", 14) + "</button>" +
+        '<span class="spool-meta">Spool' + (work ? ' · <span class="wd">' + work + " working</span>" : "") + "</span>" +
+        '<span class="spool-pip' + (work ? "" : "") + (anySel ? " on" : "") + '">' +
+          (work ? '<span class="spin">' + ic("load", 10) + "</span>" : "") + members.length + "</span>" +
+      "</span>" +
+    "</div>" +
+    '<div class="members">' + members.map((m) =>
+      '<div class="member">' + threadRowHtml(m, { deep: true, suffix: "-m" }) + "</div>").join("") + "</div>" +
+  "</div>";
+}
+
+/* ============================ list ======================================== */
+function renderList() {
+  const out = [];
+  const secs = sections();
+  secs.forEach((sec) => {
+    const roots = THREADS.filter((t) => t.group === sec.id && t.depth === 0 && !t.spool);
+    const spools = SPOOLS.filter((s) => s.section === sec.id);
+    if (!roots.length && !spools.length) return;
+    if (state.secFolded[sec.id]) {
+      out.push('<div class="g-cap" data-cap="' + sec.id + '">' +
+        '<span class="chev">' + ic("chevR", 13) + "</span>" +
+        '<span class="lbl">' + sec.name + "</span></div>");
+      return;
+    }
+    const inSec = roots.concat(spools.flatMap((s) => s.members.map(byId))).filter(Boolean);
+    const failed = inSec.filter((t) => t.status === "failed").length;
+    const working = inSec.filter((t) => t.status === "runtime").length;
+    out.push('<div class="g-cap" data-cap="' + sec.id + '" data-press="cap">' +
+      '<button class="chev" data-act="capfold" data-id="' + sec.id + '" aria-label="Fold section">' + ic("chevD", 13) + "</button>" +
+      '<span class="lbl">' + sec.name + "</span>" +
+      (inSec.length ? '<span class="tot">' + inSec.length + "</span>" : "") +
+      (failed ? '<span class="g-pill failed">' + failed + " failed</span>" : "") +
+      (working ? '<span class="g-pill working"><span class="spin" style="width:10px;height:10px">' + ic("load", 10) + "</span>" + working + " working</span>" : "") +
+    "</div>");
+    spools.forEach((s) => out.push(spoolCardHtml(s)));
+    roots.forEach((t) => {
+      out.push(threadRowHtml(t, { meta: true, folded: !!state.famFolded[t.id] }));
+      if (t.kids && !state.famFolded[t.id]) {
+        t.kids.forEach((k) => {
+          out.push('<div class="kid">' + threadRowHtml(Object.assign({}, k, { provider: t.provider }), { deep: true }) + "</div>");
+        });
+      }
+    });
+  });
+  /* the Inbox bucket: unfiled rows (e.g. after “No section”) stay visible */
+  const orphans = THREADS.filter((t) => !t.spool && !t.group);
+  if (orphans.length) {
+    out.push('<div class="g-cap"><button class="chev">' + ic("chevD", 13) + "</button><span class=\"lbl\">Inbox</span>" +
+      '<span class="tot">' + orphans.length + "</span></div>");
+    orphans.forEach((t) => out.push(threadRowHtml(t, { meta: true, folded: !!state.famFolded[t.id] })));
+  }
+  document.getElementById("list").innerHTML = out.join("");
+  renderChips();
+}
+function render() { renderList(); }
+
+/* ============================ context menus =============================== */
+function menuItemsFor(kind, id) {
+  const items = [];
+  if (kind === "section") {
+    items.push({ label: "Section settings…", icon: "settings", id: "sec-settings" });
+    items.push({ label: "New section", icon: "plus", id: "sec-new" });
+    return items;
+  }
+  if (kind === "thread") {
+    const t = byId(id) || {};
+    const spool = SPOOLS.find((s) => s.members.includes(id));
+    items.push({ id: "split", label: "Open in split", icon: "cols" });
+    items.push({ id: "pin", label: "Pin", icon: "pin" });
+    items.push({ id: "read", label: t.unread ? "Mark as read" : "Mark as unread", icon: "mail" });
+    if (t.kids || t.sib) items.push({ id: "famread", label: "Mark family read", icon: "mail" });
+    items.push({ id: "rename", label: "Rename…", icon: "edit" });
+    /* Archive + Delete now sit right below Rename in the top section. */
+    items.push({ id: "archive", label: "Archive", icon: "archive" });
+    items.push({ id: "delete", label: "Delete…", icon: "trash", danger: true });
+    items.push({ hr: true });
+    items.push({ header: "Spools" });
+    if (spool) items.push({ id: "release", label: "Remove from spool", icon: "listcol" });
+    else items.push({ id: "spoolnew", label: "Create Spool from this Thread", icon: "spool" });
+    SPOOLS.filter((s) => !spool || s.id !== spool.id).forEach((s) =>
+      items.push({ id: "throw:" + s.id, label: s.label, icon: "layers" }));
+    items.push({ hr: true });
+    items.push({ header: "Move to section" });
+    sections().forEach((sec) => {
+      const cur = t.spool ? (SPOOLS.find((s) => s.id === t.spool) || {}).section : t.group;
+      items.push({ id: "sec:" + sec.id, label: sec.name, icon: "folder", tick: cur === sec.id });
+    });
+    items.push({ id: "sec:none", label: "No section", icon: "folder" });
+    items.push({ hr: true });
+    items.push({ id: "copylink", label: "Copy link", icon: "copy" });
+    return items;
+  }
+  if (kind === "spool") {
+    const s = SPOOLS.find((x) => x.id === id) || {};
+    items.push({ id: "opentop", label: "Open top thread", icon: "spool" });
+    items.push({ hr: true });
+    items.push({ header: "Move all to section" });
+    sections().forEach((sec) => items.push({ id: "sec:" + sec.id, label: sec.name, icon: "folder", tick: s.section === sec.id }));
+    items.push({ id: "sec:none", label: "No section", icon: "folder" });
+    items.push({ hr: true });
+    items.push({ id: "spoolarchive", label: "Archive Spool Threads", icon: "archive" });
+    items.push({ id: "unspool", label: "Unspool threads…", icon: "listcol", danger: true });
+    return items;
+  }
+  return [];
+}
+
+function openMenu(kind, id, x, y) {
+  state.menu = { kind, id, x, y };
+  drawMenu();
+}
+function closeMenu() { state.menu = null; document.getElementById("menuRoot").innerHTML = ""; }
+
+function drawMenu() {
+  const root = document.getElementById("menuRoot");
+  if (!state.menu) { root.innerHTML = ""; return; }
+  const { kind, id, x, y } = state.menu;
+  const items = menuItemsFor(kind, id);
+  const html = items.map((it) => {
+    if (it.hr) return '<div class="hr" role="separator"></div>';
+    if (it.header) return '<div class="hd">' + it.header + "</div>";
+    return '<button class="mi' + (it.danger ? " danger" : "") + '" type="button" role="menuitem" data-mi="' + it.id + '">' +
+      '<span class="ic">' + ic(it.icon || "plus", 14) + "</span>" +
+      '<span class="lb">' + it.label + "</span>" +
+      '<span class="tick">' + (it.tick ? ic("check", 13) : "") + "</span></button>";
+  }).join("");
+  root.innerHTML = '<div class="menu" role="menu" aria-label="Actions">' + html + "</div>";
+
+  /* item 11: keep the whole menu in view; scrollbar only as a last resort. */
+  const el = root.firstElementChild;
+  const margin = 8;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const w = el.offsetWidth, h = el.offsetHeight;
+  const left = Math.min(Math.max(margin, x), Math.max(margin, vw - w - margin));
+  let top = Math.min(y, vh - margin - h);           // shift the top upward…
+  if (top < margin) {                               // …unless even that can't fit
+    top = margin;
+    el.style.maxHeight = (vh - margin * 2) + "px";  // then scroll internally
+    el.classList.add("scroll");
+  }
+  el.style.left = Math.round(left) + "px";
+  el.style.top = Math.round(top) + "px";
+}
+document.addEventListener("pointerdown", (e) => {
+  if (!state.menu) return;
+  const m = document.querySelector(".menu");
+  if (m && !m.contains(e.target)) closeMenu();
+}, true);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.menu) { closeMenu(); e.stopPropagation(); } }, true);
+window.addEventListener("resize", () => { if (state.menu) drawMenu(); });
+document.addEventListener("scroll", () => { if (state.menu) closeMenu(); }, true);
+
+function onMenuItem(miId) {
+  const { kind, id } = (state.menu || {});
+  closeMenu();
+  if (miId === "split") { toast("Open in split — would dock a split pane"); return; }
+  if (miId === "pin") { toast("Pin state toggled"); return; }
+  if (miId === "read") { const t = byId(id); t.unread = !t.unread; render(); toast(t.unread ? "Marked unread" : "Marked read"); return; }
+  if (miId === "famread") { toast("Mark family read (whole tree)"); return; }
+  if (miId === "rename") { toast("Rename — inline edit would start"); return; }
+  if (miId === "archive") { toast("Archive — routes through BB's own confirm"); return; }
+  if (miId === "delete") { toast("Delete… — host confirmation"); return; }
+  if (miId === "release") {
+    const t = byId(id);
+    t.spool = undefined; t.group = "progress"; t.depth = 0; t.project = t.project || "mtc";
+    SPOOLS.forEach((s) => { s.members = s.members.filter((m) => m !== id); });
+    render(); toast("Removed from spool"); return;
+  }
+  if (miId === "spoolnew") { toast("Spool created from this thread"); return; }
+  if (miId.startsWith("throw:")) { joinSpool(id, miId.slice(6)); return; }
+  if (miId === "sec:none") { moveThreadSec(kind, id, null); return; }
+  if (miId.startsWith("sec:")) { moveThreadSec(kind, id, miId.slice(4)); return; }
+  if (miId === "copylink") { toast("Link copied to clipboard"); return; }
+  if (miId === "opentop") { toast("Opens the spool's lead thread"); return; }
+  if (miId === "spoolarchive") { toast("Archived every member (bulk, tolerant)"); return; }
+  if (miId === "unspool") {
+    const s = SPOOLS.find((x) => x.id === id);
+    s.members.forEach((mid) => {
+      const t = byId(mid);
+      if (t) { t.spool = undefined; t.group = s.section; t.depth = 0; t.project = t.project || "mtc"; }
+    });
+    SPOOLS.splice(SPOOLS.indexOf(s), 1);
+    if (state.selected && !byId(state.selected)) state.selected = null;
+    render(); toast("Unspooled — memberships cleared"); return;
+  }
+  if (miId === "sec-settings") { toast("Section settings… modal"); return; }
+  if (miId === "sec-new") { toast("New section form"); return; }
+}
+function moveThreadSec(kind, id, secId) {
+  if (kind === "spool") {
+    const s = SPOOLS.find((x) => x.id === id);
+    s.section = secId;
+    toast("Moved all to " + (secName(secId) || "no section"));
+  } else {
+    const t = byId(id);
+    if (t.spool) { const s = SPOOLS.find((x) => x.id === t.spool); if (s) s.section = secId; }
+    else t.group = secId;
+    toast("Moved to " + (secName(secId) || "no section"));
+  }
+  render();
+}
+function joinSpool(tid, sid) {
+  const t = byId(tid);
+  if (!t) return;
+  t.spool = sid; t.depth = 1; delete t.group;
+  const s = SPOOLS.find((x) => x.id === sid);
+  if (!s.members.includes(tid)) s.members.push(tid);
+  t.project = t.project || "mtc";
+  render(); toast("Thrown onto " + s.label);
+}
+
+/* ============================ long-press ================================== */
+/* Touch: ~450ms hold opens the context menu. Mouse: a slightly longer hold
+   (~550ms) is wired here so reviewers on desktop can feel it too — the real
+   plugin gates long-press to non-mouse pointers and keeps right-click. */
+const lp = { timer: null, x: 0, y: 0, suppressClick: false };
+document.getElementById("list").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  const host = e.target.closest("[data-press]");
+  if (!host) return;
+  if (e.target.closest(".ell") || e.target.closest("[data-act]")) return;
+  lp.x = e.clientX; lp.y = e.clientY;
+  const ms = e.pointerType === "mouse" ? 550 : 450;
+  lp.timer = setTimeout(() => {
+    lp.timer = null;
+    const data = host.dataset;
+    if (data.press !== "thread" && data.press !== "spool") return;
+    lp.suppressClick = true;
+    openMenu(data.press === "spool" ? "spool" : "thread", data.spool || data.thread, e.clientX, e.clientY);
+    if (navigator.vibrate) navigator.vibrate(10);
+  }, ms);
+}, true);
+document.addEventListener("pointermove", (e) => {
+  if (lp.timer && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 8) {
+    clearTimeout(lp.timer); lp.timer = null;
+  }
+}, true);
+["pointerup", "pointercancel"].forEach((ev) =>
+  document.addEventListener(ev, () => { if (lp.timer) { clearTimeout(lp.timer); lp.timer = null; } }, true));
+
+/* ============================ list interactions ============================ */
+document.getElementById("list").addEventListener("click", (e) => {
+  if (lp.suppressClick) { lp.suppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
+  const act = e.target.closest("[data-act]");
+  if (act) {
+    const actId = act.dataset.act, id = act.dataset.id;
+    e.preventDefault();
+    e.stopPropagation();
+    if (actId === "menu") { const r = act.getBoundingClientRect(); openMenu("thread", id, r.left, r.bottom + 6); }
+    else if (actId === "spoolmenu") { const r = act.getBoundingClientRect(); openMenu("spool", id, r.left, r.bottom + 6); }
+    else if (actId === "copy") {
+      const t = byId(id);
+      const done = () => { t._copied = true; render(); setTimeout(() => { t._copied = false; renderList(); }, 1400); toast("Copied branch: " + t.branch); };
+      if (navigator.clipboard && t.branch) navigator.clipboard.writeText(t.branch).then(done, () => toast("Could not copy branch"));
+      else done();
+    }
+    else if (actId === "pr") { const t = byId(id); toast("Opens PR #" + (t && t.pr ? t.pr.num : "?") + " in the browser"); }
+    else if (actId === "open") { const t = byId(id); toast("Opening “" + t.title + "”"); }
+    else if (actId === "split") { const t = byId(id); toast("Opening “" + t.title + "” in a split pane"); }
+    else if (actId === "openTop") { toast("Opens the spool's lead thread"); }
+    else if (actId === "fam") { state.famFolded[id] = !state.famFolded[id]; render(); }
+    else if (actId === "capfold") { state.secFolded[id] = !state.secFolded[id]; render(); }
+    return;
+  }
+  if (e.target.closest(".details")) return;    // clicking inside details is inert
+  /* row tap = select the thread (details always open beneath the selection) */
+  const head = e.target.closest('[data-press="thread"],[data-press="spool"]');
+  if (!head || head.dataset.press === "cap") return;
+  if (head.dataset.press === "spool") {
+    const s = SPOOLS.find((x) => x.id === head.dataset.spool);
+    state.selected = state.selected && s.members.includes(state.selected) ? null : s.members[0];
+  } else {
+    const tid = head.dataset.thread;
+    if (!byId(tid)) { toast("Reply thread — would open its family"); return; }
+    state.selected = state.selected === tid ? null : tid;
+  }
+  render();
+});
+document.getElementById("list").addEventListener("contextmenu", (e) => {
+  const cap = e.target.closest("[data-cap]");
+  if (cap) {
+    e.preventDefault();
+    openMenu("section", cap.dataset.cap, e.clientX, e.clientY);
+    return;
+  }
+  const head = e.target.closest('[data-press="thread"],[data-press="spool"]');
+  if (!head) return;
+  e.preventDefault();
+  const data = head.dataset;
+  openMenu(data.press === "spool" ? "spool" : "thread", data.spool || data.thread, e.clientX, e.clientY);
+});
+
+/* ============================ top bar ===================================== */
+document.getElementById("themeBtn").addEventListener("click", (e) => {
+  state.theme = state.theme === "light" ? "dark" : "light";
+  document.documentElement.classList.toggle("dark", state.theme === "dark");
+  e.currentTarget.textContent = "Theme: " + state.theme;
+});
+document.getElementById("tallBtn").addEventListener("click", (e) => {
+  state.tallSections = !state.tallSections;
+  e.currentTarget.classList.toggle("on", state.tallSections);
+  render();
+});
+document.getElementById("helpBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const root = document.getElementById("helpRoot");
+  if (root.innerHTML) { root.innerHTML = ""; return; }
+  root.innerHTML = '<div class="help" id="helpPop">' +
+    '<button class="x" id="helpX" type="button">' + ic("xplain", 14) + "</button><h4>How to try</h4><ul>" +
+    "<li><b>Click a thread</b> — its Details popdown opens right away: no chevron, and it now hugs the icon rail instead of the old left gap. The hover-card popup is retired; the details carry its content.</li>" +
+    "<li><b>Hover</b> — nothing pops: no quick-cluster, no peek card. The permanent <b>⋯</b> sits left of the time; for spools, left of “Spool (N)”.</li>" +
+    "<li><b>⋯ · right-click · press-and-hold</b> (touch; or hold the mouse ~½ s) — the context menu. Try it on the bottom rows: it shifts up to stay in view; “Stack 12 sections” then forces internal scroll only when even that can't fit.</li>" +
+    "<li>Move to section / throw onto spool from the menu <b>re-files for real</b> — drag handles are gone everywhere.</li>" +
+    "<li>Menu order: <b>Rename · Archive · Delete</b> sit together under the read actions; Copy link stays last.</li>" +
+    "<li>Details: goal packs <b>three lines</b> at the smaller type; Model shows <b>model · effort</b>; no Provider/Section rows — provider lives in the header. No grabber, no project/section gap.</li>" +
+    "</ul></div>";
+  document.getElementById("helpX").addEventListener("click", () => { root.innerHTML = ""; });
+  document.addEventListener("click", function closer(ev) {
+    if (!ev.target.closest("#helpPop") && !ev.target.closest("#helpBtn")) { root.innerHTML = ""; document.removeEventListener("click", closer); }
+  });
+});
+
+/* ============================ boot ======================================== */
+render();
+</script>
+</body>
+</html>
