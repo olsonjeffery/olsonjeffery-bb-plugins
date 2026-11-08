@@ -3243,26 +3243,10 @@ a.spooler-row-main:hover {
   margin-left: 24px;
 }
 
-/* The family guide: one straight hairline per top-level bucket row, at
-   the section rail axis, extended through the 2px row rhythm so the line
-   reads continuous down a section. Fades while the row is hovered — the
-   grip may live there. Family CHILDREN (rows with their own elbow guides)
-   skip the straight rule and keep their tree guides. */
-:where(.spooler-group-bucket)
-  .spooler-row:not(.spooler-row-child):not(.spooler-row-deep)::before {
-  content: "";
-  position: absolute;
-  left: 9px;
-  top: -2px;
-  bottom: -2px;
-  width: 1px;
-  background: var(--border);
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* The section-rail guide is part of the bucket's identity; the provider
-   icon rides OVER it — neither hover nor the active row hides the line. */
+/* The bucket-level straight guide RETIRED (v2): beside unspooled rows it
+   read as a stray rule line, and with the details joined to the box it
+   drew down an open panel's left edge. Family children keep their tree
+   guides; spool rosters keep the roster guide. */
 
 /* Families keep their elbow guides, but those children sit deeper by the
    bucket's base step: child rows ride 24px on top of the family step, and
@@ -3631,6 +3615,10 @@ a.spooler-row-main:hover {
 }
 
 .spooler-active-bar .spooler-group-meta {
+  /* No auto margin of its own: the chevron's margin-left:right-justifies
+     the spinner + pip with it — the old double auto centered them mid-bar. */
+  margin-left: 0;
+  flex: none;
   min-height: 1em;
 }
 
