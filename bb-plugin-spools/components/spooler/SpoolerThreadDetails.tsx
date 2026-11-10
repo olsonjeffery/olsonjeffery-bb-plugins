@@ -10,6 +10,8 @@ import { prLabel, prIconName } from "./SpoolerThreadRow";
 import type {
   SpoolPullRequest,
 } from "./usePullRequest";
+import type { TagInfo } from "./threadTags";
+import { ThreadTagBadge } from "./ThreadTagBadge";
 
 export interface ContextCategory {
   id: string;
@@ -36,6 +38,11 @@ export interface ThreadDetailFactsProps {
   hostName: string | null;
   branch: string | null;
   isWorktree: boolean;
+  /** The thread's one Thread Tags badge (bb-plugin-thread-tags), or null. */
+  tag: TagInfo | null;
+  /** Full relative activity time — the sub-head's short time is its
+   *  tooltip on the desktop; touch has no tooltips, so the panel keeps it. */
+  activity: string | null;
   pullRequest: SpoolPullRequest | null;
   replies: ThreadDetailReplyInfo | null;
   /** Usage recorded by BB; null omits the context section. */
@@ -78,6 +85,8 @@ export function ThreadDetailFacts({
   hostName,
   branch,
   isWorktree,
+  tag,
+  activity,
   pullRequest,
   replies,
   context,
@@ -128,6 +137,20 @@ export function ThreadDetailFacts({
         <>
           <dt className="spooler-details-dt">Host</dt>
           <dd className="spooler-details-dd">{hostName}</dd>
+        </>
+      ) : null}
+      {tag ? (
+        <>
+          <dt className="spooler-details-dt">Tag</dt>
+          <dd className="spooler-details-dd spooler-details-tag">
+            <ThreadTagBadge tag={tag} small />
+          </dd>
+        </>
+      ) : null}
+      {activity ? (
+        <>
+          <dt className="spooler-details-dt">Activity</dt>
+          <dd className="spooler-details-dd">{activity}</dd>
         </>
       ) : null}
       {branch ? (

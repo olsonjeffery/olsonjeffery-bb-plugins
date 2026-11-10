@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement as h, type ReactNode } from "react";
 import { SpoolCard } from "./SpoolCard";
+import { type RolledUpTag } from "./threadTags";
 import { makeThread } from "./fixtures";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 
@@ -364,5 +365,67 @@ describe("SpoolCard", () => {
       expect(screen.getByText(/Spool · 2 working/)).toBeTruthy();
     });
 
+  });
+});
+
+describe("SpoolCard — tag rollup", () => {
+  const tags = {
+    urgent: { id: "urgent", label: "🔥", color: "#ef4444" },
+    review: { id: "review", label: "👀", color: "#6b7280" },
+    done: { id: "done", label: "✅", color: "#22c55e" },
+    blocked: { id: "blocked", label: "⛔", color: "#111827" },
+    queued: { id: "queued", label: "🧠", color: "#10b981" },
+  };
+
+  function rollupTag(
+    id: string,
+    wornBy: number,
+    priority: number,
+  ): RolledUpTag {
+    return { tag: tags[id as keyof typeof tags]!, wornBy, priority };
+  }
+
+  it("rides the rolled-up badges on the title bar before the meta cluster", () => {
+    renderEl(
+      makeProps({
+        tagRollup: [rollupTag("urgent", 2, 4), rollupTag("review", 1, 0)],
+      }),
+    );
+    const lane = document.querySelector(".spooler-spool-tags") as HTMLElement;
+    expect(
+      (lane.parentElement as HTMLElement).className,
+    ).toContain("spooler-spool-header");
+    const badges = Array.from(
+      lane.querySelectorAll(".spooler-tag-badge"),
+    ) as HTMLElement[];
+    expect(badges.map((badge) => badge.textContent)).toEqual(["🔥", "👀"]);
+    expect(document.querySelector(".spooler-spool-tag-overflow")).toBeNull();
+  });
+
+  it("caps the badges and shows the +N overflow with the remaining labels", () => {
+    renderEl(
+      makeProps({
+        tagRollup: [
+          rollupTag("urgent", 1, 4),
+          rollupTag("review", 1, 3),
+          rollupTag("done", 1, 2),
+          rollupTag("blocked", 1, 1),
+          rollupTag("queued", 1, 0),
+        ],
+      }),
+    );
+    const lane = document.querySelector(".spooler-spool-tags") as HTMLElement;
+    const badges = lane.querySelectorAll(".spooler-tag-badge");
+    expect(badges.length).toBe(4);
+    const overflow = lane.querySelector(
+      ".spooler-spool-tag-overflow",
+    ) as HTMLElement;
+    expect(overflow!.textContent).toBe("+1");
+    expect(overflow!.title).toBe("🧠");
+  });
+
+  it("renders nothing when members wear no tags", () => {
+    renderEl(makeProps({ tagRollup: [] }));
+    expect(document.querySelector(".spooler-spool-tags")).toBeNull();
   });
 });

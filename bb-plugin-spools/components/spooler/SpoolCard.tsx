@@ -11,6 +11,11 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { type SpoolGroupData } from "./useThreadGroups";
 import { Fold } from "./Fold";
+import {
+  TAG_ROLLUP_LIMIT,
+  type RolledUpTag,
+} from "./threadTags";
+import { ThreadTagBadge } from "./ThreadTagBadge";
 
 /**
  * Status for the member rollup counts, derived exactly like the ordinary
@@ -18,6 +23,9 @@ import { Fold } from "./Fold";
  */
 export interface SpoolCardProps {
   data: SpoolGroupData;
+  /** Every member's distinct tag, priority-ordered (failed first) and
+   *  deduped — the title bar shows the lead ones and a "+N" chip. */
+  tagRollup?: RolledUpTag[];
   /** Single-click toggles via onToggle. */
   collapsed: boolean;
   onToggle(): void;
@@ -85,6 +93,7 @@ function memberStatusFor(thread: PluginSidebarThread): MemberStatus {
 
 export function SpoolCardImpl({
   data,
+  tagRollup = [],
   collapsed,
   onToggle,
   onOpenTop,
@@ -207,6 +216,29 @@ export function SpoolCardImpl({
             </button>
           )}
         </span>
+        {/* Rolled-up member tags, between the title and the trailing meta:
+            the spool title bar's priority lane. Distinct tags only,
+            attention first, the rest rides an overflow chip. */}
+        {tagRollup.length > 0 ? (
+          <span className="spooler-spool-tags" aria-label="Thread tags">
+            {tagRollup.slice(0, TAG_ROLLUP_LIMIT).map(({ tag, wornBy }) => (
+              <ThreadTagBadge
+                key={tag.id}
+                tag={tag}
+                small
+                title={`${tag.label} — worn by ${wornBy} of ${data.members.length} thread${data.members.length === 1 ? "" : "s"}`}
+              />
+            ))}
+            {tagRollup.length > TAG_ROLLUP_LIMIT ? (
+              <span
+                className="spooler-spool-tag-overflow"
+                title={tagRollup.slice(TAG_ROLLUP_LIMIT).map((entry) => entry.tag.label).join(", ")}
+              >
+                +{tagRollup.length - TAG_ROLLUP_LIMIT}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
         {/* Trailing cluster: the PERMANENT ellipsis (the spool's only menu
             affordance) left of the "Spool" label, then the count pip — the
             pip is a count again, no longer the actions button. */}

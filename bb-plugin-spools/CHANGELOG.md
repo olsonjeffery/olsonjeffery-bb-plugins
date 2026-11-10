@@ -4,6 +4,61 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.0 — 2026-11-10
+
+### Added
+- **Thread summary content setting** (`threadSummary`, default *Show more
+  information*): how much the thread box (title + summary line, NOT the
+  details panel) shows.
+  - **Show more information** keeps the full summary of v2 — status
+    word/pill, provider and short time left; the rolled-up replies, the PR
+    chip and the project right — and adds two slots that did not exist:
+    the thread's **tag badge** (see below) and an **away-host chip** (the
+    same home-host rule the details Host row uses; home-only lists show
+    nothing).
+  - **Show minimal** keeps status (glyph + word/pill), the short time and
+    the tag badge; the provider name, PR chip, replies rollup text and the
+    project chip yield the line to the title. The attention family rollup
+    survives when a folded child **failed** or **needs you** — unread and
+    working rollups stay one dot lower. Quiet-row adaptive collapse folds
+    to title + time.
+- **Thread Tags integration** (VladPolet's `bb-plugin-thread-tags`). Spools
+  is a reader: it never writes assignments.
+  - Every row's summary box wears the thread's one tag (thread-tags' own
+    badge look: solid chip, luminance-flipped tone, single glyph square).
+  - The details panel gains a **Tag** line item, plus **Activity** — the
+    full relative time, which the sub-head's short time carries only as a
+    hover tooltip that touch cannot read.
+  - Spool cards roll up their members' tags on the title bar as priority
+    items: deduped, ordered by the wearers' attention (failed > needs-
+    you > unread > working > idle, then wearers, then label), top four
+    plus a `+N` chip; the tooltips name how many of the roster wear it.
+  - The settings page carries the **Plugin health** block — the same
+    Thread Tags readout the Personas page shows: green check when the
+    plugin runs (state + version), red X otherwise, and a one-click
+    **Install This Plugin** while missing (pinned community source, bare
+    URL fallback). It re-reads on bb's `plugins-changed` signal and on
+    reconnect; the badges live on thread-tags' `tags-changed` channel.
+
+### Fixed
+- **Touch never collects sticky hover paints**: under `(hover: none)` the
+  hover tubes on rows, group and spool headers, chips, segmented buttons,
+  the search clear, row chrome and the PR chip release to their resting
+  look after a tap; the per-header **+ new thread** affordance shows at
+  rest (it was hover-revealed, so touch never reached it).
+- **Coarse pointers get touch-scale chrome**: filter input (16px ink, no
+  iOS focus zoom), 34px search row, 30px chips and segmented controls,
+  larger row/spool ⋯‑chrome hit targets.
+- The hover tube routes through a `--spooler-row-hover-bg` variable so
+  the touch offset can clear it without re-declaring a row-main selector
+  (the css guards forbid accidental duplicates).
+
+### Analysis
+- `docs/viewport-gap-analysis-2026-11-10.md` records the viewport-based
+  gap assessment of the desktop list vs the mobile drawer, with the
+  remaining issues and the recommended next steps (bottom-sheet menus are
+  the headline item, deliberately not in this release).
+
 ## 0.12.0 — 2026-11-08
 
 ### Changed

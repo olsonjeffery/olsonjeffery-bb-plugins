@@ -70,6 +70,7 @@ import {
   ACTIVE_GROUP_ID,
   SETTLED_GROUP_ID,
   UNFILED_GROUP_ID,
+  type SpoolGroupData,
   type ThreadGroup,
 } from "./useThreadGroups";
 import { SpoolerActiveDeck, type ActiveOriginOf } from "./SpoolerActiveDeck";
@@ -84,6 +85,11 @@ import { SpoolerSmartViews } from "./SpoolerSmartViews";
 import { SpoolerNewSection } from "./SpoolerNewSection";
 import { Fold } from "./Fold";
 import { SpoolCard } from "./SpoolCard";
+import {
+  rollupThreadTags,
+  useThreadTags,
+  type RolledUpTag,
+} from "./threadTags";
 import { PaletteOverlay } from "./PaletteOverlay";
 import { onPaletteIntent, type PaletteIntent } from "./paletteBus";
 import { useSpools } from "./useSpools";
@@ -180,6 +186,7 @@ function useSidebarSettings() {
     loudUnread: flag("loudUnread", true),
     adaptiveCollapse: flag("adaptiveCollapse", true),
     activeDeck: flag("activeDeck", true),
+    summaryMode: values?.threadSummary === "minimal" ? ("minimal" as const) : ("more" as const),
     addPosition: values?.addPosition === "top" ? ("top" as const) : ("bottom" as const),
     defaultDensity,
     wrapTitles,
@@ -471,6 +478,13 @@ export function SpoolerThreadList({
     () => new Map(spoolStore.spools.map((spool) => [spool.id, spool])),
     [spoolStore.spools],
   );
+  // Thread Tags (bb-plugin-thread-tags) state for the row badges and the
+  // spool cards' title-bar rollup. Everything degrades to "no badges" when
+  // the other plugin is absent; the hook survives a bare sdk fake too.
+  const threadTags = useThreadTags(
+    sdk as unknown as Parameters<typeof useThreadTags>[0],
+  );
+  const tagFor = threadTags.tagFor;
   // Spools that first appear after the initial mount start collapsed, so a
   // newly created or newly-joined spool doesn't blast the whole member list
   // open. The first observation only records ids: pre-existing spools keep
@@ -582,6 +596,20 @@ export function SpoolerThreadList({
     spools: spoolStore.spools,
     spoolIdByThreadId,
   });
+  /** Rolled-up member tags per spool (id → ordered distinct tags), resolved
+   *  once per list derivation; the spool cards' title bar shows the lead
+   *  ones and an overflow chip. */
+  const spoolTagRollups = useMemo(() => {
+    const rollups = new Map<string, RolledUpTag[]>();
+    const collect = (spools: readonly SpoolGroupData[]) => {
+      for (const spool of spools) {
+        rollups.set(spool.id, rollupThreadTags(threadTags.state, spool.members));
+      }
+    };
+    for (const group of groups) collect(group.spools ?? []);
+    if (pinnedGroup) collect(pinnedGroup.spools ?? []);
+    return rollups;
+  }, [groups, pinnedGroup, threadTags.state]);
   /** The Active deck tops the section list; everywhere else the setting is
    *  meaningless, so the station (bar + its cards, pinned as the top-bar
    *  overlay) only exists with the deck rendered. */
@@ -1716,6 +1744,8 @@ export function SpoolerThreadList({
           sectionId={thread.sectionId}
           celebrate={settings.celebrate && celebrateIds.has(thread.id)}
           adaptiveCollapse={settings.adaptiveCollapse}
+          summaryMode={settings.summaryMode}
+          threadTag={tagFor(thread.id)}
           isActive={thread.id === activeThreadId}
           isEditing={thread.id === editingId}
           isVisible={visibleThreadIds.has(thread.id)}
@@ -1753,6 +1783,8 @@ export function SpoolerThreadList({
       celebrateIds,
       settings.celebrate,
       settings.adaptiveCollapse,
+      settings.summaryMode,
+      tagFor,
       settings.swipeRight,
       settings.swipeLeft,
       lifecycle,
@@ -1811,6 +1843,7 @@ export function SpoolerThreadList({
         <div key={`spool:${spool.id}`} className="spooler-spool-slot">
           <SpoolCard
             data={spool}
+            tagRollup={spoolTagRollups.get(spool.id) ?? []}
             collapsed={collapsedGroupIds.has(`spool:${spool.id}`)}
             onToggle={() => toggleGroup(`spool:${spool.id}`)}
             onOpen={(threadId) => actions.open(threadId)}
@@ -1950,6 +1983,7 @@ export function SpoolerThreadList({
       commitSpoolRename,
       setEditingSpoolId,
       projectNameFor,
+      spoolTagRollups,
       spoolMenu,
       grouping,
       sectionStyleMap,

@@ -188,7 +188,9 @@ describe("facts", () => {
     const panel = openDetails(rowOf(slot.container)) as HTMLElement;
     await waitFor(() => {
       const labels = Array.from(panel.querySelectorAll(".spooler-details-dt")).map((dt) => dt.textContent);
-      expect(labels).toEqual(["Branch", "Context"]);
+      // Activity rides every panel: the sub-head's short time is tooltip-
+      // only on the desktop, and touch has no tooltips to read.
+      expect(labels).toEqual(["Activity", "Branch", "Context"]);
       // No Status / Provider / Section rows anywhere.
       expect(labels).not.toContain("Status");
       expect(labels).not.toContain("Provider");

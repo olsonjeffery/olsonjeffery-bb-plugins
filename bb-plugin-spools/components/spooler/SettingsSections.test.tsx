@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { fakeList, fakeUpdate, fakeSectionsList, fakeSectionsCreate, fakeSectionsUpdate, fakeSectionsDelete, fakeSidebar, fakePluginId, sdkClient } = vi.hoisted(() => ({
+const { fakeList, fakeUpdate, fakeSectionsList, fakeSectionsCreate, fakeSectionsUpdate, fakeSectionsDelete, fakeSidebar, fakePluginId, fakePluginsList, fakeRealtime, sdkClient } = vi.hoisted(() => ({
   fakeList: vi.fn(),
   fakeUpdate: vi.fn(),
   fakeSectionsList: vi.fn(),
@@ -11,8 +11,22 @@ const { fakeList, fakeUpdate, fakeSectionsList, fakeSectionsCreate, fakeSections
   fakeSectionsDelete: vi.fn(),
   fakeSidebar: vi.fn(),
   fakePluginId: vi.fn(),
-  sdkClient: { threads: null as any, threadSections: null as any },
+  fakePluginsList: vi.fn(),
+  fakeRealtime: vi.fn(),
+  sdkClient: { threads: null as any, threadSections: null as any, plugins: null as any },
 }));
+sdkClient.plugins = {
+  list: fakePluginsList,
+  install: vi.fn(),
+};
+
+/** One running thread-tags plugin row for the health card. */
+const threadTagsRow = () => ({
+  id: "thread-tags",
+  enabled: true,
+  status: "running",
+  version: "0.1.0",
+});
 sdkClient.threads = {
   experimental_listPluginMetadata: fakeList,
   updatePluginMetadata: fakeUpdate,
@@ -33,10 +47,18 @@ vi.mock("@get-bb/plugin-sdk/app", async () => {
     experimental_usePluginId: fakePluginId,
     experimental_useSidebarThreads: fakeSidebar,
     useSdk: () => sdkClient,
+    // The Plugin-health card (the Thread Tags row) needs the shared app
+    // surface; these bare renders run outside the runtime's slot context.
+    useRealtime: fakeRealtime,
+    useRealtimeConnectionState: () => "connected" as const,
   };
 });
 
 import { SpoolsSettingsSection } from "./SettingsSections";
+import {
+  THREAD_TAGS_PLUGIN_SOURCE,
+  THREAD_TAGS_PLUGIN_URL,
+} from "./threadTags";
 
 var makeThread: (fixture: any) => any;
 afterEach(() => cleanup());
@@ -52,6 +74,9 @@ beforeEach(async () => {
   fakeSectionsUpdate.mockReset().mockResolvedValue({ id: "sec-a", name: "x", updatedThreadCount: 0 });
   fakeSectionsDelete.mockReset().mockResolvedValue({ id: "sec-a", name: "x", updatedThreadCount: 0 });
   fakeSidebar.mockReset().mockReturnValue({ status: "ready", threads: [], projects: [], sections: [] });
+  fakeRealtime.mockReset();
+  fakePluginsList.mockReset().mockResolvedValue({ plugins: [threadTagsRow()] });
+  sdkClient.plugins!.install = vi.fn().mockResolvedValue({ id: "thread-tags" });
   fakePluginId.mockReturnValue("spools");
   ({ makeThread: makeThread } = await import("./fixtures"));
 });
@@ -132,5 +157,58 @@ describe("SpoolsSettingsSection — section editor", () => {
     );
     expect(screen.queryByTestId("spooler-settings-swatch:sec-a")).toBeNull();
     expect(screen.queryByTestId("spooler-settings-colorstrip:sec-a")).toBeNull();
+  });
+});
+
+describe("SpoolsSettingsSection — Plugin health (Thread Tags)", () => {
+  it("reads green when Thread Tags runs, with state and version", async () => {
+    render(<SpoolsSettingsSection />);
+    await waitFor(() =>
+      expect(screen.getByTestId("spooler-settings-thread-tags")).toBeTruthy(),
+    );
+    const row = screen.getByTestId("spooler-settings-thread-tags");
+    expect(row.textContent).toContain("Running · v0.1.0");
+    expect(row.getAttribute("aria-label") ?? row.textContent).not.toContain("Not available");
+    expect(screen.queryByTestId("spooler-settings-thread-tags-install")).toBeNull();
+  });
+
+  it("offers the one-click install while the plugin is missing, through the pinned source", async () => {
+    fakePluginsList.mockResolvedValue({ plugins: [] });
+    render(<SpoolsSettingsSection />);
+    const button = await screen.findByTestId("spooler-settings-thread-tags-install");
+    expect(screen.getByTestId("spooler-settings-thread-tags").textContent).toContain("Not installed");
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(sdkClient.plugins!.install).toHaveBeenCalledWith({
+        source: THREAD_TAGS_PLUGIN_SOURCE,
+      }),
+    );
+    // The install changed the plugin list: the card re-reads on the spot.
+    await waitFor(() => expect(fakePluginsList.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  it("falls back to the bare URL when the pinned install source is rejected", async () => {
+    fakePluginsList.mockResolvedValue({ plugins: [] });
+    sdkClient.plugins!.install = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("unsupported source"))
+      .mockResolvedValue({ id: "thread-tags" });
+    render(<SpoolsSettingsSection />);
+    fireEvent.click(await screen.findByTestId("spooler-settings-thread-tags-install"));
+    await waitFor(() =>
+      expect(sdkClient.plugins!.install).toHaveBeenLastCalledWith({
+        source: THREAD_TAGS_PLUGIN_URL,
+      }),
+    );
+  });
+
+  it("shows a disabled install without the button, so the user enables it in the list", async () => {
+    fakePluginsList.mockResolvedValue({
+      plugins: [{ id: "thread-tags", enabled: false, status: "disabled", version: "0.1.0" }],
+    });
+    render(<SpoolsSettingsSection />);
+    const row = await screen.findByTestId("spooler-settings-thread-tags");
+    expect(row.textContent).toContain("Installed — disabled");
+    expect(screen.queryByTestId("spooler-settings-thread-tags-install")).toBeNull();
   });
 });

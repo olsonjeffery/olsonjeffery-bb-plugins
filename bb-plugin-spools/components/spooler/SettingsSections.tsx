@@ -20,6 +20,7 @@ import type { PluginSidebarSection } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SpoolerNewSection } from "./SpoolerNewSection";
+import { ThreadTagsHealthCard } from "./ThreadTagsSettingsHealth";
 
 
 function problem(cause: unknown): string {
@@ -110,6 +111,13 @@ export function SpoolsSettingsSection() {
 
   return (
     <div className="spooler-settings">
+      {/* Plugin health — the same Thread Tags readout the Personas page
+          shows: check / X, state + version, one-click install while
+          missing. The badges above ride this plugin. */}
+      <div className="spooler-settings-block" data-testid="spooler-settings-plugin-health">
+        <h3 className="spooler-settings-heading">Plugin health</h3>
+        <ThreadTagsHealthCard />
+      </div>
       <div className="spooler-settings-block" data-testid="spooler-settings-sections">
         <ul className="spooler-settings-list">
           {sectionRows.map((row) => {

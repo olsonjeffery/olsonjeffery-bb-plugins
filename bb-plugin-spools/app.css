@@ -889,8 +889,15 @@
 .spooler-row:hover > .spooler-row-main {
   /* The hover tube comes from the sidebar family of tokens, matching
      bb's own list rows — and paints the HEADER only, so the details
-     appended beneath keep their own surface (vertical layering). */
-  background: var(--sidebar-accent, var(--accent, var(--muted)));
+     appended beneath keep their own surface (vertical layering).
+     The variable indirection lets touch (@media hover:none, below)
+     switch the tube off without re-declaring this rule — re-declaring
+     a later duplicate of a row-main selector is what the css guards
+     forbid. */
+  background: var(
+    --spooler-row-hover-bg,
+    var(--sidebar-accent, var(--accent, var(--muted)))
+  );
 }
 
 .spooler-row-keyboard-focused > .spooler-row-main {
@@ -1493,6 +1500,28 @@ a.spooler-row-main:hover {
 .spooler-row-replies {
   flex: none;
   font-weight: 500;
+}
+
+/* Away-from-home host chip ("Show more" summary): the same hairline pivot
+   grammar as the project, no truncation floor (names are short). */
+.spooler-row-host {
+  flex: none;
+  max-width: 25%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+/* Thread Tags badge slot: the badge itself is inline-styled (its colors are
+   the other plugin's data); the wrapper only spaces the trailing cluster. */
+.spooler-row-sub-right .spooler-tag-badge {
+  flex: none;
+}
+
+.spooler-details-tag {
+  display: flex;
+  align-items: center;
 }
 
 /* The folded-family rollup: dot + count of the loudest hidden state. */
@@ -2864,6 +2893,32 @@ a.spooler-row-main:hover {
   flex: none;
 }
 
+/* Rolled-up member tags on the title bar: the priority lane between the
+   title and the meta cluster. Fixed-size badges so a spool wearing many
+   tags still lets the title breathe (the rest lives behind +N). */
+.spooler-spool-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.spooler-spool-tag-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border-radius: 4px;
+  background: var(--state-active, var(--muted));
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1;
+}
+
 .spooler-spool-more {
   display: grid;
   place-items: center;
@@ -3792,4 +3847,220 @@ a.spooler-row-main:hover {
   .spooler-filters-extras > * {
     animation: none;
   }
+}
+
+/* ---- Touch & compact viewports ------------------------------------------
+   The desktop list rests on hover lenses: rows, headers, chips and buttons
+   all repaint :hover. A finger never "leaves", so every one of those paints
+   would stick to the last-tapped control until the next tap. bb gates its
+   own hover under (hover: hover); the sidebar additionally lowers the hover
+   paints under (hover: none) and gives the coarse controls touch-sized
+   targets. ---------------------------------------------------------------- */
+
+@media (hover: none) {
+  /* Tapped rows keep exactly the state they earned; the hover tube reads
+     its paint through the variable this rule clears (no later duplicate
+     of .spooler-row:hover > .spooler-row-main). */
+  .spooler-row:hover {
+    --spooler-row-hover-bg: transparent;
+  }
+
+  .spooler-group[data-settled] .spooler-row:hover .spooler-row-main {
+    opacity: 0.72;
+  }
+
+  .spooler-search-clear:hover {
+    background: transparent;
+    color: var(--muted-foreground);
+  }
+
+  .spooler-chip:hover {
+    background: var(--card);
+    color: var(--muted-foreground);
+    border-color: var(--border);
+  }
+
+  /* The selected chip keeps its own paint: the neutral offset above is
+     equal-specificity later-in-file, so this restatement follows it. */
+  .spooler-chip-active:hover {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+  }
+
+  .spooler-segmented-button:hover {
+    color: var(--muted-foreground);
+  }
+
+  .spooler-tree-toggle:hover {
+    background: transparent;
+    color: var(--subtle-foreground, var(--muted-foreground));
+  }
+
+  .spooler-row-more:hover,
+  .spooler-row-toggle:hover {
+    background: transparent;
+    color: var(--subtle-foreground, var(--muted-foreground));
+  }
+
+  .spooler-pr-link:hover {
+    filter: none;
+    text-decoration: none;
+  }
+
+  .spooler-select-checkbox:hover {
+    transform: none;
+  }
+
+  .spooler-group-header:hover {
+    background: var(--sidebar, var(--background));
+    color: var(--muted-foreground);
+  }
+
+  .spooler-group-header:hover .spooler-group-toggle {
+    color: var(--muted-foreground);
+  }
+
+  /* The per-header "+ new thread" affordance is hover-revealed on desktop;
+     under touch it shows at rest so the action exists at all. */
+  .spooler-group-new-thread {
+    opacity: 0.9;
+  }
+
+  .spooler-spool-header:hover {
+    background: transparent;
+  }
+
+  .spooler-spool-icon:hover {
+    background: transparent;
+    color: var(--subtle-foreground, var(--muted-foreground));
+  }
+
+  .spooler-spool-more:hover {
+    background: transparent;
+    color: var(--subtle-foreground, var(--muted-foreground));
+  }
+}
+
+/* Coarse pointers hit with a fingertip, not a pixel: bump the header's
+   controls to touch scale. Row internals keep their layout (rows already
+   ride the whole-height tube), so only the persistent header chrome grows. */
+@media (pointer: coarse) {
+  /* iOS zooms every focused field under 16px; one deliberate rem keeps
+     the filter input still while stacked over the on-screen keyboard. */
+  .spooler-search-input {
+    font-size: max(var(--text-base), 1rem);
+    height: 34px;
+  }
+
+  .spooler-search-clear,
+  .spooler-filters-toggle {
+    width: 30px;
+    height: 34px;
+  }
+
+  .spooler-chip {
+    height: 30px;
+    padding: 0 11px;
+  }
+
+  .spooler-chip-count {
+    height: 17px;
+  }
+
+  .spooler-segmented-button {
+    min-height: 30px;
+    padding: 2px 11px;
+  }
+
+  .spooler-status-chips,
+  .spooler-filters {
+    row-gap: 5px;
+  }
+
+  .spooler-row-more,
+  .spooler-row-toggle {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+  }
+
+  .spooler-spool-more {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+  }
+
+  .spooler-section-add {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.spooler-settings-heading {
+  margin: 0;
+  padding: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Plugin health (the Thread Tags row). The badge colors are the other
+   plugin's data; these rules only carry the readout's layout. */
+.spooler-settings-health {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sidebar, var(--card));
+}
+
+.spooler-settings-health-copy p {
+  margin: 0;
+}
+
+.spooler-settings-health-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.spooler-settings-health-sub {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.spooler-settings-health-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spooler-settings-health-status [data-icon-root] {
+  width: 15px;
+  height: 15px;
+}
+
+.spooler-settings-health-status {
+  color: var(--success-foreground);
+  flex: none;
+}
+
+.spooler-settings-health-status-down {
+  color: var(--destructive);
+}
+
+.spooler-settings-health-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--muted-foreground);
 }

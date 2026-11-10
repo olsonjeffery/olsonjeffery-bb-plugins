@@ -27,6 +27,8 @@ import {
   useThreadExecution,
 } from "./useThreadExecution";
 import { ThreadDetailFacts, type ContextUsage } from "./SpoolerThreadDetails";
+import { type TagInfo } from "./threadTags";
+import { ThreadTagBadge } from "./ThreadTagBadge";
 import { useEnvironmentPullRequest } from "./usePullRequest";
 import { useRowSwipe } from "./useRowSwipe";
 import {
@@ -298,6 +300,13 @@ function SpoolerThreadRowImpl({
   sectionId,
   celebrate,
   adaptiveCollapse = true,
+  /** Plugin setting `threadSummary`: how much the summary box (not the
+   *  details panel) carries. "more" = every summary slot, plus the tag
+   *  badge and the away-host chip; "minimal" = status, time and tags
+   *  only — provider, PR, replies rollup text and the project chip yield
+   *  the line to the title. */
+  summaryMode = "more",
+  threadTag = null,
   isActive,
   isEditing,
   isVisible = true,
@@ -341,6 +350,10 @@ function SpoolerThreadRowImpl({
   celebrate: boolean;
   /** Plugin setting: gate the quiet-row fold. */
   adaptiveCollapse?: boolean;
+  /** Plugin setting: how much the summary box (not the details) shows. */
+  summaryMode?: "more" | "minimal";
+  /** The thread's one Thread Tags badge, when the other plugin is live. */
+  threadTag?: TagInfo | null;
   isActive: boolean;
   isEditing: boolean;
   /** False inside a folded group or ancestor; suspend requests and gestures. */
@@ -622,6 +635,7 @@ function SpoolerThreadRowImpl({
     !hasUnsubmittedDraft &&
     !rowStatus &&
     !prNeedsAttention;
+  const minimal = summaryMode === "minimal";
 
   const branch = thread.environment?.branchName ?? null;
   const hostName = thread.host?.name ?? null;
@@ -666,24 +680,28 @@ function SpoolerThreadRowImpl({
   const familyRollup = familyFolded
     ? collapse!.hiddenFailedCount > 0
       ? {
+          kind: "failed" as const,
           dot: "spooler-dot-error",
           tone: "spooler-tone-error",
           text: `${collapse!.hiddenFailedCount} failed`,
         }
       : collapse!.hiddenNeedsUserCount > 0
         ? {
+            kind: "needs" as const,
             dot: "spooler-dot-attention",
             tone: "spooler-tone-warning",
             text: `${collapse!.hiddenNeedsUserCount} needs you`,
           }
         : collapse!.hiddenUnread > 0
           ? {
+              kind: "unread" as const,
               dot: "spooler-dot-unread",
               tone: "spooler-tone-muted",
               text: `${collapse!.hiddenUnread} unread`,
             }
           : collapse!.hiddenLive
             ? {
+                kind: "live" as const,
                 dot: "spooler-dot-running",
                 tone: "spooler-tone-success",
                 text: "working",
@@ -704,6 +722,10 @@ function SpoolerThreadRowImpl({
     hostName: detailHostName,
     branch,
     isWorktree,
+    // The tag rides first class in the details: the summary box carries
+    // the badge, the panel names it where the row's own tooltip cannot.
+    tag: threadTag,
+    activity: timeText,
     pullRequest,
     replies:
       collapse && collapse.hiddenTotal > 0
@@ -920,15 +942,19 @@ function SpoolerThreadRowImpl({
             </span>
           )
         ) : null}
-        <span
-          className="spooler-row-sub-prov"
-          title={`Provider: ${providerName}`}
-        >
-          {providerName}
-        </span>
-        <span className="spooler-row-meta-sep" aria-hidden="true">
-          ·
-        </span>
+        {!minimal ? (
+          <span
+            className="spooler-row-sub-prov"
+            title={`Provider: ${providerName}`}
+          >
+            {providerName}
+          </span>
+        ) : null}
+        {!minimal ? (
+          <span className="spooler-row-meta-sep" aria-hidden="true">
+            ·
+          </span>
+        ) : null}
         <span className="spooler-row-time" title={timeText}>
           {timeShortText}
         </span>
@@ -937,22 +963,28 @@ function SpoolerThreadRowImpl({
       <span className="spooler-row-sub-right">
         {familyFolded ? (
           <>
-            <span
-              key="replies"
-              className="spooler-row-replies"
-              title={foldedKidsText(collapse!)}
-            >
-              {collapse!.hiddenTotal} replies
-            </span>
-            {familyRollup ? (
+            {!minimal ? (
+              <span
+                key="replies"
+                className="spooler-row-replies"
+                title={foldedKidsText(collapse!)}
+              >
+                {collapse!.hiddenTotal} replies
+              </span>
+            ) : null}
+            {/* Minimal keeps only the family's attention rollup (failed /
+                needs-you): unread and working live one dot down, quietly. */}
+            {familyRollup && (!minimal || familyRollup.kind === "failed" || familyRollup.kind === "needs") ? (
               <>
-                <span
-                  key="rollup-sep"
-                  className="spooler-row-meta-sep"
-                  aria-hidden="true"
-                >
-                  ·
-                </span>
+                {!minimal ? (
+                  <span
+                    key="rollup-sep"
+                    className="spooler-row-meta-sep"
+                    aria-hidden="true"
+                  >
+                    ·
+                  </span>
+                ) : null}
                 <span
                   key="rollup"
                   className={cn("spooler-row-rollup", familyRollup.tone)}
@@ -969,7 +1001,10 @@ function SpoolerThreadRowImpl({
             ) : null}
           </>
         ) : null}
-        {pullRequest && !collapsed ? (
+        {threadTag ? (
+          <ThreadTagBadge key="tag" tag={threadTag} small />
+        ) : null}
+        {pullRequest && !collapsed && !minimal ? (
           <button
             key="pr"
             type="button"
@@ -989,7 +1024,16 @@ function SpoolerThreadRowImpl({
             </span>
           </button>
         ) : null}
-        {projectTag ? (
+        {!minimal && detailHostName ? (
+          <span
+            key="host"
+            className="spooler-row-host"
+            title={detailHostName}
+          >
+            {detailHostName}
+          </span>
+        ) : null}
+        {!minimal && projectTag ? (
           <span key="project" className="spooler-row-project" title={projectTag}>
             {projectTag}
           </span>

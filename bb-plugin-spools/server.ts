@@ -39,6 +39,18 @@ export default async function plugin(bb: BbPluginApi) {
         "Bold titles on finished-but-unseen threads. Off means no bold title, and the ink unread dot still shows.",
       default: true,
     },
+    threadSummary: {
+      type: "select",
+      label: "Thread summary content",
+      description:
+        "How much the thread box (title + summary line, without the open details panel) shows. Show more information keeps everything the summary has, and adds the tag badge and an away-host chip; Show minimal keeps status, time and tags only — quieter, more of the line left for long titles.",
+      options: ["more", "minimal"],
+      experimental_optionLabels: {
+        more: "Show more information",
+        minimal: "Show minimal",
+      },
+      default: "more",
+    },
     adaptiveCollapse: {
       type: "boolean",
       label: "Collapse quiet rows",

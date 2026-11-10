@@ -85,10 +85,20 @@ collapsed and expanded, so the outer row never duplicates the panel:
   ("now", "12m", "2h" — the full relative text is the tooltip and still
   re-renders on the minute tick); right — the folded-family rollup ("N
   replies · ● loudest"), the **pull-request chip** (`#N` in its tone;
-  the full label is the tooltip and lives in the details), and the
+  the full label is the tooltip and lives in the details), the thread's
+  **tag badge** (Thread Tags, when that plugin is live — see Integration),
+  an **away-host chip** (the details Host rule), and the
   **project, right-justified** with a hairline pivot (truncates first).
   Quiet rows (adaptive collapse) drop the PR chip; idle threads have no
   status slot at all.
+- **Summary depth (`threadSummary`)**, the plugin setting, shapes this
+  sub-head without the details panel: ***Show more information*** (the
+  default) keeps every slot above, including the tag badge and the
+  away-host chip; ***Show minimal*** keeps the status glyph + word/pill,
+  the short time, and the tag badge only — the provider name, PR chip,
+  replies-rollup TEXT and the project chip yield the line to the title,
+  the attention family rollup (failed / needs-you) still shows, and
+  quiet rows fold to title + time.
 
 ## Details (always open), the ⋯ menu
 
@@ -117,7 +127,10 @@ collapsed and expanded, so the outer row never duplicates the panel:
   carries provider, status and time, and the sidebar carries the section.
   Facts: Goal (tail-size type, THREE clamped lines), Model · effort
   (ALWAYS — the options endpoint resolves defaults for idle threads
-  too), Host (only away from the home host), Branch (copy), Pull request,
+  too), Host (only away from the home host), **Tag** (the thread's one
+  Thread Tags badge, when the other plugin is live), **Activity** (the
+  full relative time — the sub-head's short form reads it only as a
+  hover tooltip, which touch cannot), Branch (copy), Pull request,
   Replies, and the **context meter** — never empty: a base fill from
   used/token-window always paints (2px floor), tone categories overlay
   only when they account for the usage they claim, and the auto-compact
@@ -219,8 +232,13 @@ by the spool's *lead* thread). Details:
   (archive/release) persists the promoted member's `spoolLead` too, and never promotes
   a member whose family leaves together with the old lead. The card also shows the
   member count pip (working members spin the success spinner behind the numeral; the
-  pip takes the state-active surface). The spool header carries no project/branch/PR
-  chips any more — those are member-row facts, in Details.
+  pip takes the state-active surface). Between the title and that cluster the card
+  also shows the **rolled-up member tags**: the roster's DISTINCT Thread Tags as
+  priority items — deduped, ordered by the wearers' attention (failed > needs-you >
+  unread > working > idle), then wearer count, then tag label — capped at four with a
+  `+N` overflow chip whose tooltip lists the rest; each badge's tooltip names how many
+  of N members wear it. The spool header carries no project/branch/PR chips any more —
+  those are member-row facts, in Details.
 - Member rows are flat: they hang one stock depth step deeper than the bucket's own
   rows (a shared left edge), carry one straight roster guide instead of tree
   elbows, and no person glyph. Every member still renders at depth 1 for its row
@@ -246,10 +264,11 @@ by the spool's *lead* thread). Details:
   stamp `-Date.now()`: it out-sorts every positive-stamp member immediately, and
   successive top adds get ever more negative stamps so each new arrival stays above
   the last (ties fall back to thread id). No sorting code knows the setting exists.
-- Settings → Installed plugins → **Spools** gains a *Sections & spools* card: the section
+- Settings → Installed plugins → **Spools** gains a *Sections & spools* page: the section
   editor (rename / delete with inline confirm, create; **Inbox pinned read-only**;
-  counts refresh from the server) plus a spools accordion with member lists and an
-  Unspool… (always with confirm dialog) action.
+  counts refresh from the server) and NO spool list — the sidebar's spool cards own
+  membership management. It also lists the **Plugin health** block (the Thread Tags
+  readout, see Integration) above the section editor.
 
 ### CLI
 
@@ -264,6 +283,32 @@ written with or without their `spool_` prefix):
   an existing spool (moving the whole spool to the target's section when you address a
   member), or `new` to start one from the thread.
 
+## Thread Tags integration
+
+When VladPolet's `bb-plugin-thread-tags` is installed and enabled, spool
+rows wear the thread's one tag and spool cards roll their members' tags
+up onto the title bar (deduped, attention-first, top four + `+N`); the
+details panel gains a Tag line item. The integration is READ-ONLY —
+assignments stay in Thread Tags' own flows (its row button, its settings
+page, `bb thread-tags`); Spools never sets, creates or deletes tags.
+
+- The sidebar reads the tag state through `sdk.plugins.callRpc`
+  (`state_get`), refreshed on Thread Tags' `tags-changed` realtime
+  channel, on bb's `plugins-changed`, and on reconnect; availability is
+  the installed-plugin row itself (present, enabled, not disabled/missing/error/incompatible/starting).
+- Everything degrades quietly when the plugin is missing: no badges, no
+  spinner, the one extra failed probe at most.
+- The spool title bar's rollup derives from the members the spool already
+  renders — threads the list does not show (archived, filtered) never
+  contribute badges.
+- Settings → Installed plugins → **Spools** gains a **Plugin health**
+  card — the same Thread Tags readout the Personas settings page shows:
+  a green check when the plugin runs (state + version: `Running ·
+  v0.1.0`), a red X otherwise ("Not installed" / "Installed — disabled"),
+  and a one-click **Install This Plugin** while missing (pinned source
+  `git:…@semver:^0.1.0`, bare URL fallback), re-reading bb's
+  `plugins-changed` and the next reconnect.
+
 ## Selecting it
 
 Settings → Appearance → **Sidebar**. Choosing BB there restores the stock
@@ -276,6 +321,17 @@ list; disabling this plugin falls back to BB's list automatically.
   pulse. Drafts show no status glyph (the pip covers them). Unknown
   indicators draw nothing (forward-compatible), and the row's accessible
   name appends the host's status label.
+- **Touch & compact viewports** (`docs/viewport-gap-analysis-2026-11-10`):
+  under `(hover: none)` no hover paint sticks — row tubes, group + spool
+  headers, chips, segmented buttons and the row chrome release to their
+  resting look after a tap, and the per-header + new thread affordance
+  shows at rest; under `(pointer: coarse)` the header chrome grows to
+  touch scale (chips and segmented 30px, 34px search row, 16px filter
+  ink — no iOS focus zoom) and the row/spool ⋯ chrome gains hit area.
+  `isCompactViewport` still forces the compact density; the desktop list
+  and the mobile drawer share every data behavior (press-and-hold menus,
+  swipes, adaptive collapse). Bottom-sheet menus remain the top open
+  item in the analysis doc.
 - Time: `timeShort` — "now", "12m", "2h", "2d", then a short date. Same
   minute granularity as the full text at the bottom of the scale, so the
   label flips within the same minute tick. The full text is always in the
@@ -355,6 +411,7 @@ rows paint at their final height.
 | `celebrate` | `true` | Pop the lead's check glyph once when a thread finishes. |
 | `motion` | `true` | Pulse the needs-you dot and spin the working glyph; failed rows stay still; off under `prefers-reduced-motion` regardless. |
 | `loudUnread` | `true` | Bold title on finished-but-unseen rows. Off means no bold title, and the ink unread dot still shows. |
+| `threadSummary` | `more` | `more` — Show more information: the full sub-head (tag badge and away-host chip included) — or `minimal` — Show minimal: status, short time and tag badge only. Shapes the thread box, never the details panel. |
 | `adaptiveCollapse` | `true` | Fold quiet read-idle rows to title, project and time. |
 | `activeDeck` | `true` | Show the fixed Active deck in Group By Section (default on). |
 | `defaultDensity` | `comfortable` | `comfortable` or `compact`, until the View menu choice is used; that choice is remembered per client. Compact keeps the meta line with tighter rows and single-line truncation. |

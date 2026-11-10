@@ -22,9 +22,19 @@ A thread list you can read at a glance, for BB.
   provider icon · status glyph · title over provider name · time, with the
   pull-request chip and the project right-justified — and the chevron
   appends the rest flush beneath its tube: goal at small type in three
-  clamped lines, model · effort, branch with copy, pull request, replies
-  and a context meter that never renders empty, with Open and Split at the
-  foot. Selecting only paints the header wash; no on-hover peek card.
+  clamped lines, model · effort, branch with copy, pull request, replies,
+  the thread's tag and its full last-activity time, and a context meter
+  that never renders empty, with Open and Split at the foot. A setting
+  chooses how much the summary itself carries ("Show more information"
+  or "Show minimal"). Selecting only paints the header wash; no on-hover
+  peek card.
+- **Thread Tags, read through.** With VladPolet's Thread Tags plugin
+  installed, every row wears its thread's badge and each spool card rolls
+  its members' tags up onto the title bar (distinct, attention-first,
+  top four plus +N). The settings page carries the same Plugin health
+  readout the Personas page shows, with a one-click install while the
+  plugin is missing. Spools never edits tags — assignments stay in
+  Thread Tags' own flows.
 - **For working fast.** Status filter chips (All · Needs you · Failed ·
   Working · Unread), smart views in the header's View menu, a text filter,
   comfortable or compact density, keyboard traversal with quick archive and
