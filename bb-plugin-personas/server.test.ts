@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import plugin from "./server.js";
+import {
+  defaultThreadTagLabel,
+  threadTagColorHex,
+} from "./personas.js";
 import type { PluginHealthReport } from "./plugin-health.js";
 
 const PROJECTS = [
@@ -1426,7 +1430,20 @@ describe("getPluginHealth", () => {
         installUrl: null,
         available: true,
       },
+      {
+        // Not in this host's default list: the row reports the absence —
+        // with the install link the one-click button hangs off.
+        id: "thread-tags",
+        label: "Thread Tags",
+        installed: false,
+        enabled: false,
+        status: null,
+        version: null,
+        installUrl: "https://github.com/VladPolet/bb-plugin-thread-tags",
+        available: false,
+      },
     ]);
+    expect(health.threadTagsAvailable).toBe(false);
   });
 
   it("reports the install source of the Personas plugin itself", async () => {
@@ -1500,6 +1517,16 @@ describe("getPluginHealth", () => {
         installUrl: "https://github.com/vburojevic/bb-plugin-floating-notes",
         available: false,
       },
+      {
+        id: "thread-tags",
+        label: "Thread Tags",
+        installed: false,
+        enabled: false,
+        status: null,
+        version: null,
+        installUrl: "https://github.com/VladPolet/bb-plugin-thread-tags",
+        available: false,
+      },
     ]);
   });
 
@@ -1550,6 +1577,274 @@ describe("getPluginHealth", () => {
     )) as PluginHealthReport;
     expect(health.floatingNotesAvailable).toBe(false);
     expect(host.harness.inspection.sdk.callsTo("plugins.list")).toHaveLength(2);
+  });
+});
+
+describe("Thread Tags", () => {
+  const THREAD_TAG_ROW = {
+    id: "thread-tags",
+    enabled: true,
+    status: "running",
+    version: "0.1.0",
+  };
+
+  /** The default set thread-tags v0.1.0 ships, plus anything tag_create adds. */
+  let tags: { id: string; label: string; color: string }[];
+  let assignments: Record<string, string>;
+  /** The tags this fixture's tag_create has emitted, in call order. */
+  let createdTags: { id: string; label: string; color: string }[];
+  let nextTagNumber = 0;
+
+  /** Puts thread-tags on the installed list and bases its RPCs like the real plugin. */
+  function makeThreadTagsAvailable() {
+    host.harness.inspection.sdk.stub(
+      "plugins.list",
+      (async () => ({
+        plugins: [
+          { id: "personas", enabled: true, status: "running", version: "1.2.0" },
+          THREAD_TAG_ROW,
+        ],
+      })) as never,
+    );
+    return stubCrossPluginRpc({
+      "thread-tags:state_get": () => ({
+        tags: tags.map((tag) => ({ ...tag })),
+        assignments: { ...assignments },
+      }),
+      "thread-tags:tag_create": (input) => {
+        const spec = input as { label: string; color: string };
+        const tag = {
+          // Never collides across a test: the counter only moves forward, so
+          // even a re-provision after a filtered-out tag gets a fresh id.
+          id: `tag_${(nextTagNumber += 1)}`,
+          label: spec.label,
+          color: spec.color,
+        };
+        tags.push(tag);
+        createdTags.push(tag);
+        return tag;
+      },
+      "thread-tags:thread_set_tag": (input) => {
+        const spec = input as { threadId: string; tagId: string | null };
+        if (spec.tagId === null) delete assignments[spec.threadId];
+        else assignments[spec.threadId] = spec.tagId;
+        return { tagId: spec.tagId };
+      },
+    });
+  }
+
+  beforeEach(() => {
+    tags = [
+      { id: "urgent", label: "🔥", color: "#ef4444" },
+      { id: "done", label: "✅", color: "#22c55e" },
+    ];
+    assignments = {};
+    createdTags = [];
+    nextTagNumber = 0;
+  });
+
+  it("reports unavailable with no tags and leaves the persona pointer alone", async () => {
+    const personaId = await createPublishedPersona();
+    const state = (await host.harness.behavior.callRpc("getThreadTagState", {
+      personaId,
+    })) as { threadTagsAvailable: boolean; threadTagId: string | null; tags: unknown[] };
+    expect(state).toEqual({ threadTagsAvailable: false, threadTagId: null, tags: [] });
+  });
+
+  it("provisions a default tag from the persona's emoji on first need", async () => {
+    const calls = makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    // The activity timestamp before the tag exists — the pointer write below
+    // must not move it.
+    const before = ((await host.harness.behavior.callRpc("getPersona", {
+      personaId,
+    })) as { persona: { updatedAt: number } | null }).persona!.updatedAt;
+
+    const state = (await host.harness.behavior.callRpc("getThreadTagState", {
+      personaId,
+    })) as { threadTagsAvailable: boolean; threadTagId: string | null; tags: { id: string }[] };
+
+    expect(state.threadTagsAvailable).toBe(true);
+    const created = createdTags[0]!;
+    expect(state.threadTagId).toBe(created.id);
+    expect(state.tags).toHaveLength(3);
+    // The created tag carries the persona's emoji. The persona row stores the
+    // pointer too.
+    expect(created).toMatchObject({ label: "🏴‍☠️", color: expect.any(String) });
+    const after = (await host.harness.behavior.callRpc("getPersona", {
+      personaId,
+    })) as { persona: { threadTagId: string | null; updatedAt: number } | null };
+    expect(after.persona?.threadTagId).toBe(created.id);
+    // Plumbing, not activity: the pointer write doesn't re-sort the rail.
+    expect(after.persona?.updatedAt).toBe(before);
+  });
+
+  it("keeps a still-valid tag and creates nothing", async () => {
+    const calls = makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    const first = (await host.harness.behavior.callRpc("getThreadTagState", {
+      personaId,
+    })) as { threadTagId: string };
+
+    calls.length = 0;
+    const second = (await host.harness.behavior.callRpc("getThreadTagState", {
+      personaId,
+    })) as { threadTagId: string };
+
+    expect(second.threadTagId).toBe(first.threadTagId);
+    expect(calls.some((call) => call.method === "tag_create")).toBe(false);
+    expect(tags).toHaveLength(3);
+  });
+
+  it("re-provisions when its tag disappears from the set", async () => {
+    makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    const first = (await host.harness.behavior.callRpc("getThreadTagState", {
+      personaId,
+    })) as { threadTagId: string };
+
+    tags = tags.filter((tag) => tag.id !== first.threadTagId);
+    const second = (await host.harness.behavior.callRpc("getThreadTagState", {
+      personaId,
+    })) as { threadTagId: string };
+
+    expect(second.threadTagId).not.toBe(first.threadTagId);
+    expect(tags).toHaveLength(3);
+  });
+
+  it("provisions from the persona's title, and clamps the label to Thread Tags' 12-char cap", async () => {
+    expect(defaultThreadTagLabel("🏴‍☠️", "Pirate")).toBe("🏴‍☠️");
+    expect(defaultThreadTagLabel("engineering", "Code reviewer")).toBe("engineering");
+    expect(defaultThreadTagLabel("", "Code reviewer")).toBe("Code reviewe");
+    // The helper trusts its inputs: blank in, blank out (displayName gives
+    // callers their nonzero title beforehand).
+    expect(defaultThreadTagLabel("   ", "   ")).toBe("");
+  });
+
+  it("colors the default tag with the persona's avatar-tint hex", async () => {
+    expect(threadTagColorHex("persona_x", "blue")).toBe("#3b82f6");
+    // Colorless personas share the hash slot tintFor picks: same id, same
+    // palette hex, every time.
+    const auto = threadTagColorHex("persona_1", null);
+    expect(auto).toBe(threadTagColorHex("persona_1", null));
+    expect(
+      ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#f43f5e", "#06b6d4"],
+    ).toContain(auto);
+  });
+
+  it("serializes concurrent needs on one persona into one tag", async () => {
+    makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    const [first, second] = await Promise.all([
+      host.harness.behavior.callRpc("getThreadTagState", { personaId }),
+      host.harness.behavior.callRpc("getThreadTagState", { personaId }),
+    ]) as { threadTagId: string | null }[];
+    expect(first.threadTagId).not.toBeNull();
+    expect(second.threadTagId).toBe(first.threadTagId);
+    expect(tags).toHaveLength(3);
+  });
+
+  it("tags a freshly dispatched thread with the persona's tag", async () => {
+    const calls = makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    const threadId = dispatchThreadStart(personaId);
+
+    await vi.waitFor(() => {
+      expect(
+        calls.some(
+          (call) =>
+            call.method === "thread_set_tag" &&
+            (call.input as { threadId?: string }).threadId === threadId,
+        ),
+      ).toBe(true);
+    });
+    expect(assignments[threadId]).toBe(createdTags[0]!.id);
+
+    // Every later pass of the same thread must not re-tag: the mapping is
+    // written once and the tag job only runs on the first one.
+    await dispatchThreadStart(personaId, { threadId });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls.filter((call) => call.method === "thread_set_tag")).toHaveLength(1);
+  });
+
+  it("binds the thread but never tags when Thread Tags is missing", async () => {
+    // No thread-tags on the installed list: applyPersonaThreadTag bails
+    // before any cross-plugin call. The recording stub doubles as the gate.
+    const calls = stubCrossPluginRpc({});
+    const personaId = await createPublishedPersona();
+    const threadId = dispatchThreadStart(personaId);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls).toHaveLength(0);
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(provide({ threadId, projectId: "proj_personal" })).toContain(
+      PROMPT_TEXT,
+    );
+  });
+
+  it("tags with the persona's current tag after the picker repoints it", async () => {
+    const calls = makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    await host.harness.behavior.callRpc("setPersonaThreadTag", {
+      personaId,
+      threadTagId: "urgent",
+    });
+
+    const threadId = dispatchThreadStart(personaId);
+    await vi.waitFor(() => {
+      expect(assignments[threadId]).toBe("urgent");
+    });
+    expect(
+      calls.find((call) => call.method === "thread_set_tag")?.input,
+    ).toEqual({ threadId, tagId: "urgent" });
+  });
+
+  it("setPersonaThreadTag rejects an unknown tag and stores nothing", async () => {
+    makeThreadTagsAvailable();
+    const personaId = await createPublishedPersona();
+    await expect(
+      host.harness.behavior.callRpc("setPersonaThreadTag", {
+        personaId,
+        threadTagId: "tag_missing",
+      }),
+    ).rejects.toThrow("Unknown thread tag: tag_missing");
+    const { persona } = (await host.harness.behavior.callRpc("getPersona", {
+      personaId,
+    })) as { persona: { threadTagId: string | null } | null };
+    expect(persona?.threadTagId).toBeNull();
+  });
+
+  it("setPersonaThreadTag rejects while the plugin is missing", async () => {
+    const personaId = await createPublishedPersona();
+    await expect(
+      host.harness.behavior.callRpc("setPersonaThreadTag", {
+        personaId,
+        threadTagId: "urgent",
+      }),
+    ).rejects.toThrow("Thread Tags is not installed and enabled");
+  });
+
+  it("the one-click install pins the marketplace range", async () => {
+    const installs: unknown[] = [];
+    host.harness.inspection.sdk.stub(
+      "plugins.install",
+      (async (args: unknown) => {
+        installs.push(args);
+        return { id: "thread-tags" };
+      }) as never,
+    );
+
+    const result = (await host.harness.behavior.callRpc(
+      "installThreadTags",
+      null,
+    )) as { ok: boolean; pluginId: string | null };
+
+    expect(result).toEqual({ ok: true, pluginId: "thread-tags" });
+    expect(installs).toEqual([
+      {
+        source:
+          "git:https://github.com/VladPolet/bb-plugin-thread-tags.git@semver:^0.1.0",
+      },
+    ]);
   });
 });
 

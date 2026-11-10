@@ -1,6 +1,6 @@
 ---
 name: personas
-description: "BB Personas settings and operating constraints: the prompt pool, the Plugin health section, the Floating Notes availability flag, and how to develop the plugin."
+description: "BB Personas settings and operating constraints: the prompt pool, the Plugin health section, the Floating Notes availability flag, the Thread Tags (sidebar badge) integration, and how to develop the plugin."
 ---
 
 # Personas
@@ -66,6 +66,45 @@ on every turn.
 - Note entries render badged ("Floating Note") in the editor and are only
   removable — `updatePersonaPrompt` rejects them server-side; remove and
   re-attach instead.
+
+## Thread Tags (sidebar badges)
+
+When the Thread Tags plugin (VladPolet's `bb-plugin-thread-tags`) is installed
+and enabled, every persona rides under exactly ONE of its tags, and every chat
+the persona starts wears that badge in the sidebar:
+
+- The persona tracks its tag by id (`threadTagId` on `Persona`, the row's
+  `thread_tag_id`). The pointer is the only source of truth: a persona whose
+  tag disappears from the other plugin's set degrades to untagged and is
+  re-provisioned on the next need.
+- Provisioning is LAZY — only when the tag is actually needed: the persona
+  editor's tag read (`getThreadTagState`) and the dispatch hook's application
+  (`applyPersonaThreadTag`). A bare `listPersonas`/`listRail` never creates
+  tags, so an untouched BB gains one tag per USED persona at most.
+- The default tag's label is the persona's emoji, else its title
+  (`defaultThreadTagLabel`, clamped to Thread Tags' 12-character cap); the
+  color is the hex twin of the persona's avatar tint
+  (`threadTagColorHex`). One provisioning race collapses through an
+  in-flight map (`threadTagProvisioningByPersonaId`), so concurrent thread
+  starts never create doubles.
+- The pointer write never bumps `updated_at`: it's plumbing, and a rail
+  re-sort on tag provisioning would be a bug.
+- Server RPCs: `getThreadTagState` (read + provision), `setPersonaThreadTag`
+  (the picker's write path — validated against the live tag set, gated on
+  the plugin being available), and `installThreadTags` (the settings row's
+  one-click install — hands the plugin's pinned git source
+  `git:…@semver:^0.1.0` to `bb.sdk.plugins.install`, bare-URL fallback on
+  rejection).
+- The dispatch hook fires `applyPersonaThreadTag` fire-and-forget right after
+  the persona_threads write: fresh availability check → ensure tag →
+  `thread_set_tag`. It MUST stay out of the synchronous hook path, and every
+  failure only logs — a sidebar badge never blocks a mapped thread, and
+  Thread Tags missing means plain untagged threads, exactly as before.
+- The editor's Thread tag cell (in the provider/model grid) renders only
+  while the plugin is present; picking writes through `setPersonaThreadTag`
+  immediately (no autosave debounce) and re-reads state. The preview chip
+  (`ThreadTagBadge`) draws thread-tags' own badge look: solid color, text
+  tone flipped on luminance, square for single glyphs.
 
 ## The persona chip (R5 flow)
 
@@ -165,6 +204,12 @@ old deep links.
 - **Floating Notes** — a green check when it is installed and enabled, a red
   X when it is not, plus an inline **Install** link to its bb plugin page
   (<https://github.com/vburojevic/bb-plugin-floating-notes>) while missing.
+- **Thread Tags** — the same green check / red X readout of install, status,
+  and version, plus a one-click **Install This Plugin** button while the
+  plugin is missing (installs from the community source in place, no page
+  detour, then re-reads the list on the spot). While it is present, each
+  persona's settings gain the Thread tag picker, and every new chat the
+  persona starts gets the persona's badge in the sidebar.
 - Rows read fresh from the installed-plugin list on every visit; installs,
   enables, and disables are reflected on the next open.
 
@@ -206,15 +251,22 @@ personas between BB instances:
   plugin's own SQLite database inside bb's data directory.
 - A plugin counts as available only when it is installed, enabled, and not in
   a hard-failure status (`disabled`, `missing`, `error`, `incompatible`).
-  The server-side availability check (`isFloatingNotesAvailable` in
-  `plugin-health.ts`), the source-picker gate, and the settings row share
-  this one rule.
+  The server-side availability checks (`isFloatingNotesAvailable` /
+  `isThreadTagsAvailable` in `plugin-health.ts`), the source-picker gate,
+  the Thread tag picker, the tag application, and the settings rows all
+  share this one rule.
 - Floating Notes missing degrades quietly: the + Add dropdown never renders
   (so no Add-note affordance appears in the persona config screen), existing
   note prompts display and inject "[Floating note is unavailable]" instead of
   crashing, and the background note sweep just no-ops.
-- Deleting a persona never deletes its chats; they just stop receiving the
-  persona's prompts.
+- Thread Tags missing degrades the same way: no Thread tag cell in persona
+  settings and untagged new chats. The persona's stored tag pointer is kept
+  while the plugin is away, so a re-install re-lights the old badges when
+  that tag still exists there.
+- Deleting a persona never deletes its chats — they just stop receiving the
+  persona's prompts — and never deletes its Thread Tags tag either: the tag
+  and any threads it's applied to belong to the tag set, not the persona's
+  row.
 
 ## Development
 

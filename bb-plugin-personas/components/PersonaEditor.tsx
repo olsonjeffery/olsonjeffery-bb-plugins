@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PersonaAvatar } from "@/components/PersonaAvatar";
+import { ThreadTagBadge } from "@/components/ThreadTagBadge";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import {
   FloatingNotePickerDialog,
@@ -182,6 +183,29 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   // offers a picker whose plugin is actually there. Floating Notes missing
   // means the config screen offers no Add-note affordance at all.
   const floatingNotesAvailable = health?.floatingNotesAvailable ?? false;
+
+  // Thread Tags present on this BB, from the same fresh health snapshot the
+  // Add gate reads — an install, enable, or remove lands on the next visit.
+  const threadTagsAvailable = health?.threadTagsAvailable ?? false;
+
+  // The Thread tag picker's state. Asking for it is the server's provision
+  // point — a persona without a tag acquires its default here — so the query
+  // only runs while the plugin is actually present (null otherwise).
+  const threadTags = useQuery(
+    () =>
+      threadTagsAvailable
+        ? rpc.call("getThreadTagState", { personaId })
+        : Promise.resolve(null),
+    `thread-tag:${personaId}:${threadTagsAvailable ? "on" : "off"}`,
+  );
+  const threadTagState = threadTags.data ?? null;
+  const [isTagBusy, setIsTagBusy] = useState(false);
+  const activeThreadTag =
+    threadTagState === null
+      ? null
+      : threadTagState.tags.find(
+          (tag) => tag.id === threadTagState.threadTagId,
+        ) ?? null;
 
   // The baseline autosave diffs new edits against — the fields the server
   // actually has. Deliberately separate from form state: seeding a fresh
@@ -479,6 +503,21 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
       toast.error(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setIsPoolBusy(false);
+    }
+  }
+
+  // The Thread tag picker's write path: instantaneous (not an autosave
+  // field), validated against the live tag set server-side, and reflected by
+  // reading the state again — which reports the pointer the row now holds.
+  async function chooseThreadTag(tagId: string): Promise<void> {
+    setIsTagBusy(true);
+    try {
+      await rpc.call("setPersonaThreadTag", { personaId, threadTagId: tagId });
+      threadTags.reload();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setIsTagBusy(false);
     }
   }
 
@@ -852,6 +891,40 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
             </SelectContent>
           </Select>
         </div>
+
+        {threadTagState?.threadTagsAvailable ? (
+          <div className="space-y-2">
+            <Label htmlFor="persona-thread-tag">Thread tag</Label>
+            <div className="flex items-center gap-2">
+              <Select
+                value={threadTagState.threadTagId ?? ""}
+                onValueChange={(next) => void chooseThreadTag(next)}
+                disabled={isTagBusy}
+              >
+                <SelectTrigger id="persona-thread-tag">
+                  <SelectValue
+                    placeholder={threadTags.isLoading ? "Checking tags…" : "Not tagged"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {threadTagState.tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tag.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {activeThreadTag ? (
+                <ThreadTagBadge tag={activeThreadTag} small />
+              ) : null}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Marks each chat this persona starts with a colored badge in the
+              sidebar. The badge&apos;s label and color live in the Thread
+              Tags plugin&apos;s settings.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-2">

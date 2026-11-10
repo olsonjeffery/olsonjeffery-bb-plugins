@@ -9,6 +9,7 @@ import {
   clampDefaultUserMessage,
   clampPromptText,
   decodeNotePromptRef,
+  defaultThreadTagLabel,
   displayName,
   draftBlockers,
   encodeNotePromptRef,
@@ -29,6 +30,7 @@ import {
   rowToPersona,
   rowToPrompt,
   sortChats,
+  threadTagColorHex,
   uniqueImportName,
   type ExportedPersona,
   type Persona,
@@ -40,6 +42,9 @@ import { pluginHealth, selfInstallLabel } from "./plugin-health.js";
 import {
   FLOATING_NOTES_PLUGIN_ID,
   isFloatingNotesAvailable,
+  THREAD_TAGS_PLUGIN_ID,
+  THREAD_TAGS_PLUGIN_SOURCE,
+  isThreadTagsAvailable,
 } from "./plugin-health.js";
 
 const ReasoningLevel = z.enum([
@@ -77,6 +82,9 @@ const PersonaSchema = z.object({
   emoji: z.string(),
   // The chosen avatar color; null = the stable hash-derived tint.
   color: PersonaColor.nullable(),
+  // The Thread Tags plugin tag this persona rides under; null = none
+  // provisioned yet (the server provisions from the emoji/title lazily).
+  threadTagId: z.string().nullable(),
   prompts: z.array(PersonaPromptSchema),
   providerId: z.string(),
   model: z.string(),
@@ -162,6 +170,34 @@ const ExportedPromptSchema = z.object({
   type: z.enum(["text", "note"]),
   text: z.string(),
   noteId: z.string().optional(),
+});
+
+//
+// -- Thread Tags wire shapes ----------------------------------------------------------
+//
+// Field mirrors of bb-plugin-thread-tags' own zod contracts, at v0.1.0 — the
+// same approach the Floating Notes block above takes: only the fields this
+// plugin consumes are declared, the rest of the other plugin's payload is
+// stripped by validation rather than becoming a cross-plugin contract.
+const ThreadTagSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  color: z.string(),
+});
+
+/** One Thread Tags tag, as this plugin reads it across the RPC boundary. */
+type PersonaThreadTag = z.output<typeof ThreadTagSchema>;
+
+// thread-tags' state_get, stripped of the assignments map this plugin never
+// reads (it reads the tag list and its own persona-side threadTagId instead).
+const ThreadTagsStateOutput = z.object({
+  tags: z.array(ThreadTagSchema),
+  assignments: z.record(z.string(), z.string()),
+});
+
+// thread-tags' thread_set_tag reply.
+const ThreadTagsSetOutput = z.object({
+  tagId: z.string().nullable(),
 });
 
 // One persona of an export file, validated at the boundary. The field set
@@ -333,6 +369,7 @@ export const rpcContract = defineRpcContract({
     input: z.null(),
     output: z.object({
       floatingNotesAvailable: z.boolean(),
+      threadTagsAvailable: z.boolean(),
       tools: z.array(ToolHealthSchema),
       self: z.object({
         version: z.string().nullable(),
@@ -351,6 +388,43 @@ export const rpcContract = defineRpcContract({
     input: z.null(),
     output: z.object({ notes: z.array(FloatingNoteSchema) }),
   },
+  // -- Thread Tags (bb-plugin-thread-tags) ----------------------------------
+
+  // The Thread Tags state this persona rides: the plugin's availability, the
+  // persona's current tag id (a missing/invalid one becomes a fresh default
+  // tag built from the persona's identity — the lazy provision point the
+  // editor and the dispatch hook share), and all configured tags for the
+  // picker. Tags [] and availability false degrade quietly.
+  getThreadTagState: {
+    input: z.object({ personaId: z.string() }).strict(),
+    output: z.object({
+      threadTagsAvailable: z.boolean(),
+      threadTagId: z.string().nullable(),
+      tags: z.array(ThreadTagSchema),
+    }),
+  },
+  // Re-points the persona at one configured tag (the settings picker's
+  // write path). Validated against the live tag set while the plugin is
+  // available — like the Floating Notes RPCs, the gate is the same
+  // one-plugin rule the health flag uses.
+  setPersonaThreadTag: {
+    input: z
+      .object({ personaId: z.string(), threadTagId: z.string().min(1) })
+      .strict(),
+    output: z.object({ threadTagId: z.string().nullable() }),
+  },
+  // The one-click install behind the settings page's Thread Tags row:
+  // badges bb's own installer with the same plugin source the marketplace
+  // install resolves, then reports what the fresh install produced. Errors
+  // (offline network, bad source string) propagate to the caller's toast.
+  installThreadTags: {
+    input: z.null(),
+    output: z.object({
+      ok: z.boolean(),
+      pluginId: z.string().nullable(),
+    }),
+  },
+
   // -- Export / import (personas-v1) ----------------------------------------
 
   // Every persona as one export array, one object per persona, drafts
@@ -438,6 +512,9 @@ export default async function plugin(bb: BbPluginApi) {
     // The persona's optional Default User Message. '' = none provided, so
     // the DEFAULT backfills every existing row as nothing-injected.
     `ALTER TABLE personas ADD COLUMN default_user_message TEXT NOT NULL DEFAULT ''`,
+    // The Thread Tags plugin tag this persona rides under. NULL = none
+    // provisioned yet; provisioning happens lazily against the live tag set.
+    `ALTER TABLE personas ADD COLUMN thread_tag_id TEXT`,
   ]);
 
   // One-time carry-over from the pre-rename schema (tables `bots` and
@@ -498,6 +575,14 @@ export default async function plugin(bb: BbPluginApi) {
   // contributeInstructions is synchronous and sits on the thread-start path,
   // so SQLite is the durable store and these maps are the read path. A BB
   // plugin is one in-process module, so caching here is safe.
+  // personaId -> its tag provisioning, while one is in flight. Two threads
+  // starting in the same instant must not both find the persona tagless and
+  // create two default tags; whoever arrives second awaits the same promise.
+  const threadTagProvisioningByPersonaId = new Map<
+    string,
+    Promise<PersonaThreadTag | null>
+  >();
+
   const personasById = new Map<string, Persona>();
   const personaIdByThreadId = new Map<string, string>();
   // personaId -> that persona's prompt pool. The array stored here is the
@@ -588,6 +673,109 @@ export default async function plugin(bb: BbPluginApi) {
 
   function toWirePersona(persona: Persona) {
     return { ...persona, prompts: persona.prompts.map(toWirePrompt) };
+  }
+
+  /** Persist the persona's tag pointer without touching activity ordering. */
+  function storeThreadTagId(persona: Persona, threadTagId: string | null): void {
+    persona.threadTagId = threadTagId;
+    db.prepare("UPDATE personas SET thread_tag_id = ? WHERE id = ?").run(
+      threadTagId,
+      persona.id,
+    );
+  }
+
+  async function listThreadTagsOrEmpty(): Promise<PersonaThreadTag[]> {
+    try {
+      const listed = await bb.sdk.plugins.callRpc({
+        pluginId: THREAD_TAGS_PLUGIN_ID,
+        method: "state_get",
+        input: null,
+        outputSchema: ThreadTagsStateOutput,
+      });
+      return [...listed.tags];
+    } catch (cause) {
+      bb.log.warn(
+        `thread tags read failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * The one Thread Tags tag this persona rides under, provisioned on first
+   * need. null means Thread Tags isn't usable right now — no state changed.
+   *
+   * A persona whose stored id still names a configured tag ships as-is; a
+   * tagless (or orphaned-id) persona gets a default tag built from its own
+   * identity — the emoji, else the title — tinted like its avatar. The
+   * pointer lands in the row without bumping updated_at: plumbing, like the
+   * note-body cache, not activity a rail would re-sort on.
+   */
+  async function ensurePersonaThreadTag(
+    persona: Persona,
+  ): Promise<PersonaThreadTag | null> {
+    const inFlight = threadTagProvisioningByPersonaId.get(persona.id);
+    if (inFlight !== undefined) return inFlight;
+    const run = (async (): Promise<PersonaThreadTag | null> => {
+      const { plugins } = await bb.sdk.plugins.list();
+      if (!isThreadTagsAvailable(plugins)) return null;
+      const tags = await listThreadTagsOrEmpty();
+      const known =
+        persona.threadTagId !== null
+          ? tags.find((tag) => tag.id === persona.threadTagId)
+          : undefined;
+      if (known !== undefined) return known;
+      const label = defaultThreadTagLabel(persona.emoji, displayName(persona));
+      const created = await bb.sdk.plugins.callRpc({
+        pluginId: THREAD_TAGS_PLUGIN_ID,
+        method: "tag_create",
+        input: { label, color: threadTagColorHex(persona.id, persona.color) },
+        outputSchema: z.object({
+          id: z.string(),
+          label: z.string(),
+          color: z.string(),
+        }),
+      });
+      storeThreadTagId(persona, created.id);
+      bb.log.info(`provisioned thread tag ${created.id} for persona ${persona.id}`);
+      return created;
+    })();
+    threadTagProvisioningByPersonaId.set(persona.id, run);
+    try {
+      return await run;
+    } finally {
+      threadTagProvisioningByPersonaId.delete(persona.id);
+    }
+  }
+
+  /**
+   * Applies the persona's tag to one freshly-bound thread — the tag side of
+   * the pill dispatch. Fire-and-forget (the hook stays synchronous) and
+   * never acts when Thread Tags is missing: a no-plugin BB just shows an
+   * untagged thread, exactly as it did before this integration.
+   */
+  function applyPersonaThreadTag(threadId: string, personaId: string): void {
+    void (async () => {
+      try {
+        const persona = personasById.get(personaId);
+        if (persona === undefined || persona.status === "draft") return;
+        const tag = await ensurePersonaThreadTag(persona);
+        if (tag === null) return;
+        await bb.sdk.plugins.callRpc({
+          pluginId: THREAD_TAGS_PLUGIN_ID,
+          method: "thread_set_tag",
+          input: { threadId, tagId: tag.id },
+          outputSchema: ThreadTagsSetOutput,
+        });
+        bb.log.info(
+          `tagged thread ${threadId} with persona ${personaId}'s tag ${tag.id}`,
+        );
+      } catch (cause) {
+        bb.log.warn(
+          `thread tag application failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+    })();
   }
 
   // The whole point of the plugin. Returning null for unmapped threads is
@@ -686,6 +874,11 @@ export default async function plugin(bb: BbPluginApi) {
     bb.log.info(
       `bound thread ${context.thread.id} to persona ${persona.id} via mention pill`,
     );
+    // The Thread Tags side of the binding: a fresh thread gets its persona's
+    // tag in the sidebar. Fire-and-forget — the hook must stay synchronous,
+    // so provisioning and the cross-plugin set happen just after the map
+    // write (a no-op entirely when Thread Tags isn't available).
+    applyPersonaThreadTag(context.thread.id, persona.id);
     // The rail learns the new chat on the next refresh; the same channel the
     // start/unarchive/delete paths ping.
     announce();
@@ -749,6 +942,7 @@ export default async function plugin(bb: BbPluginApi) {
         name: "",
         emoji: pickEmoji(),
         color: null,
+        threadTagId: null,
         prompts: promptsFor(id),
         providerId: "",
         model: "",
@@ -1300,6 +1494,7 @@ export default async function plugin(bb: BbPluginApi) {
               name,
               emoji: exported.emoji,
               color: exported.color,
+              threadTagId: null,
               prompts: pool,
               providerId: exported.providerId,
               model: exported.model,
@@ -1317,6 +1512,10 @@ export default async function plugin(bb: BbPluginApi) {
             name,
             emoji: exported.emoji,
             color: exported.color,
+            // Tag provisioning starts fresh in every instance: the exported
+            // file carries no tag ids because the tag sets of two BBs don't
+            // share a namespace.
+            threadTagId: null,
             prompts: pool,
             providerId: exported.providerId,
             model: exported.model,
@@ -1357,6 +1556,70 @@ export default async function plugin(bb: BbPluginApi) {
       }
       if (imported > 0) announce();
       return { imported, skipped: errors.length, errors };
+    },
+
+    // -- Thread Tags (bb-plugin-thread-tags) ----------------------------------
+
+    // The settings picker's state read, and the lazy provision point:
+    // asking for the state is what gives a tagless persona its default tag.
+    // The plugin's absence degrades to availability false and no tags.
+    getThreadTagState: async ({ personaId }) => {
+      const persona = readPersona(personaId);
+      const tag = await ensurePersonaThreadTag(persona);
+      if (tag === null) {
+        // The plugin just isn't there: report whatever pointer the row
+        // already carried (kept for when it's back) and no tags at all.
+        return {
+          threadTagsAvailable: false,
+          threadTagId: persona.threadTagId,
+          tags: [],
+        };
+      }
+      const tags = await listThreadTagsOrEmpty();
+      return {
+        threadTagsAvailable: true,
+        threadTagId: persona.threadTagId,
+        tags,
+      };
+    },
+
+    // The settings picker's write path. Re-reads the live tag set so the
+    // pointer only ever lands on a tag the other plugin actually knows
+    // (a stale or hand-forged id can't hardlink a persona to nothing).
+    setPersonaThreadTag: async ({ personaId, threadTagId }) => {
+      const persona = readPersona(personaId);
+      const { plugins } = await bb.sdk.plugins.list();
+      if (!isThreadTagsAvailable(plugins)) {
+        throw new Error("Thread Tags is not installed and enabled");
+      }
+      const tags = await listThreadTagsOrEmpty();
+      if (!tags.some((tag) => tag.id === threadTagId)) {
+        throw new Error(`Unknown thread tag: ${threadTagId}`);
+      }
+      // Not a pool edit — updated_at stays put for a tag repoint.
+      storeThreadTagId(persona, threadTagId);
+      announce();
+      return { threadTagId: persona.threadTagId };
+    },
+
+    // The one-click install behind the settings page's Thread Tags row.
+    // Pinned to the same semver range the marketplace resolves; the bare
+    // repository URL is the fallback for hosts that reject range-suffixed
+    // git sources. Errors propagate — the UI shows its toast.
+    installThreadTags: async () => {
+      try {
+        const installed = await bb.sdk.plugins.install({
+          source: THREAD_TAGS_PLUGIN_SOURCE,
+        });
+        announce();
+        return { ok: true, pluginId: installed?.id ?? THREAD_TAGS_PLUGIN_ID };
+      } catch {
+        const installed = await bb.sdk.plugins.install({
+          source: "https://github.com/VladPolet/bb-plugin-thread-tags",
+        });
+        announce();
+        return { ok: true, pluginId: installed?.id ?? THREAD_TAGS_PLUGIN_ID };
+      }
     },
 
     // -- Prompt-pool sources -------------------------------------------------

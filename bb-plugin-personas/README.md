@@ -23,6 +23,7 @@ works best for code.
 - A prompt pool per persona: as many prompts as the job needs (3500 characters each), editable at any time; changes apply to future chats
 - A provider, model, and reasoning level chosen per persona, used as the defaults for its chats — you can still change them before sending the first message
 - A Floating Note straight into a prompt pool when the Floating Notes plugin is installed and enabled — the entry shows the note's current content, and editing the note later updates every chat that receives it
+- A sidebar badge on every chat a persona starts when the Thread Tags plugin is installed: the persona picks one of the plugin's tags (or gets a default built from its own emoji or title), and the Plugin health box offers a one-click **Install This Plugin** button while Thread Tags is missing
 - A project connection when a persona needs repository context, and projectless personas for everyday conversations
 - A persona button on the New Thread composer: pick a persona for this session from a popup of your published fleet — a persona chip rides along in the draft, and the message you send starts a thread owned by that persona
 - A persona chip in every thread header showing who the conversation is chatting as, with a click-through into that persona's settings
@@ -36,6 +37,7 @@ works best for code.
 
 - bb `>=0.39.0`
 - The [Floating Notes](https://github.com/vburojevic/bb-plugin-floating-notes) plugin, installed and enabled, for note prompts (everything else works without it)
+- The [Thread Tags](https://github.com/VladPolet/bb-plugin-thread-tags) plugin, installed and enabled, for sidebar badges on persona chats (everything else works without it — and the settings page can install it for you one-click)
 
 ## Install
 
@@ -123,6 +125,21 @@ Add-note affordance) disappears entirely and **+ Add** stays a plain typed-text
 button. Personas already holding note entries keep working: their text falls
 back to "[Floating note is unavailable]" until the plugin returns.
 
+### Sidebar badges via Thread Tags
+
+When the Thread Tags plugin is installed and enabled, a **Thread tag** picker
+appears in the persona settings' provider/model grid. Each persona picks one of
+the tag set's tags; a persona with no tag (or one whose tag was deleted) gets a
+default created for it — its emoji, or its name, on the chip color of its avatar
+tint. From then on, every chat started through the persona's pill carries that
+badge in the sidebar. The picker shows the badge exactly as the sidebar does.
+Pick-write is immediate (no autosave wait), and the picker disappears entirely
+while the plugin is missing — the persona's chosen pointer is kept in case the
+plugin returns, but nothing is tagged until it's installed again.
+
+While Thread Tags is not installed, the Plugin health box's Thread Tags row —
+always visible — offers the **Install This Plugin** button instead.
+
 ### The persona chip and its settings-first page
 
 The persona chat flow lives on the **New Thread composer's persona button**
@@ -179,6 +196,11 @@ section with two things:
 - **Floating Notes** — a green check when it is installed and enabled, a red X
   when it is not. While it is missing, the row links to its plugin page
   ([vburojevic/bb-plugin-floating-notes](https://github.com/vburojevic/bb-plugin-floating-notes)).
+- **Thread Tags** — the same install/status readout for
+  [VladPolet's Thread Tags](https://github.com/VladPolet/bb-plugin-thread-tags),
+  which badges every chat a persona starts. While the plugin is missing the
+  row carries a one-click **Install This Plugin** button that installs it
+  in place — no plugin-page detour — and then re-checks the status row.
 
 The rows read the installed-plugin list fresh on every visit, so installing,
 enabling, or disabling a plugin is reflected the next time the page opens.

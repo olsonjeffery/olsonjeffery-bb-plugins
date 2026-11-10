@@ -10,6 +10,22 @@ export const FLOATING_NOTES_PLUGIN_ID = "floating-notes";
 export const FLOATING_NOTES_PLUGIN_URL =
   "https://github.com/vburojevic/bb-plugin-floating-notes";
 
+/** The installed-plugin id of the Thread Tags plugin. */
+export const THREAD_TAGS_PLUGIN_ID = "thread-tags";
+
+/** Where to send someone who still needs to install Thread Tags. */
+export const THREAD_TAGS_PLUGIN_URL =
+  "https://github.com/VladPolet/bb-plugin-thread-tags";
+
+/**
+ * The source the one-click install RPC hands bb's own installer, pinned to
+ * the same semver range the marketplace install of this plugin resolves to —
+ * so the one-click result is the managed install the settings page already
+ * describes, not a stray pin.
+ */
+export const THREAD_TAGS_PLUGIN_SOURCE =
+  "git:https://github.com/VladPolet/bb-plugin-thread-tags.git@semver:^0.1.0";
+
 /**
  * The fields of one `bb.sdk.plugins.list()` row the health computation
  * reads. Only the fields we use — the real InstalledPlugin carries many
@@ -50,6 +66,11 @@ export interface PluginHealthReport {
    * floating-notes row's `available`.
    */
   floatingNotesAvailable: boolean;
+  /**
+   * Whether Thread Tags is installed and enabled, for the same gating as
+   * the Floating Notes flag; identical to the thread-tags row's `available`.
+   */
+  threadTagsAvailable: boolean;
   tools: ToolHealth[];
   /**
    * Where this plugin's own install came from, so the settings page can
@@ -97,6 +118,18 @@ const UNAVAILABLE_STATUSES = new Set([
   "error",
   "incompatible",
 ]);
+
+/**
+ * Whether Thread Tags is available, for server-side callers that already
+ * hold a plugins list and don't want the whole health report.
+ */
+export function isThreadTagsAvailable(
+  plugins: readonly InstalledPluginSummary[],
+): boolean {
+  return isAvailable(
+    plugins.find((plugin) => plugin.id === THREAD_TAGS_PLUGIN_ID),
+  );
+}
 
 /**
  * True when a plugin row describes a usable plugin: present, enabled, and
@@ -159,12 +192,19 @@ export function pluginHealth(
     installUrl: FLOATING_NOTES_PLUGIN_URL,
     plugin: plugins.find((plugin) => plugin.id === FLOATING_NOTES_PLUGIN_ID),
   });
+  const threadTags = toToolHealth({
+    id: THREAD_TAGS_PLUGIN_ID,
+    label: "Thread Tags",
+    installUrl: THREAD_TAGS_PLUGIN_URL,
+    plugin: plugins.find((plugin) => plugin.id === THREAD_TAGS_PLUGIN_ID),
+  });
   const self = plugins.find(
     (plugin) => selfId !== undefined && plugin.id === selfId,
   );
   return {
     floatingNotesAvailable: floatingNotes.available,
-    tools: [floatingNotes],
+    threadTagsAvailable: threadTags.available,
+    tools: [floatingNotes, threadTags],
     self: {
       version: self?.version ?? null,
       source: self?.source ?? null,

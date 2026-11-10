@@ -50,6 +50,7 @@ const persona: Persona = {
   name: "Pirate",
   emoji: "🏴‍☠️",
   color: null,
+  threadTagId: null,
   prompts: [
     {
       id: "prompt_1",
@@ -450,6 +451,7 @@ describe("rowToPersona", () => {
     name: "Pirate",
     emoji: "🏴‍☠️",
     color: null,
+    thread_tag_id: null,
     instructions: "Always answer in pirate speak.",
     provider_id: "codex",
     model: "gpt-5.5",
@@ -698,6 +700,7 @@ describe("personaToExport", () => {
       name: "Pirate",
       emoji: "🏴‍☠️",
       color: "violet",
+      threadTagId: null,
       prompts: [],
       providerId: "codex",
       model: "gpt-5.5",

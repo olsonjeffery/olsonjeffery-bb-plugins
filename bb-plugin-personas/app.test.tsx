@@ -247,6 +247,44 @@ const HEALTH_DISABLED = {
   self: SELF_MANAGED,
 };
 
+// Thread Tags missing: the row always shows, with the one-click install
+// button standing where an outbound link would be.
+const THREAD_TAGS_ROW_MISSING = {
+  id: "thread-tags",
+  label: "Thread Tags",
+  installed: false,
+  enabled: false,
+  status: null,
+  version: null,
+  installUrl: "https://github.com/VladPolet/bb-plugin-thread-tags",
+  available: false,
+};
+
+const THREAD_TAGS_ROW = {
+  id: "thread-tags",
+  label: "Thread Tags",
+  installed: true,
+  enabled: true,
+  status: "running",
+  version: "0.1.0",
+  installUrl: null,
+  available: true,
+};
+
+const HEALTH_THREAD_TAGS_MISSING = {
+  floatingNotesAvailable: true,
+  threadTagsAvailable: false,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW_MISSING],
+  self: SELF_MANAGED,
+};
+
+const HEALTH_THREAD_TAGS_INSTALLED = {
+  floatingNotesAvailable: true,
+  threadTagsAvailable: true,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW],
+  self: SELF_MANAGED,
+};
+
 // A path install: the settings page must show the in-progress marker.
 const HEALTH_PATH_INSTALL = {
   floatingNotesAvailable: true,
@@ -1754,6 +1792,51 @@ describe("plugin health settings section", () => {
     slot.lifecycle.unmount();
   });
 
+  it("shows the missing Thread Tags row with a one-click Install This Plugin button", async () => {
+    const section = await loadSection();
+    const slot = renderSlot(section, {}, {
+      rpc: { ...RPC, getPluginHealth: () => HEALTH_THREAD_TAGS_MISSING },
+    });
+
+    await slot.findByText("Thread Tags");
+    expect(slot.getByText("Not installed")).toBeTruthy();
+    // One-click install, not an outbound link: the button carries the row.
+    const button = slot.getByRole("button", {
+      name: "Install This Plugin",
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(slot.queryByRole("link", { name: "Install" })).toBeNull();
+
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(
+        slot.inspection.rpcCalls.filter(
+          (call) => call.method === "installThreadTags",
+        ),
+      ).toHaveLength(1),
+    );
+    // Successful installs re-check the friend list on the spot.
+    await waitFor(() =>
+      expect(
+        slot.inspection.rpcCalls.filter((call) => call.method === "getPluginHealth"),
+      ).toHaveLength(2),
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("shows the Thread Tags row's running status once the plugin is present", async () => {
+    const section = await loadSection();
+    const slot = renderSlot(section, {}, {
+      rpc: { ...RPC, getPluginHealth: () => HEALTH_THREAD_TAGS_INSTALLED },
+    });
+
+    const row = (await slot.findByText("Thread Tags")).closest("li");
+    expect(row!.querySelector('[aria-label="Installed and enabled"]')).not.toBeNull();
+    expect(row!.textContent).toContain("Running · v0.1.0");
+    expect(slot.queryByRole("button", { name: "Install This Plugin" })).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("shows the RPC error inline instead of an empty box when the health read fails", async () => {
     const section = await loadSection();
     const slot = renderSlot(section, {}, {
@@ -1767,6 +1850,77 @@ describe("plugin health settings section", () => {
 
     await slot.findByText("plugins.list unavailable");
     expect(slot.queryByText("Floating Notes")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+});
+
+describe("Thread tag picker", () => {
+  const THREAD_TAG_STATE = {
+    threadTagsAvailable: true,
+    // The persona's pointer names ONE configured tag: exactly what a real
+    // provisioner leaves behind (getThreadTagState provisions before
+    // returning, so a stale pointer never reaches this RPC's output).
+    threadTagId: "persona",
+    tags: [
+      { id: "urgent", label: "🔥", color: "#ef4444" },
+      { id: "persona", label: "🏴\u200D☠️", color: "#06b6d4" },
+      { id: "done", label: "✅", color: "#22c55e" },
+    ],
+  };
+
+  const RPC_WITH_TAGS = {
+    ...RPC,
+    getPluginHealth: () => ({ ...HEALTH_AVAILABLE, threadTagsAvailable: true }),
+    getThreadTagState: () => THREAD_TAG_STATE,
+    setPersonaThreadTag: () => ({ threadTagId: "done" }),
+  };
+
+  // Zero-install environment: the base HEALTH fixture has no
+  // threadTagsAvailable key and the editor reads that as absent, so the
+  // picker disappears without provisioning anything.
+
+  it("stays off the settings page entirely while Thread Tags is missing", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_1/edit" }, { rpc: RPC });
+
+    await slot.findByText("Prompt pool");
+    expect(slot.queryByLabelText("Thread tag")).toBeNull();
+    // And nothing was provisioned behind the user's back.
+    expect(
+      slot.inspection.rpcCalls.filter(
+        (call) => call.method === "getThreadTagState",
+      ),
+    ).toHaveLength(0);
+    slot.lifecycle.unmount();
+  });
+
+  it("shows the persona's current tag choice when Thread Tags is present", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_1/edit" }, { rpc: RPC_WITH_TAGS });
+
+    // The trigger shows the selected tag's label, badged with its color
+    // like the sidebar wears it. The rail's avatar carries the same emoji,
+    // so this queries the trigger itself rather than the document.
+    const trigger = await slot.findByLabelText("Thread tag");
+    await waitFor(() => expect(trigger.textContent).toContain("🏴\u200D☠️"));
+    slot.lifecycle.unmount();
+  });
+
+  it("picking a tag writes it straight through setPersonaThreadTag, no autosave debounce", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_1/edit" }, { rpc: RPC_WITH_TAGS });
+
+    const trigger = await slot.findByLabelText("Thread tag");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.click(await slot.findByText("✅"));
+
+    await waitFor(() =>
+      expect(slot.inspection.rpcCalls).toContainEqual({
+        method: "setPersonaThreadTag",
+        input: { personaId: "persona_1", threadTagId: "done" },
+      }),
+    );
     slot.lifecycle.unmount();
   });
 });

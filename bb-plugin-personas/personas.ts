@@ -93,6 +93,14 @@ export interface Persona {
   emoji: string;
   /** The chosen avatar color; null = the stable hash-derived tint. */
   color: PersonaColor | null;
+  /**
+   * The Thread Tags plugin tag this persona rides under: every chat the
+   * persona starts is tagged with it in the sidebar. null = none provisioned
+   * yet (the server provisions a default from the emoji/title the first time
+   * it matters); an id the Thread Tags set no longer knows degrades the same
+   * way, re-provisioning outside of any read path.
+   */
+  threadTagId: string | null;
   /** The persona's prompt pool; injected into every turn of its chats. */
   prompts: PersonaPrompt[];
   providerId: string;
@@ -578,6 +586,59 @@ export function displayName(persona: Persona): string {
   return persona.name.trim() || "Untitled persona";
 }
 
+// -- Thread Tags (bb-plugin-thread-tags) defaults -----------------------------
+//
+// The Thread Tags plugin (installed separately) tags threads with an emoji or
+// short text on a colored background. Personas ride one tag each: a persona
+// without a tag gets a default provisioned locally from its own identity.
+// These helpers are the pure pieces of that provisioning.
+
+/**
+ * Thread Tags clamps tag labels at 12 characters (its TAG_LABEL_MAX at
+ * v0.1.0). Mirrored here so a generated persona tag never bounces against the
+ * other plugin's schema.
+ */
+export const THREAD_TAG_LABEL_MAX = 12;
+
+/**
+ * The label of the default tag provisioned for a persona: its emoji when there
+ * is one (persona emojis usually sit under the cap, but the bound is the other
+ * plugin's schema, so the clamp is unconditional), else the persona's title.
+ */
+export function defaultThreadTagLabel(emoji: string, title: string): string {
+  const trimmedEmoji = emoji.trim();
+  return trimmedEmoji.length > 0
+    ? trimmedEmoji.slice(0, THREAD_TAG_LABEL_MAX)
+    : title.trim().slice(0, THREAD_TAG_LABEL_MAX);
+}
+
+/**
+ * The -500 hex values behind the avatar tints (COLOR_TINTS are Tailwind
+ * classes, which Thread Tags can't read — its colored chip wants raw hex).
+ * Palette order matches PERSONA_COLORS exactly.
+ */
+const COLOR_HEX: Record<PersonaColor, string> = {
+  blue: "#3b82f6",
+  emerald: "#10b981",
+  amber: "#f59e0b",
+  violet: "#8b5cf6",
+  rose: "#f43f5e",
+  cyan: "#06b6d4",
+};
+
+/**
+ * The raw hex a persona's default tag wears: the hex twin of its avatar tint —
+ * the chosen color, or the same stable hash-derived slot tintFor picks.
+ */
+export function threadTagColorHex(
+  personaId: string,
+  color: PersonaColor | null,
+): string {
+  return color === null
+    ? COLOR_HEX[PERSONA_COLORS[hash(personaId) % PERSONA_COLORS.length]!]
+    : COLOR_HEX[color];
+}
+
 /**
  * Human-readable reasons a draft can't be published yet; [] means it can.
  * Publish-time is where validation now lives — savePersona autosaves a
@@ -665,6 +726,7 @@ export interface PersonaRow {
   name: string;
   emoji: string;
   color: string | null;
+  thread_tag_id: string | null;
   instructions: string;
   provider_id: string;
   model: string;
@@ -745,6 +807,8 @@ export function rowToPersona(row: PersonaRow, prompts: PersonaPrompt[]): Persona
     // Any unrecognized stored value reads as auto (the hash tint) rather
     // than flowing uncaught into the UI and the savePersona RPC's zod schema.
     color: isPersonaColor(row.color) ? row.color : null,
+    // Null when the column predates this integration or no tag is provisioned.
+    threadTagId: row.thread_tag_id ?? null,
     prompts,
     providerId: row.provider_id,
     model: row.model,

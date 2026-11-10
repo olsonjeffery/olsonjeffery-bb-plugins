@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest";
 import {
   FLOATING_NOTES_PLUGIN_ID,
   FLOATING_NOTES_PLUGIN_URL,
+  THREAD_TAGS_PLUGIN_ID,
+  THREAD_TAGS_PLUGIN_SOURCE,
+  THREAD_TAGS_PLUGIN_URL,
   isFloatingNotesAvailable,
+  isThreadTagsAvailable,
   pluginHealth,
   selfInstallLabel,
   type InstalledPluginSummary,
@@ -58,11 +62,77 @@ describe("isFloatingNotesAvailable", () => {
   });
 });
 
+describe("isThreadTagsAvailable", () => {
+  it.each(["running", "needs-configuration", "degraded"] as const)(
+    "is true when Thread Tags is installed, enabled, and %s",
+    (status) => {
+      expect(
+        isThreadTagsAvailable([
+          makePlugin({ id: THREAD_TAGS_PLUGIN_ID, status }),
+        ]),
+      ).toBe(true);
+    },
+  );
+
+  it.each(["disabled", "missing", "error", "incompatible"] as const)(
+    "is false when Thread Tags is %s",
+    (status) => {
+      expect(
+        isThreadTagsAvailable([
+          makePlugin({ id: THREAD_TAGS_PLUGIN_ID, status }),
+        ]),
+      ).toBe(false);
+    },
+  );
+});
+
 describe("pluginHealth", () => {
   it("matches the floating-notes row's available flag", () => {
     expect(pluginHealth([makePlugin({})]).floatingNotesAvailable).toBe(true);
     expect(pluginHealth([makePlugin({ enabled: false })]).floatingNotesAvailable)
       .toBe(false);
+  });
+
+  it("appends the Thread Tags row after Floating Notes", () => {
+    const report = pluginHealth([
+      makePlugin({}),
+      makePlugin({ id: THREAD_TAGS_PLUGIN_ID, version: "0.1.0" }),
+    ]);
+    expect(report.threadTagsAvailable).toBe(true);
+    expect(report.tools).toHaveLength(2);
+    expect(report.tools[1]).toMatchObject({
+      id: THREAD_TAGS_PLUGIN_ID,
+      label: "Thread Tags",
+      installed: true,
+      available: true,
+      // No link once the plugin is present.
+      installUrl: null,
+    });
+  });
+
+  it("carries the plugin page link and the one-click source only while Thread Tags is missing", () => {
+    const missing = pluginHealth([]).tools[1]!;
+    expect(missing).toMatchObject({
+      id: THREAD_TAGS_PLUGIN_ID,
+      installed: false,
+      installUrl: THREAD_TAGS_PLUGIN_URL,
+      available: false,
+    });
+    expect(THREAD_TAGS_PLUGIN_SOURCE).toBe(
+      "git:https://github.com/VladPolet/bb-plugin-thread-tags.git@semver:^0.1.0",
+    );
+  });
+
+  it("reads Thread Tags as unavailable while disabled", () => {
+    const report = pluginHealth([
+      makePlugin({ id: THREAD_TAGS_PLUGIN_ID, enabled: false, status: "disabled" }),
+    ]);
+    expect(report.threadTagsAvailable).toBe(false);
+    expect(report.tools[1]).toMatchObject({
+      installed: true,
+      enabled: false,
+      installUrl: null,
+    });
   });
 
   it("carries the plugin page link only while the tool is missing", () => {
