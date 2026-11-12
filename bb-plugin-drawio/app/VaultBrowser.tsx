@@ -41,10 +41,12 @@ type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
 
 export interface VaultBrowserProps {
   variant: "sidebar" | "panel";
-  /** Opening a diagram means on this surface (body navigation / tab opening). */
+  /**
+   * The one Open action (row click and menu alike). Every surface opens the
+   * diagram as a tab in its own panel; implementations fall back however they
+   * must (the sidebar body-navigates when the panel controller declines).
+   */
   onOpenDiagram: (ref: DocRef) => void;
-  /** Only the panel variant has a controller that can open action tabs. */
-  onOpenDiagramInTab?: (ref: DocRef) => void;
 }
 
 interface FolderNode {
@@ -53,7 +55,7 @@ interface FolderNode {
   folders: Map<string, FolderNode>;
 }
 
-export function VaultBrowser({ variant, onOpenDiagram, onOpenDiagramInTab }: VaultBrowserProps) {
+export function VaultBrowser({ variant, onOpenDiagram }: VaultBrowserProps) {
   const rpc = useRpc<typeof rpcContract>();
   const sdk = useSdk();
   const navigate = useBbNavigate();
@@ -251,7 +253,6 @@ export function VaultBrowser({ variant, onOpenDiagram, onOpenDiagramInTab }: Vau
               })
             }
             onOpen={openRow}
-            onOpenInTab={onOpenDiagramInTab}
             onOpenPlain={openFile}
             onDelete={setDeleteTarget}
           />
@@ -263,7 +264,6 @@ export function VaultBrowser({ variant, onOpenDiagram, onOpenDiagramInTab }: Vau
             depth={0}
             vaultId={vaultId}
             onOpen={openRow}
-            onOpenInTab={onOpenDiagramInTab}
             onOpenPlain={openFile}
             onDelete={setDeleteTarget}
           />
@@ -339,7 +339,6 @@ interface RowActions {
   onOpen: (file: VaultFileEntry) => void;
   /** Opening a non-diagram in BB's preview (rows that are not diagrams). */
   onOpenPlain: (file: VaultFileEntry) => void;
-  onOpenInTab?: (ref: DocRef) => void;
   onDelete: (file: VaultFileEntry) => void;
 }
 
@@ -352,7 +351,6 @@ function FolderRow({
   toggle,
   onOpen,
   onOpenPlain,
-  onOpenInTab,
   onDelete,
 }: {
   node: FolderNode;
@@ -390,7 +388,6 @@ function FolderRow({
               toggle={toggle}
               onOpen={onOpen}
               onOpenPlain={onOpenPlain}
-              onOpenInTab={onOpenInTab}
               onDelete={onDelete}
             />
           ))}
@@ -402,7 +399,6 @@ function FolderRow({
               vaultId={vaultId}
               onOpen={onOpen}
               onOpenPlain={onOpenPlain}
-              onOpenInTab={onOpenInTab}
               onDelete={onDelete}
             />
           ))}
@@ -426,7 +422,6 @@ function FileRow({
   vaultId,
   onOpen,
   onOpenPlain,
-  onOpenInTab,
   onDelete,
 }: { file: VaultFileEntry; depth: number } & RowActions) {
   const isDiagram = file.path.toLowerCase().endsWith(".drawio");
@@ -455,16 +450,7 @@ function FileRow({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           {isDiagram ? (
-            <>
-              <DropdownMenuItem onSelect={() => onOpen(file)}>Open</DropdownMenuItem>
-              {onOpenInTab !== undefined ? (
-                <DropdownMenuItem
-                  onSelect={() => onOpenInTab({ kind: "vault", vaultId, path: file.path })}
-                >
-                  Open in tab
-                </DropdownMenuItem>
-              ) : null}
-            </>
+            <DropdownMenuItem onSelect={() => onOpen(file)}>Open in tab</DropdownMenuItem>
           ) : (
             <DropdownMenuItem onSelect={() => onOpenPlain(file)}>Open in preview</DropdownMenuItem>
           )}

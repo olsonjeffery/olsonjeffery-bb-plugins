@@ -54,6 +54,12 @@ export interface DrawioEditorProps {
   uiTheme: "min" | "sketch" | "atlas";
   /** The XML handed over on init. */
   xml: string;
+  /**
+   * Load the diagram editable (the editor) or read-only (the viewer). The
+   * embed protocol's `editable` flag on the load action draws the full editor
+   * or the viewer for the same document; toggling remounts the iframe.
+   */
+  editable: boolean;
   /** Current editor XML (autosave/save events). */
   onXml: (xml: string) => void;
   onReady: () => void;
@@ -65,7 +71,7 @@ const EXPORT_TIMEOUT_MS = 30_000;
 const READY_TIMEOUT_MS = 20_000;
 
 export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
-  function DrawioEditor({ instanceUrl, uiTheme, xml, onXml, onReady, onExit, className }, ref) {
+  function DrawioEditor({ instanceUrl, uiTheme, xml, editable, onXml, onReady, onExit, className }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
     // The load payload is captured by ref so the message listener never
     // re-subscribes because the document changed.
@@ -151,7 +157,12 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
 
         switch (message.event) {
           case "init": {
-            post({ action: "load", xml: loadXmlRef.current, autosave: 1 });
+            post({
+              action: "load",
+              xml: loadXmlRef.current,
+              autosave: 1,
+              ...(editable ? {} : { editable: 0 }),
+            });
             break;
           }
           case "load": {
@@ -192,7 +203,7 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
       };
       // The bridge binds once per iframe mount; xml/onXml/onReady ride refs.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [src, origin, reloadNonce]);
+    }, [src, origin, reloadNonce, editable]);
 
     useImperativeHandle(
       ref,
@@ -252,7 +263,7 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
           </div>
         ) : null}
         <iframe
-          key={reloadNonce}
+          key={`${reloadNonce}:${editable ? "edit" : "view"}`}
           ref={iframeRef}
           src={src}
           title="draw.io diagram editor"

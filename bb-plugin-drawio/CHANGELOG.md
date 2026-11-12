@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **One Open action, always a tab**: row click and the menu both open the
+  diagram as a tab in the surface's own panel (plugin page or thread); the
+  sidebar falls back to the body route if its panel controller declines.
+- The thread's inline-diagram tab is a normal action tab again (the hidden
+  launcher is gone — the likely cause of "Open in tab" doing nothing inside
+  threads).
+- **Diagrams opened from the Draw.io Browser start read-only** (the embed
+  protocol's `editable:0` load — draw.io's viewer mode); the tab's toolbar
+  shows an **Edit** button that switches it to the full editor. Body deep
+  links and the fileOpener keep opening editable.
+
 - **Diagrams inside threads**: a Diagram button in the thread header opens the
   Draw.io Browser in the thread's right panel (also available in that panel's
   New-tab menu); clicking a diagram pins it as an inline, CAS-saving tab

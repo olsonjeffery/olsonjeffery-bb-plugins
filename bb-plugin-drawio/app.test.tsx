@@ -51,7 +51,6 @@ describe("drawio frontend", () => {
     // opened only from the browser (no launcher of its own).
     const threadTabs = app.tabs.filter((tab) => tab.context.kind === "thread");
     expect(threadTabs.map((tab) => `${tab.id}:${tab.availability}`)).toEqual(["browser:action", "diagram:action"]);
-    expect(threadTabs.find((tab) => tab.id === "diagram")!.useVisible?.({ threadId: "t", environment: null })).toBe(false);
     expect(app.threadActions).toHaveLength(1);
     expect(app.threadActions[0]).toMatchObject({ id: "drawio-browser", placement: "header" });
     expect(app.fileOpeners).toHaveLength(1);

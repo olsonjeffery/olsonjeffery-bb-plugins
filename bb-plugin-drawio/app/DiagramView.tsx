@@ -55,6 +55,8 @@ export interface DiagramViewProps {
   onSavedAs?: (ref: DocRef) => void;
   /** Called from the not-found state to leave the dead link (body only). */
   onBack?: () => void;
+  /** Browser-opened diagrams start as the read-only viewer; Edit unlocks. */
+  startReadOnly?: boolean;
   /** Compact toolbars for narrow tab surfaces. */
   compact?: boolean;
   className?: string;
@@ -68,7 +70,7 @@ interface ReadyLoad {
   recovery: { content: string; updatedAt: number } | null;
 }
 
-export function DiagramView({ refValue, starterXml, onSavedAs, onBack, compact, className }: DiagramViewProps) {
+export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startReadOnly, compact, className }: DiagramViewProps) {
   const rpc = useRpc<typeof rpcContract>();
   const values = useSettings().values ?? {};
   const adapter = useMemo(() => sourceFor(refValue), [refValue]);
@@ -127,6 +129,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, compact, 
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState<{ currentSha256: string | null } | null>(null);
   const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [editable, setEditable] = useState(startReadOnly !== true);
 
   // Hooks stay above any early return; guards below check load state instead.
   const draftKey = adapter.draftKey;
@@ -280,12 +283,14 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, compact, 
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       <DiagramToolbar
         title={adapter.title()}
-        subtitle={adapterSubtitle(adapter)}
+        subtitle={adapterSubtitle(adapter, !editable)}
         dirty={dirty}
         saving={saving}
         untitled={adapter.untitled}
+        readOnly={!editable}
         compact={compact === true}
         onSave={save}
+        onEdit={() => setEditable(true)}
         onExport={(format) => void exportAs(format)}
         onCopyPng={() => void copyPng()}
         onSaveAs={adapter.untitled ? () => setSaveAsOpen(true) : undefined}
@@ -361,6 +366,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, compact, 
         instanceUrl={instanceUrl}
         uiTheme={uiTheme}
         xml={load.content}
+        editable={editable}
         onXml={markXml}
         onReady={() => undefined}
         className="min-h-0"
@@ -369,10 +375,11 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, compact, 
   );
 }
 
-function adapterSubtitle(adapter: { untitled: boolean; ref: unknown }): string | null {
+function adapterSubtitle(adapter: { untitled: boolean; ref: unknown }, readOnly: boolean): string | null {
   if (adapter.untitled) return "not saved yet";
   const ref = adapter.ref as DocRef;
-  return ref.kind === "vault" ? `vault · ${ref.path}` : null;
+  const where = ref.kind === "vault" ? `vault · ${ref.path}` : null;
+  return readOnly ? "read-only" : where;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,8 +390,10 @@ function DiagramToolbar({
   dirty,
   saving,
   untitled,
+  readOnly,
   compact,
   onSave,
+  onEdit,
   onExport,
   onCopyPng,
   onSaveAs,
@@ -394,8 +403,10 @@ function DiagramToolbar({
   dirty: boolean;
   saving: boolean;
   untitled: boolean;
+  readOnly: boolean;
   compact: boolean;
   onSave: () => void;
+  onEdit: () => void;
   onExport: (format: ExportFormat) => void;
   onCopyPng: () => void;
   onSaveAs: (() => void) | undefined;
@@ -416,16 +427,25 @@ function DiagramToolbar({
           <span className="hidden truncate text-xs text-muted-foreground md:inline">{subtitle}</span>
         ) : null}
       </div>
-      {untitled && onSaveAs !== undefined ? (
-        <Button variant="outline" size="sm" onClick={onSaveAs} disabled={saving}>
-          <Icon name="Save" className="size-3.5" />
-          Save as…
+      {readOnly ? (
+        <Button variant="outline" size="sm" onClick={onEdit} aria-label="Switch this tab to the full editor">
+          <Icon name="Pencil" className="size-3.5" />
+          Edit
         </Button>
-      ) : null}
-      <Button variant={dirty ? "default" : "outline"} size="sm" onClick={onSave} disabled={saving || !dirty}>
-        <Icon name={saving ? "Loading" : "Save"} className={cn("size-3.5", saving && "animate-spin")} />
-        Save
-      </Button>
+      ) : (
+        <>
+          {untitled && onSaveAs !== undefined ? (
+            <Button variant="outline" size="sm" onClick={onSaveAs} disabled={saving}>
+              <Icon name="Save" className="size-3.5" />
+              Save as…
+            </Button>
+          ) : null}
+          <Button variant={dirty ? "default" : "outline"} size="sm" onClick={onSave} disabled={saving || !dirty}>
+            <Icon name={saving ? "Loading" : "Save"} className={cn("size-3.5", saving && "animate-spin")} />
+            Save
+          </Button>
+        </>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm">

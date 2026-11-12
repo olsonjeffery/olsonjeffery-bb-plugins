@@ -56,8 +56,8 @@ function openAsTab(
   panel: Pick<ExperimentalPanelController, "openTab">,
   ref: DocRef,
   surface: TabSurface = "nav-panel",
-): void {
-  panel.openTab({
+): boolean {
+  return panel.openTab({
     tab: surface === "thread" ? THREAD_DIAGRAM_TAB_REFERENCE : DIAGRAM_TAB_REFERENCE,
     params: ref as unknown as JsonValue,
     title: docTitle(ref),
@@ -134,14 +134,19 @@ export function DiagramsPanelBody({ subPath }: PluginNavPanelProps) {
 
 export function DiagramsSidebar({ subPath }: PluginNavPanelProps) {
   const navigate = useBbNavigate();
+  const panel = experimental_useAppPanel();
   const parsed = useMemo(() => parseSubPath(subPath), [subPath]);
   const current = parsed.ref !== null && parsed.ref.kind !== "draft" ? parsed.ref : null;
 
   const openRef = useCallback(
     (ref: DocRef) => {
-      navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(ref) });
+      // Always a tab; if this surface has no accepting panel (the sidebar can
+      // render outside the panel host), fall back to the body route.
+      if (!openAsTab(panel, ref)) {
+        navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(ref) });
+      }
     },
-    [navigate],
+    [navigate, panel],
   );
 
   return (
@@ -167,24 +172,15 @@ export function VaultBrowserTab(_props: PluginNavPanelProps) {
   const panel = experimental_useAppPanel();
   const openRef = useCallback(
     (ref: DocRef) => {
-      // Clicking a diagram routes the main body to it (the tab stays put).
-      navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(ref) });
+      // Always open in a tab beside the browser; the body route is the
+      // fallback if the panel declines.
+      if (!openAsTab(panel, ref)) {
+        navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(ref) });
+      }
     },
-    [navigate],
+    [navigate, panel],
   );
-  const openInTab = useCallback(
-    (ref: DocRef) => {
-      openAsTab(panel, ref);
-    },
-    [panel],
-  );
-  return (
-    <VaultBrowser
-      variant="panel"
-      onOpenDiagram={openRef}
-      onOpenDiagramInTab={openInTab}
-    />
-  );
+  return <VaultBrowser variant="panel" onOpenDiagram={openRef} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,9 +238,7 @@ export function ThreadBrowserTab(_props: { threadId: string }) {
     },
     [panel],
   );
-  return (
-    <VaultBrowser variant="panel" onOpenDiagram={openInThread} onOpenDiagramInTab={openInThread} />
-  );
+  return <VaultBrowser variant="panel" onOpenDiagram={openInThread} />;
 }
 
 /** One open diagram beside a thread; opened from the thread's browser. */
@@ -268,6 +262,7 @@ export function ThreadDiagramTab({ params }: { threadId: string; params: unknown
       refValue={parsed as DocRef}
       compact
       className="h-full"
+      startReadOnly
       onSavedAs={(ref) => openAsTab(panel, ref, "thread")}
     />
   );

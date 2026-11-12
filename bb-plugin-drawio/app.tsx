@@ -82,8 +82,8 @@ export default definePluginApp((app) => {
     title: "Diagram",
     icon: "Workflow",
     component: ThreadDiagramTab,
+    params: DIAGRAM_TAB_DEFAULT_PARAMS,
     layout: "flush",
-    useVisible: () => false,
   });
 
   // A Diagram button in the thread header: opens/focuses the browser in the
