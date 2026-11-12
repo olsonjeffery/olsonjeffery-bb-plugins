@@ -53,6 +53,9 @@ export interface UseSpoolsResult {
   ): Promise<void>;
   /** Throw thread (+ family) onto a spool; breaks it out of any other. */
   throwOntoSpool(spoolId: string, threadId: string): Promise<void>;
+  /** Reorder: move thread (+ its family members of the same spool) to the
+   *  top of the roster, preserving family order. Lead and title stay put. */
+  moveThreadToTop(threadId: string): Promise<void>;
   /** Drop one thread (+ family) from its spool, migrating lead/title. */
   releaseThread(threadId: string): Promise<void>;
   renameSpool(spoolId: string, title: string): Promise<void>;
@@ -233,6 +236,27 @@ export function useSpools(args: {
     [childrenOf, membershipByThreadId, write, addPosition, spoolById],
   );
 
+  const moveThreadToTop = useCallback<UseSpoolsResult["moveThreadToTop"]>(
+    async (threadId) => {
+      const membership = membershipByThreadId.get(threadId);
+      if (!membership) return;
+      const family = familyOf({ threadId, childrenOf: childrenOf() });
+      await write(
+        planMetadataWrites(
+          {
+            kind: "moveToTop",
+            spoolId: membership.id,
+            threadIds: family,
+            // Always a top action, whatever the add-position preference is.
+            joinedAt: joinStampFor("top"),
+          },
+          membershipByThreadId,
+        ),
+      );
+    },
+    [childrenOf, membershipByThreadId, write],
+  );
+
   const releaseThread = useCallback<UseSpoolsResult["releaseThread"]>(
     async (threadId) => {
       const membership = membershipByThreadId.get(threadId);
@@ -309,6 +333,7 @@ export function useSpools(args: {
     spoolFor,
     createSpoolFromThread,
     throwOntoSpool,
+    moveThreadToTop,
     releaseThread,
     renameSpool,
     unspool,

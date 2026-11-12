@@ -114,9 +114,9 @@ collapsed and expanded, so the outer row never duplicates the panel:
   the menu never navigates). Mouse keeps right-click.
 - **Context menu order** (threads): Open in split · Pin/Unpin · read /
   unread (+ family read) · Rename… · **Archive** · **Delete…** (danger) ·
-  a **Spools** block (create / release / throw targets) · a **Move to
-  section** block · Copy link last. Renames still work inline via
-  double-click.
+  a **Spools** block (create, or for members move-to-top / release / throw
+  targets) · a **Move to section** block · Copy link last. Renames still
+  work inline via double-click.
 - The menu clamps into the viewport from its MEASURED height: the top
   shifts upward so the whole menu stays in view; it scrolls internally
   only when even that cannot fit the viewport at all.
@@ -208,8 +208,9 @@ collapsed and expanded, so the outer row never duplicates the panel:
 - **Row context menu** (⋯ click, right-click, or press-and-hold): Open in
   split, pin, mark read/unread, mark family read (whole tree), rename,
   **archive**, **delete…** (order: right below Rename, in the top block),
-  the Spools block, the Move-to-section block, then Copy link. Delete
-  routes the host's confirmation.
+  the Spools block (for members: Move to top above Remove from spool), the
+  Move-to-section block, then Copy link. Delete routes the host's
+  confirmation.
 
 ## Thread spools
 
@@ -249,7 +250,11 @@ by the spool's *lead* thread). Details:
 - Menu affordances: the card's ⋯ opens the **spool menu** (open lead /
   move-all-to-section / archive-spool-threads / **unspool**); thread menus
   carry the **Spools** block — *Create spool from this thread* or, for
-  members, *Remove from spool* followed by the throw-onto-spool targets.
+  members, *Move to top* then *Remove from spool* followed by the
+  throw-onto-spool targets. *Move to top* promotes the member (+ its
+  in-spool family, order preserved) to the head of the roster by rewriting
+  only `spoolJoined` — a fresh `-Date.now()` top stamp that out-sorts every
+  existing member while the lead role and the frozen title stay untouched.
   Filing or throwing works from the menu, right-click, or press-and-hold.
   Archive drops a single member's membership silently; unspooling every
   thread is destructive-looking and asks behind a confirm dialog

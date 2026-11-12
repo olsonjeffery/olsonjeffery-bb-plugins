@@ -1523,9 +1523,10 @@ export function SpoolerThreadList({
         icon: "Trash2",
         danger: true,
       },
-      // Spool actions under one "Spools" header: members get a release plus
-      // throw targets (spools never nest, throw breaks out first); plain
-      // threads create a spool or throw onto an existing one.
+      // Spool actions under one "Spools" header: members get a queue
+      // reorder (Move to top), a release, and throw targets (spools never
+      // nest, throw breaks out first); plain threads create a spool or
+      // throw onto an existing one.
       ...(spoolIdByThreadId.has(menuThread.id)
         ? [
             {
@@ -1534,6 +1535,12 @@ export function SpoolerThreadList({
             {
               kind: "header" as const,
               label: "Spools",
+            },
+            {
+              kind: "item" as const,
+              id: "spool:move-top",
+              label: "Move to top",
+              icon: "ChevronsUp",
             },
             {
               kind: "item" as const,
@@ -1620,6 +1627,9 @@ export function SpoolerThreadList({
         } else if (id === "spool:create") {
           await spoolStore.createSpoolFromThread(thread.id);
           toast.success(`Spool created from thread.`);
+        } else if (id === "spool:move-top") {
+          await spoolStore.moveThreadToTop(thread.id);
+          toast.success("Moved to top of spool.");
         } else if (id === "spool:release") {
           await spoolStore.releaseThread(thread.id);
         } else if (id.startsWith("spool-throw:")) {

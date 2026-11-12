@@ -258,6 +258,7 @@ export type SpoolIntent =
     }
   | { kind: "add"; spoolId: string; memberIds: readonly string[]; joinedAt: number; customTitle?: string | null }
   | { kind: "breakOut"; threadIds: readonly string[] }
+  | { kind: "moveToTop"; spoolId: string; threadIds: readonly string[]; joinedAt: number }
   | {
       kind: "rename";
       memberIds: readonly string[];
@@ -315,6 +316,22 @@ export function planMetadataWrites(
       return intent.threadIds
         .filter((threadId) => membershipByThreadId.has(threadId))
         .map((threadId) => ({ threadId, ...releasePatch() }));
+    }
+    case "moveToTop": {
+      // A reorder touches ONLY the join stamp: spool identity, lead role and
+      // custom title stay as they are, so promoting the lead (or a member
+      // carrying a migrated title) can never drop either. Only members of
+      // the addressed spool move — a family member filed in another spool
+      // keeps its own order there. Each moved member gets a fresh stamp
+      // offset by its position (the top-add convention, see addPosition),
+      // so the family lands above every existing member with the parent
+      // still sorting above its children.
+      return intent.threadIds
+        .filter((threadId) => membershipByThreadId.get(threadId)?.id === intent.spoolId)
+        .map((threadId, index) => ({
+          threadId,
+          set: { spoolJoined: intent.joinedAt + index },
+        }));
     }
     case "rename": {
       // Custom title lives on the lead thread only. Renaming replaces it;

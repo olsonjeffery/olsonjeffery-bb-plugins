@@ -221,6 +221,50 @@ describe("planMetadataWrites", () => {
     });
   });
 
+  it("moveToTop restamps only the addressed spool's members, order preserved", () => {
+    const membership = new Map([
+      ["t1", { id: "spool_a", joined: 10, lead: true }],
+      ["t2", { id: "spool_a", joined: 20, lead: false }],
+      ["t3", { id: "spool_a", joined: 30, lead: false }],
+      // A family member filed in ANOTHER spool keeps its own order there.
+      ["t4", { id: "spool_b", joined: 40, lead: false }],
+    ]);
+    const writes = planMetadataWrites(
+      { kind: "moveToTop", spoolId: "spool_a", threadIds: ["t3", "t4"], joinedAt: -1000 },
+      membership as never,
+    ) as SpoolMetadataWrite[];
+    // t4 belongs to spool_b — untouched; t3 lands above every existing
+    // stamp (a fresh -Date.now() top stamp out-sorts even older negative
+    // ones), and the reorder touches ONLY the join stamp.
+    expect(writes).toEqual([{ threadId: "t3", set: { spoolJoined: -1000 } }]);
+  });
+
+  it("moveToTop keeps the family's relative order (parent above children)", () => {
+    const membership = new Map([
+      ["t1", { id: "spool_a", joined: 10, lead: true }],
+      ["t2", { id: "spool_a", joined: 11, lead: false }],
+      ["t3", { id: "spool_a", joined: 12, lead: false }],
+    ]);
+    const writes = planMetadataWrites(
+      { kind: "moveToTop", spoolId: "spool_a", threadIds: ["t1", "t2"], joinedAt: -500 },
+      membership as never,
+    ) as SpoolMetadataWrite[];
+    expect(writes).toEqual([
+      { threadId: "t1", set: { spoolJoined: -500 } },
+      { threadId: "t2", set: { spoolJoined: -499 } },
+    ]);
+    // And t3 — not part of the move — keeps its stamp.
+  });
+
+  it("moveToTop writes nothing for threads outside any spool", () => {
+    const membership = new Map([["t1", { id: "spool_a", joined: 10, lead: true }]]);
+    const writes = planMetadataWrites(
+      { kind: "moveToTop", spoolId: "spool_a", threadIds: ["t9", "t1"], joinedAt: -1000 },
+      membership as never,
+    ) as SpoolMetadataWrite[];
+    expect(writes).toEqual([{ threadId: "t1", set: { spoolJoined: -1000 } }]);
+  });
+
   it("unspool releases every spool key", () => {
     const writes = planMetadataWrites(
       { kind: "unspool", spoolId: "spool_a", memberIds: ["t1", "t2"] },

@@ -183,6 +183,58 @@ describe("useSpools writes", () => {
     expect(joined[1]).toBeGreaterThan(joined[0]);
   });
 
+  it("moveThreadToTop reorders the family to the roster top; lead and title stay put", async () => {
+    fakeList.mockResolvedValue({
+      threads: [
+        metaRow("t1", { spool: "spool_a", spoolJoined: 10, spoolLead: true, spoolTitle: "Named" }),
+        metaRow("t2", { spool: "spool_a", spoolJoined: 20 }),
+      ],
+    });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1", { title: "Alpha" }), t("t2"), t("t3")]);
+    await act(() => utils.result.current.moveThreadToTop("t2"));
+    const calls = fakeUpdate.mock.calls.map((c: any[]) => c[0]);
+    // ONLY the join stamp moves — the lead's role and the frozen title must
+    // survive a reorder, so promoting the lead cannot drop either.
+    expect(calls).toEqual([
+      { threadId: "t2", set: { spoolJoined: expect.any(Number) }, remove: undefined, pluginId: "spools" },
+    ]);
+    expect(calls[0].set["spoolJoined"]).toBeLessThan(0);
+    expect(utils.result.current.spools[0]).toMatchObject({
+      leadThreadId: "t1",
+      customTitle: "Named",
+    });
+  });
+
+  it("moveThreadToTop takes the family along, in family order", async () => {
+    fakeList.mockResolvedValue({
+      threads: [
+        metaRow("t1", { spool: "spool_a", spoolJoined: 10, spoolLead: true }),
+        metaRow("t2", { spool: "spool_a", spoolJoined: 20 }),
+        metaRow("t4", { spool: "spool_a", spoolJoined: 21 }),
+        metaRow("t3", { spool: "spool_a", spoolJoined: 30 }),
+      ],
+    });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([
+      t("t1"), t("t2"), t("t3"), t("t4", { parentThreadId: "t2" }),
+    ]);
+    await act(() => utils.result.current.moveThreadToTop("t2"));
+    const calls = fakeUpdate.mock.calls.map((c: any[]) => c[0]);
+    // The whole family travels (t2 + child t4), the parent still sorting
+    // above its children; t1 and t3 keep their stamps.
+    expect(calls.map((c: any) => c.threadId)).toEqual(["t2", "t4"]);
+    expect(calls[1].set["spoolJoined"]).toBeGreaterThan(calls[0].set["spoolJoined"]);
+  });
+
+  it("moveThreadToTop is a no-op for a thread outside any spool", async () => {
+    fakeList.mockResolvedValue({ threads: [] });
+    fakeUpdate.mockResolvedValue({});
+    const utils = await render([t("t1")]);
+    await act(() => utils.result.current.moveThreadToTop("t1"));
+    expect(fakeUpdate).not.toHaveBeenCalled();
+  });
+
   it("releaseThread migrates the title AND the real lead when the lead leaves", async () => {
     fakeList.mockResolvedValue({
       threads: [

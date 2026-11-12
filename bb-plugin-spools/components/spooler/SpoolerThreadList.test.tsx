@@ -421,6 +421,67 @@ describe("actions", () => {
       }),
     );
   });
+
+  it("a member's menu carries Move to top right above Remove from spool", async () => {
+    const meta: Record<string, Record<string, unknown>> = {
+      t1: { spool: "spool_a", spoolJoined: 10, spoolLead: true },
+      t2: { spool: "spool_a", spoolJoined: 20 },
+    };
+    const updatePluginMetadata = vi.fn(
+      async (_write: { threadId: string; pluginId: string; set?: Record<string, unknown> }) => ({}),
+    );
+    const sdk = {
+      ...sdkFakes(),
+      threads: {
+        ...(sdkFakes().threads as Record<string, unknown>),
+        updatePluginMetadata,
+        experimental_listPluginMetadata: async ({ threadIds }: any) => ({
+          threads: threadIds
+            .filter((id: string) => meta[id])
+            .map((id: string) => ({ threadId: id, metadata: meta[id] })),
+        }),
+      },
+    };
+    const slot = renderThreads(
+      [makeThread({ id: "t1" }), makeThread({ id: "t2" }), makeThread({ id: "t3" })],
+      { sdk },
+    );
+
+    const moreOf = (threadId: string) =>
+      (slot.container.querySelector(
+        `[data-sidebar-thread-id="${threadId}"] [aria-label="More actions"]`,
+      ) as HTMLElement);
+
+    // A plain thread gets neither reorder nor release — it creates instead.
+    fireEvent.click(moreOf("t3"));
+    const plainItems = Array.from(
+      screen.getByRole("menu").querySelectorAll('[role="menuitem"]'),
+    ).map((node) => node.textContent);
+    expect(plainItems).toContain("Create Spool from this Thread");
+    expect(plainItems).not.toContain("Move to top");
+    expect(plainItems).not.toContain("Remove from spool");
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    // The member's Spools block: Move to top sits right above Remove.
+    fireEvent.click(moreOf("t2"));
+    // findBy: the membership fetch may still be in flight when the menu opens.
+    const moveToTop = await screen.findByRole("menuitem", { name: "Move to top" });
+    const items = Array.from(
+      screen.getByRole("menu").querySelectorAll('[role="menuitem"]'),
+    ).map((node) => node.textContent);
+    expect(items.indexOf("Move to top")).toBe(items.indexOf("Remove from spool") - 1);
+
+    fireEvent.click(moveToTop);
+    await waitFor(() => expect(updatePluginMetadata).toHaveBeenCalled());
+    const call = updatePluginMetadata.mock.calls[0][0];
+    // A reorder restamps ONLY the join stamp — lead and title keys survive.
+    // (The pluginId is the harness's own; the real install uses "spools".)
+    expect(call.threadId).toBe("t2");
+    expect(call.pluginId).toEqual(expect.any(String));
+    expect(call.set).toMatchObject({ spoolJoined: expect.any(Number) });
+    expect(Object.keys(call.set ?? {})).toEqual(["spoolJoined"]);
+    expect(((call.set ?? {})["spoolJoined"] ?? 0) as number).toBeLessThan(0);
+  });
 });
 
 describe("swipe actions", () => {
