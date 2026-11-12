@@ -8,7 +8,7 @@ import { useRealtime, useRpc, useSettings } from "@get-bb/plugin-sdk/app";
 import type { rpcContract, DocRef } from "../contract.js";
 import { UNTITLED_PREFIX } from "../contract.js";
 import type { DraftSummary, VaultFileEntry, VaultSummary } from "../contract.js";
-import { SetupHint } from "./DiagramsBrowser.js";
+import { SetupHint } from "./VaultBrowser.js";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -69,6 +69,8 @@ export function HomeView({ onOpenRef, onOpenDraft }: HomeViewProps) {
   useRealtime("drawio", load);
 
   const untitledDrafts = drafts ?? [];
+  // The cache now carries every vault file; the home's recents stay diagrams.
+  const diagrams = (files ?? []).filter((file) => file.path.toLowerCase().endsWith(".drawio"));
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
@@ -125,14 +127,14 @@ export function HomeView({ onOpenRef, onOpenDraft }: HomeViewProps) {
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">Recent vault diagrams</h3>
           {files === null ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : files.length === 0 ? (
+          ) : diagrams.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
               No diagrams in the default vault yet.
               {configured ? " Create one with New diagram (in the browser), or open any .drawio file from a workspace." : ""}
             </div>
           ) : (
             <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-              {files.slice(0, 12).map((file) => (
+              {diagrams.slice(0, 12).map((file) => (
                 <li key={file.path}>
                   <button
                     type="button"

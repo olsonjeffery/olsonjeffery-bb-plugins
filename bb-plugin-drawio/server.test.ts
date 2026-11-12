@@ -166,9 +166,12 @@ describe("drawio backend", () => {
 
       const first = await host.behavior.callRpc("vault.files", { vaultId: "v1", refresh: false });
       expect(snapshotCount).toBe(1);
+      // The browser is a complete vault browser: every file type is cached,
+      // not just .drawio (bb's own Docs browser hides non-Markdown files).
       expect(first.files.map((entry: { path: string }) => entry.path)).toEqual([
         "diagrams/a.drawio",
         "diagrams/b.drawio",
+        "notes/todo.md",
       ]);
 
       // Second read: served from the cache, no second snapshot.

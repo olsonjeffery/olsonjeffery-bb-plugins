@@ -22,6 +22,7 @@ const RPC = {
     files: [
       { path: "diagrams/flow.drawio", sha256: "s1", sizeBytes: 10, modifiedAtMs: 1_000_000 },
       { path: "diagrams/nested/plan.drawio", sha256: "s2", sizeBytes: 10, modifiedAtMs: 2_000_000 },
+      { path: "notes/todo.md", sha256: "s3", sizeBytes: 5, modifiedAtMs: 3_000_000 },
     ],
     refreshedAtMs: 9,
     stale: false,
@@ -43,7 +44,9 @@ describe("drawio frontend", () => {
     expect(app.navPanels).toHaveLength(1);
     expect(app.navPanels[0]).toMatchObject({ id: "diagrams", title: "Diagrams", path: "diagrams" });
     const tabs = app.tabs.filter((tab) => tab.context.kind === "nav-panel");
-    expect(tabs.map((tab) => `${tab.id}:${tab.availability}`)).toEqual(["browser:fixed", "diagram:action"]);
+    // The vault browser is an addable window type (action tab), not a fixed
+    // destination; the drawio-only fixed browser is gone.
+    expect(tabs.map((tab) => `${tab.id}:${tab.availability}`)).toEqual(["browser:action", "diagram:action"]);
     expect(app.fileOpeners).toHaveLength(1);
     expect(app.fileOpeners[0]).toMatchObject({ id: "drawio", extensions: ["drawio"] });
   });
@@ -67,7 +70,7 @@ describe("drawio frontend", () => {
     slot.lifecycle.unmount();
   });
 
-  it("the sidebar browser renders vaults and files", async () => {
+  it("the sidebar browser lists every vault file type with delete actions", async () => {
     const app = await loadApp();
     const sidebar = app.navPanels[0]!.experimental_sidebar;
     expect(sidebar).toBeDefined();
@@ -79,6 +82,10 @@ describe("drawio frontend", () => {
     );
     await slot.findByText("New diagram");
     await slot.findByText("flow.drawio");
+    // Non-diagram vault files are listed too, and every row carries actions.
+    await slot.findByText("todo.md");
+    await slot.findByLabelText("Actions for flow.drawio");
+    await slot.findByLabelText("Actions for todo.md");
     slot.lifecycle.unmount();
   });
 

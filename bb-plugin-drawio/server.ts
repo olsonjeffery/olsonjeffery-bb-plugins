@@ -21,6 +21,8 @@ import { VaultAdapter } from "./vault.js";
 import { WorkspaceAdapter } from "./workspace.js";
 
 const SETTINGS_SCHEMA_MAX_URL = 2000;
+/** How long a vault's discovery cache serves reads before re-snapshotting. */
+const VAULT_CACHE_TTL_MS = 120_000;
 
 // The URL/folder schemas run on the server for settings-page autosaves,
 // `bb plugin config`, and `experimental_set`; keep them synchronous and
@@ -129,17 +131,22 @@ export default async function plugin(bb: BbPluginApi) {
     };
   };
 
-  /** Full snapshot → cache rows for .drawio files only (content is dropped). */
+  /**
+   * Full snapshot → cache rows for EVERY vault file (content is dropped): the
+   * browser is a complete Docs-vault browser, not a drawio-only one. bb's own
+   * Docs browser lists Markdown/HTML only, so this is where all file types
+   * stay visible.
+   */
   async function refreshVaultCache(vaultId: string, now: number): Promise<VaultFileEntry[]> {
     const { files } = await vault.snapshot(vaultId, { kind: "all" });
     const entries: VaultFileEntry[] = files
-      .filter((file) => file.remotePath.toLowerCase().endsWith(".drawio"))
       .map((file) => ({
         path: file.remotePath,
         sha256: file.sha256,
         sizeBytes: file.sizeBytes,
         modifiedAtMs: file.modifiedAtMs ?? 0,
-      }));
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
     store.syncVault(vaultId, entries, now);
     return entries;
   }
@@ -171,11 +178,15 @@ export default async function plugin(bb: BbPluginApi) {
 
     "vault.files": async ({ vaultId, refresh }) => {
       const now = Date.now();
-      if (refresh || store.vaultSyncedAt(vaultId) === null) {
+      const syncedAt = store.vaultSyncedAt(vaultId);
+      // TTL auto-refresh: files created outside this plugin (agents, bb docs)
+      // appear within two minutes without anyone pressing refresh.
+      const expired = syncedAt === null || now - syncedAt > VAULT_CACHE_TTL_MS;
+      if (refresh || expired) {
         const files = await refreshVaultCache(vaultId, now);
         return { files, refreshedAtMs: now, stale: false };
       }
-      return { files: store.vaultFiles(vaultId), refreshedAtMs: store.vaultSyncedAt(vaultId) ?? now, stale: false };
+      return { files: store.vaultFiles(vaultId), refreshedAtMs: syncedAt, stale: false };
     },
 
     "vault.read": async ({ vaultId, path }) => {

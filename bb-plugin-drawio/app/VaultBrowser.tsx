@@ -1,15 +1,23 @@
-// bb-plugin-drawio — the diagram browser.
+// bb-plugin-drawio — the Docs-vault browser.
 //
-// The vault picker + folder tree + .drawio list, shared by the left sidebar
-// (experimental_sidebar) and the panel's fixed right-panel tab. Clicking a
-// diagram opens it through the callback the surface provides; the panel tab
-// additionally offers "open in tab" (its own panel controller).
+// A complete vault file browser (every file type — bb's own Docs browser
+// lists Markdown/HTML only, so .drawio and everything else would be
+// invisible there), shared by the left sidebar (experimental_sidebar) and
+// the "Vault browser" right-panel window tab. Diagrams open in the embedded
+// editor; other files open in BB's built-in preview; everything can be
+// deleted (with a confirm), which keeps the vault honest from both panes.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRealtime, useRpc, useSettings } from "@get-bb/plugin-sdk/app";
+import {
+  useRealtime,
+  useRpc,
+  useSettings,
+  useSdk,
+  useBbNavigate,
+} from "@get-bb/plugin-sdk/app";
+import { toast } from "sonner";
 import type { rpcContract } from "../contract.js";
 import { STARTER_XML } from "../contract.js";
 import type { DocRef, VaultFileEntry, VaultSummary } from "../contract.js";
-import { docTitle } from "./drawio.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,12 +39,12 @@ import { cn } from "@/lib/utils";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
 
-export interface DiagramsBrowserProps {
+export interface VaultBrowserProps {
   variant: "sidebar" | "panel";
-  /** What opening a doc means on this surface. */
-  onOpenRef: (ref: DocRef) => void;
-  /** Only the panel tab has a controller that can open action tabs. */
-  onOpenTab?: (ref: DocRef) => void;
+  /** Opening a diagram means on this surface (body navigation / tab opening). */
+  onOpenDiagram: (ref: DocRef) => void;
+  /** Only the panel variant has a controller that can open action tabs. */
+  onOpenDiagramInTab?: (ref: DocRef) => void;
 }
 
 interface FolderNode {
@@ -45,19 +53,22 @@ interface FolderNode {
   folders: Map<string, FolderNode>;
 }
 
-export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrowserProps) {
+export function VaultBrowser({ variant, onOpenDiagram, onOpenDiagramInTab }: VaultBrowserProps) {
   const rpc = useRpc<typeof rpcContract>();
-  const values = useSettings().values ?? {};
+  const sdk = useSdk();
+  const navigate = useBbNavigate();
+  const { values } = useSettings();
   const [vaults, setVaults] = useState<VaultSummary[] | null>(null);
   const [vaultId, setVaultId] = useState<string>("");
   const [files, setFiles] = useState<VaultFileEntry[] | null>(null);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VaultFileEntry | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const configured = typeof values.instanceUrl === "string" && values.instanceUrl.trim() !== "";
-  const preferredVault = typeof values.defaultVaultId === "string" ? values.defaultVaultId : "";
+  const configured = typeof values?.instanceUrl === "string" && values.instanceUrl.trim() !== "";
+  const preferredVault = typeof values?.defaultVaultId === "string" ? values.defaultVaultId : "";
 
   const loadVaults = useCallback(() => {
     rpc
@@ -102,7 +113,7 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
   useEffect(() => loadFiles(false), [loadFiles]);
   useRealtime("drawio", () => loadFiles(false));
 
-  // First-level folders start expanded so the diagram list is one glance away;
+  // First-level folders start expanded so the file list is one glance away;
   // once the user collapses anything, their choices win.
   useEffect(() => {
     if (files === null) return;
@@ -118,6 +129,51 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
   }, [files]);
 
   const tree = useMemo(() => buildTree(files ?? []), [files]);
+
+  const openFile = useCallback(
+    (file: VaultFileEntry) => {
+      const vault = (vaults ?? []).find((candidate) => candidate.id === vaultId);
+      if (vault === undefined) return;
+      // BB's built-in preview takes a live host-file target; a vault's hostId
+      // of null means the server machine (its primary host).
+      void (async () => {
+        const primaryHostId = (await sdk.system.config()).primaryHostId;
+        const hostId = vault.hostId ?? primaryHostId;
+        if (!hostId) {
+          toast.error("No host is known for this vault's files.");
+          return;
+        }
+        navigate.experimental_openFilePreview({
+          target: { kind: "host", hostId, path: `${vault.rootPath}/${file.path}` },
+          location: null,
+        });
+      })();
+    },
+    [navigate, sdk, vaultId, vaults],
+  );
+
+  const openRow = useCallback(
+    (file: VaultFileEntry) => {
+      if (file.path.toLowerCase().endsWith(".drawio")) {
+        onOpenDiagram({ kind: "vault", vaultId, path: file.path });
+      } else {
+        openFile(file);
+      }
+    },
+    [onOpenDiagram, openFile, vaultId],
+  );
+
+  const confirmDelete = useCallback(async () => {
+    if (deleteTarget === null) return;
+    try {
+      await rpc.call("vault.delete", { vaultId, path: deleteTarget.path });
+      toast.success(`Deleted ${deleteTarget.path}`);
+      setDeleteTarget(null);
+      loadFiles(false);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [deleteTarget, loadFiles, rpc, vaultId]);
 
   if (!configured) {
     return (
@@ -148,7 +204,7 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
           variant="ghost"
           size="icon"
           className="size-7 shrink-0"
-          aria-label="Refresh diagram list"
+          aria-label="Refresh file list"
           disabled={refreshing || vaultId === ""}
           onClick={() => loadFiles(true)}
         >
@@ -168,11 +224,11 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {files === null && vaultId !== "" ? (
-          <p className="px-1 py-2 text-xs text-muted-foreground">Loading diagrams…</p>
+          <p className="px-1 py-2 text-xs text-muted-foreground">Loading files…</p>
         ) : null}
         {files !== null && files.length === 0 ? (
           <p className="px-1 py-2 text-xs text-muted-foreground">
-            No .drawio files in this vault yet. Create one above.
+            This vault is empty. Diagrams created here appear as .drawio files.
           </p>
         ) : null}
         {[...tree.folders.values()].map((node) => (
@@ -181,6 +237,7 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
             node={node}
             depth={0}
             prefix=""
+            vaultId={vaultId}
             expanded={expanded}
             toggle={(path) =>
               setExpanded((current) => {
@@ -193,10 +250,22 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
                 return next;
               })
             }
-            onOpen={(path) => onOpenRef({ kind: "vault", vaultId, path })}
-            onOpenTab={
-              onOpenTab === undefined ? undefined : (path) => onOpenTab({ kind: "vault", vaultId, path })
-            }
+            onOpen={openRow}
+            onOpenInTab={onOpenDiagramInTab}
+            onOpenPlain={openFile}
+            onDelete={setDeleteTarget}
+          />
+        ))}
+        {tree.files.map((file) => (
+          <FileRow
+            key={file.path}
+            file={file}
+            depth={0}
+            vaultId={vaultId}
+            onOpen={openRow}
+            onOpenInTab={onOpenDiagramInTab}
+            onOpenPlain={openFile}
+            onDelete={setDeleteTarget}
           />
         ))}
       </div>
@@ -205,7 +274,7 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
         <NewDiagramDialog
           vaults={vaults ?? []}
           initialVaultId={vaultId}
-          defaultFolder={typeof values.defaultFolder === "string" ? values.defaultFolder : "diagrams"}
+          defaultFolder={typeof values?.defaultFolder === "string" ? values.defaultFolder : "diagrams"}
           onClose={() => setNewOpen(false)}
           onCreate={async (targetVaultId, path) => {
             const result = await rpc.call("vault.create", {
@@ -218,8 +287,16 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
             }
             setNewOpen(false);
             loadFiles(false);
-            onOpenRef({ kind: "vault", vaultId: targetVaultId, path });
+            onOpenDiagram({ kind: "vault", vaultId: targetVaultId, path });
           }}
+        />
+      ) : null}
+
+      {deleteTarget !== null ? (
+        <DeleteDialog
+          path={deleteTarget.path}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => void confirmDelete()}
         />
       ) : null}
     </BrowserShell>
@@ -246,34 +323,44 @@ export function SetupHint() {
       <p className="mt-1">
         Point Drawio at a self-hosted draw.io webapp under Settings → Plugins → Drawio (or{" "}
         <code>bb plugin config drawio set instanceUrl &lt;url&gt;</code>). The official{" "}
-        <code>jgraph/drawio</code> Docker image works as-is.
+        <code>jgraph/drawio</code> Docker image works as-is — see the plugin's{" "}
+        <code>deploy/</code> for a systemd unit.
       </p>
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Tree rendering
+// ---------------------------------------------------------------------------
+
 interface RowActions {
-  onOpen: (path: string) => void;
-  onOpenTab?: (path: string) => void;
+  vaultId: string;
+  onOpen: (file: VaultFileEntry) => void;
+  /** Opening a non-diagram in BB's preview (rows that are not diagrams). */
+  onOpenPlain: (file: VaultFileEntry) => void;
+  onOpenInTab?: (ref: DocRef) => void;
+  onDelete: (file: VaultFileEntry) => void;
 }
 
 function FolderRow({
   node,
   depth,
   prefix,
+  vaultId,
   expanded,
   toggle,
   onOpen,
-  onOpenTab,
+  onOpenPlain,
+  onOpenInTab,
+  onDelete,
 }: {
   node: FolderNode;
   depth: number;
   prefix: string;
   expanded: Set<string>;
   toggle: (path: string) => void;
-  onOpen: RowActions["onOpen"];
-  onOpenTab?: RowActions["onOpenTab"];
-}) {
+} & RowActions) {
   const path = prefix === "" ? node.name : `${prefix}/${node.name}`;
   const isOpen = expanded.has(path);
   const hasChildren = node.folders.size > 0 || node.files.length > 0;
@@ -298,19 +385,25 @@ function FolderRow({
               node={child}
               depth={depth + 1}
               prefix={path}
+              vaultId={vaultId}
               expanded={expanded}
               toggle={toggle}
               onOpen={onOpen}
-              onOpenTab={onOpenTab}
+              onOpenPlain={onOpenPlain}
+              onOpenInTab={onOpenInTab}
+              onDelete={onDelete}
             />
           ))}
           {node.files.map((file) => (
             <FileRow
               key={file.path}
-              path={file.path}
+              file={file}
               depth={depth + 1}
+              vaultId={vaultId}
               onOpen={onOpen}
-              onOpenTab={onOpenTab}
+              onOpenPlain={onOpenPlain}
+              onOpenInTab={onOpenInTab}
+              onDelete={onDelete}
             />
           ))}
         </div>
@@ -319,17 +412,35 @@ function FolderRow({
   );
 }
 
-function FileRow({ path, depth, onOpen, onOpenTab }: { path: string; depth: number } & RowActions) {
+function fileGlyph(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".drawio")) return "Workflow";
+  if (lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".html")) return "FileText";
+  if (/\.(png|jpe?g|gif|webp|svg)$/.test(lower)) return "Image";
+  return "File";
+}
+
+function FileRow({
+  file,
+  depth,
+  vaultId,
+  onOpen,
+  onOpenPlain,
+  onOpenInTab,
+  onDelete,
+}: { file: VaultFileEntry; depth: number } & RowActions) {
+  const isDiagram = file.path.toLowerCase().endsWith(".drawio");
+  const title = fileName(file.path);
   return (
     <div className="group/row flex items-center gap-0.5 rounded-md pr-1 hover:bg-accent" style={{ paddingLeft: `${depth * 12 + 4}px` }}>
       <button
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-xs"
-        onClick={() => onOpen(path)}
-        title={path}
+        onClick={() => onOpen(file)}
+        title={file.path}
       >
-        <Icon name="Workflow" className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 truncate">{docTitleFromPath(path)}</span>
+        <Icon name={fileGlyph(file.path)} className={cn("size-3.5 shrink-0", isDiagram ? "text-foreground/80" : "text-muted-foreground")} />
+        <span className="min-w-0 truncate">{title}</span>
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -337,23 +448,36 @@ function FileRow({ path, depth, onOpen, onOpenTab }: { path: string; depth: numb
             variant="ghost"
             size="icon"
             className="size-6 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
-            aria-label={`Actions for ${docTitleFromPath(path)}`}
+            aria-label={`Actions for ${title}`}
           >
             <Icon name="MoreHorizontal" className="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuItem onSelect={() => onOpen(path)}>Open</DropdownMenuItem>
-          {onOpenTab !== undefined ? (
-            <DropdownMenuItem onSelect={() => onOpenTab(path)}>Open in tab</DropdownMenuItem>
-          ) : null}
+          {isDiagram ? (
+            <>
+              <DropdownMenuItem onSelect={() => onOpen(file)}>Open</DropdownMenuItem>
+              {onOpenInTab !== undefined ? (
+                <DropdownMenuItem
+                  onSelect={() => onOpenInTab({ kind: "vault", vaultId, path: file.path })}
+                >
+                  Open in tab
+                </DropdownMenuItem>
+              ) : null}
+            </>
+          ) : (
+            <DropdownMenuItem onSelect={() => onOpenPlain(file)}>Open in preview</DropdownMenuItem>
+          )}
+          <DropdownMenuItem className="text-destructive" onSelect={() => onDelete(file)}>
+            Delete…
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   );
 }
 
-function docTitleFromPath(path: string): string {
+function fileName(path: string): string {
   return path.split("/").pop() ?? path;
 }
 
@@ -456,6 +580,38 @@ function NewDiagramDialog({
             }}
           >
             {pending ? "Creating…" : "Create"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteDialog({
+  path,
+  onClose,
+  onConfirm,
+}: {
+  path: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {fileName(path)}?</DialogTitle>
+          <DialogDescription>
+            The file is removed from the vault (with any kept draft). Agents and the
+            Docs plugin see the same deletion. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            Delete
           </Button>
         </DialogFooter>
       </DialogContent>

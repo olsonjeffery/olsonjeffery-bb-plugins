@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Docs-vault browser replaces the drawio-only file list.** Both the route's
+  left sidebar and the right-panel window tab now list every file in the
+  selected vault (bb's own Docs browser hides non-Markdown files); non-diagram
+  files open in bb's built-in preview, diagrams in the embedded editor.
+- **Delete** on every row (confirm dialog; the kept draft is discarded with
+  the file; the discovery cache self-heals).
+- The browser window tab is an **addable, closable action tab**
+  ("Vault browser" in the panel's New-tab menu); the fixed drawio-only
+  browser tab is gone.
+- Vault discovery auto-refreshes after two minutes, so files created outside
+  the plugin (agents, `bb docs`) appear without pressing refresh.
+
 ## 0.1.0 — the core loop
 
 - `deploy/`: a systemd **user** unit (`drawio.service`) plus

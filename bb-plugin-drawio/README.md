@@ -36,9 +36,14 @@ separate store, no exports hoarded by the plugin: a diagram is just a
 - **Diagrams nav panel** — the home state (New diagram, Import XML, recent
   vault diagrams, kept drafts) routes to the full-bleed editor via
   `open/…` deep links.
-- **Browser sidebar** — while the Diagrams route is active, the app sidebar
-  becomes a vault picker + folder tree + `.drawio` list. The same browser is
-  also a fixed right-panel tab.
+- **Docs-vault browser** — while the Diagrams route is active, the app sidebar
+  becomes a vault picker + folder tree listing **every file in the vault**
+  (diagrams open in the embedded editor; everything else opens in bb's
+  built-in preview). It is also available as an **addable window type** —
+  "Vault browser" in the right panel's New-tab menu — closable, next to
+  diagram tabs. Every row has actions: open, open-in-tab (diagrams), and
+  **Delete** (with a confirm; the kept draft goes with it). bb's own Docs
+  browser lists Markdown/HTML only, so `.drawio` files only appear here.
 - **One tab per diagram** — each open diagram is an action tab with persisted
   params; several can be open at once, and they survive restarts.
 - **System `.drawio` editor** — a `fileOpener` renders the embedded editor for
@@ -49,7 +54,9 @@ separate store, no exports hoarded by the plugin: a diagram is just a
 
 - **Vaults** — diagrams live as `.drawio` files in official Docs vaults
   (default folder `diagrams/`), through the bundled Docs plugin's RPC: a
-  cached snapshot for discovery, compare-and-swap `saveNote` writes. A CAS
+  cached snapshot for discovery (every file type, auto-refreshed after two
+  minutes so agent-created files appear on their own), compare-and-swap
+  `saveNote` writes, and `deletePath` deletes. A CAS
   conflict — an agent or another window saved meanwhile — never clobbers: the
   editor offers reload (your edit is kept as a draft) or overwrite.
 - **Workspaces & host paths** — the fileOpener loads and saves through

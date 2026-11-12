@@ -12,12 +12,13 @@
 //     links, bb thread open — renders in the same embedded editor.
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import {
+  BROWSER_TAB_DEFAULT_PARAMS,
   DIAGRAM_TAB_DEFAULT_PARAMS,
   DiagramActionTab,
-  DiagramsBrowserTab,
   DiagramsPanelBody,
   DiagramsSidebar,
   FileOpenerEditor,
+  VaultBrowserTab,
 } from "./app/Surfaces.js";
 import { PANEL_PATH } from "./app/drawio.js";
 
@@ -31,15 +32,17 @@ export default definePluginApp((app) => {
     experimental_sidebar: DiagramsSidebar,
   });
 
-  // The browser as a fixed right-panel tab: open a second diagram beside the
-  // body view, or browse while the body stays on the home state.
+  // The Docs-vault browser as an addable, closable right-panel window type
+  // (panel New-tab menu): browse everything in the vault beside whatever the
+  // body shows. The old drawio-only fixed browser is gone.
   app.slots.experimental_tab({
     context: { kind: "nav-panel", panelId: PANEL_PATH },
-    availability: "fixed",
+    availability: "action",
     id: "browser",
-    title: "Diagrams",
+    title: "Vault browser",
     icon: "FolderOpen",
-    component: DiagramsBrowserTab,
+    component: VaultBrowserTab,
+    params: BROWSER_TAB_DEFAULT_PARAMS,
     layout: "flush",
   });
 

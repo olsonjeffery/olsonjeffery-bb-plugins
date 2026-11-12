@@ -4,7 +4,8 @@
 //   DiagramsPanelBody    — the nav panel route body (subPath-routed editor
 //                          or home), the main full-bleed editor surface
 //   DiagramsSidebar      — the left sidebar while the panel route is active
-//   DiagramsBrowserTab   — the panel's fixed right-panel tab (the browser)
+//   VaultBrowserTab      — the "Vault browser" right-panel window type
+//                          (addable from the panel's New-tab menu; closable)
 //   DiagramActionTab     — one open diagram per action tab, params persisted
 //   FileOpenerEditor     — any .drawio file BB opens (file picker, markdown
 //                          links, bb thread open)
@@ -27,19 +28,22 @@ import {
   PANEL_PATH,
 } from "./drawio.js";
 import { DiagramView } from "./DiagramView.js";
-import { DiagramsBrowser } from "./DiagramsBrowser.js";
+import { VaultBrowser } from "./VaultBrowser.js";
 import { HomeView } from "./HomeView.js";
 import { Icon } from "@/components/ui/icon";
 
-const TAB_REFERENCE = {
+const DIAGRAM_TAB_REFERENCE = {
   id: "diagram",
   context: { kind: "nav-panel", panelId: PANEL_PATH },
   availability: "action",
 } as const;
 
-function openAsTab(panel: Pick<ExperimentalPanelController, "openTab">, ref: DocRef): void {
+function openAsTab(
+  panel: Pick<ExperimentalPanelController, "openTab">,
+  ref: DocRef,
+): void {
   panel.openTab({
-    tab: TAB_REFERENCE,
+    tab: DIAGRAM_TAB_REFERENCE,
     params: ref as unknown as JsonValue,
     title: docTitle(ref),
   });
@@ -117,7 +121,7 @@ export function DiagramsSidebar({ subPath }: PluginNavPanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1 flex-col">
-        <DiagramsBrowser variant="sidebar" onOpenRef={openRef} />
+        <VaultBrowser variant="sidebar" onOpenDiagram={openRef} />
       </div>
       {current !== null ? (
         <div className="border-t border-border px-2 py-1.5 text-xs text-muted-foreground">
@@ -129,25 +133,32 @@ export function DiagramsSidebar({ subPath }: PluginNavPanelProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Fixed right-panel tab: the browser
+// "Vault browser" window type: an addable, closable right-panel tab
 // ---------------------------------------------------------------------------
 
-export function DiagramsBrowserTab(_props: PluginNavPanelProps) {
+export function VaultBrowserTab(_props: PluginNavPanelProps) {
   const navigate = useBbNavigate();
   const panel = experimental_useAppPanel();
   const openRef = useCallback(
     (ref: DocRef) => {
+      // Clicking a diagram routes the main body to it (the tab stays put).
       navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(ref) });
     },
     [navigate],
   );
-  const openTab = useCallback(
+  const openInTab = useCallback(
     (ref: DocRef) => {
       openAsTab(panel, ref);
     },
     [panel],
   );
-  return <DiagramsBrowser variant="panel" onOpenRef={openRef} onOpenTab={openTab} />;
+  return (
+    <VaultBrowser
+      variant="panel"
+      onOpenDiagram={openRef}
+      onOpenDiagramInTab={openInTab}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +175,7 @@ export function DiagramActionTab({ params }: PluginNavPanelProps & { params: unk
       <div className="h-full min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl space-y-3 px-3 py-4">
           <p className="text-xs text-muted-foreground">
-            Pick a diagram from the browser (fixed tab or the sidebar) to pin it here.
+            Pick a diagram from the vault browser (window tab or the sidebar) to pin it here.
           </p>
           <HomeView
             onOpenRef={(ref) => openAsTab(panel, ref)}
@@ -211,5 +222,8 @@ export function FileOpenerEditor({ path, source }: PluginFileOpenerProps) {
   );
 }
 
-// Typed params for the action tab registration (persisted JSON).
+// Typed params for the browser window tab (persisted JSON).
+export const BROWSER_TAB_DEFAULT_PARAMS: DiagramTabParams = { kind: "home" };
+
+// Typed params for the diagram action tab (persisted JSON).
 export const DIAGRAM_TAB_DEFAULT_PARAMS: DiagramTabParams = { kind: "home" };
