@@ -38,14 +38,40 @@ const DIAGRAM_TAB_REFERENCE = {
   availability: "action",
 } as const;
 
+const THREAD_DIAGRAM_TAB_REFERENCE = {
+  id: "diagram",
+  context: { kind: "thread" },
+  availability: "action",
+} as const;
+
+const THREAD_BROWSER_TAB_REFERENCE = {
+  id: "browser",
+  context: { kind: "thread" },
+  availability: "action",
+} as const;
+
+type TabSurface = "nav-panel" | "thread";
+
 function openAsTab(
   panel: Pick<ExperimentalPanelController, "openTab">,
   ref: DocRef,
+  surface: TabSurface = "nav-panel",
 ): void {
   panel.openTab({
-    tab: DIAGRAM_TAB_REFERENCE,
+    tab: surface === "thread" ? THREAD_DIAGRAM_TAB_REFERENCE : DIAGRAM_TAB_REFERENCE,
     params: ref as unknown as JsonValue,
     title: docTitle(ref),
+  });
+}
+
+function openBrowserTab(
+  panel: Pick<ExperimentalPanelController, "openTab">,
+  surface: TabSurface,
+): void {
+  panel.openTab({
+    tab: surface === "thread" ? THREAD_BROWSER_TAB_REFERENCE : { ...THREAD_BROWSER_TAB_REFERENCE, context: { kind: "nav-panel", panelId: PANEL_PATH } },
+    params: BROWSER_TAB_DEFAULT_PARAMS as unknown as JsonValue,
+    title: "Draw.io Browser",
   });
 }
 
@@ -193,10 +219,67 @@ export function DiagramActionTab({ params }: PluginNavPanelProps & { params: unk
     <DiagramView
       refValue={parsed as DocRef}
       compact
-      className="min-h-0"
+      className="h-full"
       onSavedAs={(ref) => openAsTab(panel, ref)}
     />
   );
+}
+
+// ---------------------------------------------------------------------------
+// Thread tabs: the browser and inline diagrams beside a thread's transcript
+// ---------------------------------------------------------------------------
+
+/**
+ * The browser inside a thread's right panel: clicking a diagram opens it as a
+ * sibling tab in the SAME panel (never the plugin page — that would yank the
+ * user out of the thread).
+ */
+export function ThreadBrowserTab(_props: { threadId: string }) {
+  const panel = experimental_useAppPanel();
+  const openInThread = useCallback(
+    (ref: DocRef) => {
+      openAsTab(panel, ref, "thread");
+    },
+    [panel],
+  );
+  return (
+    <VaultBrowser variant="panel" onOpenDiagram={openInThread} onOpenDiagramInTab={openInThread} />
+  );
+}
+
+/** One open diagram beside a thread; opened from the thread's browser. */
+export function ThreadDiagramTab({ params }: { threadId: string; params: unknown }) {
+  const panel = experimental_useAppPanel();
+  const parsed = useMemo(() => parseTabParams(params), [params]);
+
+  if (parsed === null || parsed.kind !== "vault" && parsed.kind !== "file") {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center p-4">
+        <p className="max-w-xs text-center text-xs text-muted-foreground">
+          Open the Draw.io Browser from this panel's New-tab menu (or the thread header's
+          Diagram button) and pick a diagram to pin it here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <DiagramView
+      refValue={parsed as DocRef}
+      compact
+      className="h-full"
+      onSavedAs={(ref) => openAsTab(panel, ref, "thread")}
+    />
+  );
+}
+
+/** Thread header button: opens the browser in the thread's own panel. */
+export function openThreadBrowserFromAction(panel: Pick<ExperimentalPanelController, "openTab">): boolean {
+  return panel.openTab({
+    tab: THREAD_BROWSER_TAB_REFERENCE,
+    params: BROWSER_TAB_DEFAULT_PARAMS as unknown as JsonValue,
+    title: "Draw.io Browser",
+  });
 }
 
 // ---------------------------------------------------------------------------

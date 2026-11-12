@@ -18,7 +18,10 @@ import {
   DiagramsPanelBody,
   DiagramsSidebar,
   FileOpenerEditor,
+  ThreadBrowserTab,
+  ThreadDiagramTab,
   VaultBrowserTab,
+  openThreadBrowserFromAction,
 } from "./app/Surfaces.js";
 import { PANEL_PATH } from "./app/drawio.js";
 
@@ -32,14 +35,14 @@ export default definePluginApp((app) => {
     experimental_sidebar: DiagramsSidebar,
   });
 
-  // The Docs-vault browser as an addable, closable right-panel window type
+  // The Draw.io Browser as an addable, closable right-panel window type
   // (panel New-tab menu): browse everything in the vault beside whatever the
-  // body shows. The old drawio-only fixed browser is gone.
+  // body shows.
   app.slots.experimental_tab({
     context: { kind: "nav-panel", panelId: PANEL_PATH },
     availability: "action",
     id: "browser",
-    title: "Vault browser",
+    title: "Draw.io Browser",
     icon: "FolderOpen",
     component: VaultBrowserTab,
     params: BROWSER_TAB_DEFAULT_PARAMS,
@@ -47,7 +50,7 @@ export default definePluginApp((app) => {
   });
 
   // One tab per open diagram; params identify the document and persist
-  // across restarts.
+  // across restarts. Flush so the embedded editor spans the panel height.
   app.slots.experimental_tab({
     context: { kind: "nav-panel", panelId: PANEL_PATH },
     availability: "action",
@@ -56,6 +59,48 @@ export default definePluginApp((app) => {
     icon: "Workflow",
     component: DiagramActionTab,
     params: DIAGRAM_TAB_DEFAULT_PARAMS,
+    layout: "flush",
+  });
+
+  // Inside threads: the browser (launcher in the thread panel's New-tab menu)
+  // and one inline-diagram tab per opened document (opened from the browser,
+  // so no launcher of its own).
+  app.slots.experimental_tab({
+    context: { kind: "thread" },
+    availability: "action",
+    id: "browser",
+    title: "Draw.io Browser",
+    icon: "FolderOpen",
+    component: ThreadBrowserTab,
+    params: BROWSER_TAB_DEFAULT_PARAMS,
+    layout: "flush",
+  });
+  app.slots.experimental_tab({
+    context: { kind: "thread" },
+    availability: "action",
+    id: "diagram",
+    title: "Diagram",
+    icon: "Workflow",
+    component: ThreadDiagramTab,
+    layout: "flush",
+    useVisible: () => false,
+  });
+
+  // A Diagram button in the thread header: opens/focuses the browser in the
+  // thread's own panel (same tab instance the New-tab menu opens).
+  app.slots.experimental_threadAction({
+    id: "drawio-browser",
+    title: "Diagram",
+    icon: "Workflow",
+    group: "open",
+    placement: "header",
+    item: ({ experimental_panel }) => ({
+      label: "Diagram",
+      icon: "Workflow",
+      run: () => {
+        openThreadBrowserFromAction(experimental_panel);
+      },
+    }),
   });
 
   // Any .drawio file bb opens renders in the embedded editor with

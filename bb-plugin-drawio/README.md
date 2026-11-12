@@ -36,14 +36,18 @@ separate store, no exports hoarded by the plugin: a diagram is just a
 - **Diagrams nav panel** — the home state (New diagram, Import XML, recent
   vault diagrams, kept drafts) routes to the full-bleed editor via
   `open/…` deep links.
-- **Docs-vault browser** — while the Diagrams route is active, the app sidebar
+- **Draw.io Browser** — while the Diagrams route is active, the app sidebar
   becomes a vault picker + folder tree listing **every file in the vault**
   (diagrams open in the embedded editor; everything else opens in bb's
-  built-in preview). It is also available as an **addable window type** —
-  "Vault browser" in the right panel's New-tab menu — closable, next to
-  diagram tabs. Every row has actions: open, open-in-tab (diagrams), and
-  **Delete** (with a confirm; the kept draft goes with it). bb's own Docs
-  browser lists Markdown/HTML only, so `.drawio` files only appear here.
+  built-in preview). The same browser is an **addable window type** —
+  "Draw.io Browser" in a right panel's New-tab menu, on the plugin page AND
+  inside threads — closable, next to diagram tabs. Every row has actions:
+  open, open-in-tab (diagrams), and **Delete** (with a confirm; the kept
+  draft goes with it). bb's own Docs browser lists Markdown/HTML only, so
+  `.drawio` files only appear here.
+- **Diagrams inside threads** — a **Diagram** button in every thread header
+  opens/focuses the browser in that thread's right panel; clicking a diagram
+  pins it as an inline tab beside the transcript (CAS saves work the same).
 - **One tab per diagram** — each open diagram is an action tab with persisted
   params; several can be open at once, and they survive restarts.
 - **System `.drawio` editor** — a `fileOpener` renders the embedded editor for

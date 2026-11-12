@@ -43,10 +43,17 @@ describe("drawio frontend", () => {
     const app = await loadApp();
     expect(app.navPanels).toHaveLength(1);
     expect(app.navPanels[0]).toMatchObject({ id: "diagrams", title: "Diagrams", path: "diagrams" });
-    const tabs = app.tabs.filter((tab) => tab.context.kind === "nav-panel");
-    // The vault browser is an addable window type (action tab), not a fixed
+    const navTabs = app.tabs.filter((tab) => tab.context.kind === "nav-panel");
+    // The Draw.io Browser is an addable window type (action tab), not a fixed
     // destination; the drawio-only fixed browser is gone.
-    expect(tabs.map((tab) => `${tab.id}:${tab.availability}`)).toEqual(["browser:action", "diagram:action"]);
+    expect(navTabs.map((tab) => `${tab.id}:${tab.availability}`)).toEqual(["browser:action", "diagram:action"]);
+    // Threads get the browser launcher plus an inline-diagram tab that is
+    // opened only from the browser (no launcher of its own).
+    const threadTabs = app.tabs.filter((tab) => tab.context.kind === "thread");
+    expect(threadTabs.map((tab) => `${tab.id}:${tab.availability}`)).toEqual(["browser:action", "diagram:action"]);
+    expect(threadTabs.find((tab) => tab.id === "diagram")!.useVisible?.({ threadId: "t", environment: null })).toBe(false);
+    expect(app.threadActions).toHaveLength(1);
+    expect(app.threadActions[0]).toMatchObject({ id: "drawio-browser", placement: "header" });
     expect(app.fileOpeners).toHaveLength(1);
     expect(app.fileOpeners[0]).toMatchObject({ id: "drawio", extensions: ["drawio"] });
   });

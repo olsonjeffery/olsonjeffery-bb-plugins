@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Diagrams inside threads**: a Diagram button in the thread header opens the
+  Draw.io Browser in the thread's right panel (also available in that panel's
+  New-tab menu); clicking a diagram pins it as an inline, CAS-saving tab
+  beside the transcript.
+- The window tab is renamed **Draw.io Browser**, and diagram tabs render with
+  flush layout so the embedded editor spans the panel height (the inline tab
+  no longer collapses to the editor's chrome height).
+
 - **Docs-vault browser replaces the drawio-only file list.** Both the route's
   left sidebar and the right-panel window tab now list every file in the
   selected vault (bb's own Docs browser hides non-Markdown files); non-diagram
