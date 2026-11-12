@@ -2,6 +2,12 @@
 
 ## 0.1.0 — the core loop
 
+- `deploy/`: a systemd **user** unit (`drawio.service`) plus
+  `setup-drawio-unit.sh` that installs/enables it for the official
+  `jgraph/drawio` image on `0.0.0.0:12300` — foreground supervision under
+  systemd, lingering for boot persistence, rootless-docker detection,
+  readiness check, `--check`/`--dry-run`/`--uninstall` modes.
+
 - Embedded self-hosted draw.io editor (embed + JSON postMessage protocol) with
   origin validation and mixed-content detection.
 - **Diagrams** nav panel: home state (import XML, recent vault diagrams, kept

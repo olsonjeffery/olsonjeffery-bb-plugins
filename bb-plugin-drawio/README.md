@@ -15,10 +15,19 @@ separate store, no exports hoarded by the plugin: a diagram is just a
    ```sh
    docker run -d --name drawio -p 8080:8080 jgraph/drawio
    ```
+   Prefer a supervised, boot-persistent setup? `deploy/setup-drawio-unit.sh`
+   installs a systemd **user** unit that runs the official image on
+   **0.0.0.0:12300**, enables it with lingering, and verifies readiness —
+   see [`deploy/README.md`](./deploy/README.md):
+   ```sh
+   deploy/setup-drawio-unit.sh
+   ```
 2. Point the plugin at it under **Settings → Plugins → Drawio**, or:
    ```sh
-   bb plugin config drawio set instanceUrl http://localhost:8080
+   bb plugin config drawio set instanceUrl http://localhost:12300
    ```
+   (Use an address your **browser** can reach — the editor iframe is loaded
+   by the browser, not by the bb server.)
    Until a URL is set the plugin reports **needs-configuration**; drafts and
    workspace persistence already work, only the embedded editor waits.
 
@@ -69,6 +78,19 @@ editor detects that and says so instead of showing a blank frame.
 | `defaultVaultId` | *(first vault)* | Vault where new diagrams are created |
 | `defaultFolder` | `diagrams` | Vault folder for new diagrams |
 | `uiTheme` | `min` | draw.io UI: `min`, `sketch`, or `atlas` |
+
+The default instance URL this setup targets is `http://<host>:12300` when the
+bundled systemd unit from `deploy/` runs the container.
+
+## Running the instance under systemd
+
+`deploy/drawio.service` + `deploy/setup-drawio-unit.sh` manage a systemd user
+unit for the official `jgraph/drawio` image on `0.0.0.0:12300`: foreground
+`docker run` supervised by systemd (no Docker restart policy to fight it),
+deterministic stop/start cleanup, rootless-docker `DOCKER_HOST` detection via
+the unit's env file, lingering for boot persistence, an HTTP readiness check,
+and a `--check` mode that prints the plugin's next step. Full details,
+exposure caveats, and troubleshooting: [`deploy/README.md`](./deploy/README.md).
 
 ## Scope notes (v0.1)
 

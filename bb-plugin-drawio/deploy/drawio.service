@@ -1,0 +1,41 @@
+# drawio.service — systemd *user* unit that runs the official draw.io webapp
+# (jgraph/drawio) for the BB Drawio plugin, published on 0.0.0.0:12300.
+#
+# The @…@ placeholders are filled in by deploy/setup-drawio-unit.sh when it
+# installs this file into ~/.config/systemd/user/. For a manual copy, replace
+# them yourself, then:
+#
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now drawio.service
+#
+# and enable lingering for boot persistence (see deploy/README.md).
+#
+# Lifecycle notes (intentional):
+#   - `docker run` stays in the foreground, so systemd supervises the webapp
+#     directly; `journalctl --user -u drawio` is the full log.
+#   - No Docker `--restart` policy on purpose: restarts belong to this unit
+#     (Restart=on-failure). A daemon-level policy would double-supervise.
+#   - ExecStop/ExecStopPost make stop deterministic even when the attached
+#     client died; ExecStartPre clears a stale container left by a crash
+#     (and takes over if something else is running under this name).
+
+[Unit]
+Description=draw.io webapp (jgraph/drawio) for the BB Drawio plugin
+Documentation=https://github.com/jgraph/docker-drawio
+
+[Service]
+Type=simple
+Environment=DRAWIO_PORT=@DRAWIO_PORT@
+Environment=DRAWIO_IMAGE=@DRAWIO_IMAGE@
+# Optional overrides, e.g. DOCKER_HOST for rootless docker; missing file = skipped.
+EnvironmentFile=-%h/.config/drawio/drawio.env
+ExecStartPre=-@DOCKER_BIN@ rm -f @CONTAINER@
+ExecStart=@DOCKER_BIN@ run --rm --name @CONTAINER@ --pull=missing -p 0.0.0.0:${DRAWIO_PORT}:8080 ${DRAWIO_IMAGE}
+ExecStop=@DOCKER_BIN@ stop @CONTAINER@
+ExecStopPost=-@DOCKER_BIN@ rm -f @CONTAINER@
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=default.target
