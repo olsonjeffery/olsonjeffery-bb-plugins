@@ -23,6 +23,7 @@ works best for code.
 - A prompt pool per persona: as many prompts as the job needs (3500 characters each), editable at any time; changes apply to future chats
 - A provider, model, and reasoning level chosen per persona, used as the defaults for its chats — you can still change them before sending the first message
 - A Floating Note straight into a prompt pool when the Floating Notes plugin is installed and enabled — the entry shows the note's current content, and editing the note later updates every chat that receives it
+- A document from a Docs vault the same way — the entry reads the file's current content live (BB's built-in Docs plugin provides the vaults; nothing extra to install)
 - A sidebar badge on every chat a persona starts when the Thread Tags plugin is installed: the persona picks one of the plugin's tags (or gets a default built from its own emoji or title), and the Plugin health box offers a one-click **Install This Plugin** button while Thread Tags is missing
 - A project connection when a persona needs repository context, and projectless personas for everyday conversations
 - A persona button on the New Thread composer: pick a persona for this session from a popup of your published fleet — a persona chip rides along in the draft, and the message you send starts a thread owned by that persona
@@ -31,7 +32,7 @@ works best for code.
 - A settings-first persona page: selecting a persona in the rail opens its settings directly (everything autosaves); its chat history lives at the bottom of the same page
 - A draft-before-publish workflow: set up the prompt pool, provider, and model, then click **Publish** to make the persona available
 - A persona rail with each persona's own emoji, name, and avatar color (Auto, or one of six curated colors), plus running-state spinners
-- Export to a `personas.json` file and import into another BB: prompts verbatim (note prompts carry their note's body at export time), emoji and color included, and same-named personas import as "Name (NEW-IMPORT)" instead of overwriting anything
+- Export to a `personas.json` file and import into another BB: prompts verbatim (live prompts carry their source's content at export time), emoji and color included, and same-named personas import as "Name (NEW-IMPORT)" instead of overwriting anything
 
 ## Requirements
 
@@ -120,10 +121,22 @@ the note's durable id — the entry shows the note's **current** content (first
 editing the note later updates the persona automatically. Note entries can't
 be edited in the pool — only removed.
 
-While Floating Notes is not installed and enabled, the dropdown (and any
-Add-note affordance) disappears entirely and **+ Add** stays a plain typed-text
-button. Personas already holding note entries keep working: their text falls
-back to "[Floating note is unavailable]" until the plugin returns.
+### Attaching a Docs vault document
+
+The dropdown's other item, **Add Docs document**, sources prompts from BB's
+built-in **Docs** plugin (Settings → Docs vaults): a modal lists every vault
+with its Markdown documents — a vault selector appears when you have more
+than one — and picking a document adds a live entry that keeps the vault id
+and the file's path. The entry reads the file's **current** content exactly
+like a note entry reads its note, so editing the document (by you or by an
+agent) updates every chat that receives it. Docs entries can't be edited in
+the pool — only removed.
+
+While neither source plugin is available, the dropdown (and any Add-source
+affordance) disappears entirely and **+ Add** stays a plain typed-text
+button. Personas already holding live entries keep working: their text falls
+back to "[Floating note is unavailable]" or "[Docs file is unavailable]"
+until the source returns.
 
 ### Sidebar badges via Thread Tags
 
@@ -201,6 +214,10 @@ section with two things:
   which badges every chat a persona starts. While the plugin is missing the
   row carries a one-click **Install This Plugin** button that installs it
   in place — no plugin-page detour — and then re-checks the status row.
+- **Docs** — the same readout for BB's built-in Docs plugin, the source of
+  the Add-Docs-document picker. It ships with BB, so the row has no install
+  link: a red X means Docs is disabled, and re-enabling it in settings turns
+  the picker back on.
 
 The rows read the installed-plugin list fresh on every visit, so installing,
 enabling, or disabling a plugin is reflected the next time the page opens.

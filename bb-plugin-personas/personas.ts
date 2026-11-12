@@ -118,8 +118,11 @@ export interface Persona {
   updatedAt: number;
 }
 
-/** The prompt types a pool entry can carry: plain text, or a live Floating Note. */
-export const PROMPT_TYPES = ["text", "note"] as const;
+/**
+ * The prompt types a pool entry can carry: plain text, a live Floating Note,
+ * or a live file in a Docs vault.
+ */
+export const PROMPT_TYPES = ["text", "note", "doc"] as const;
 
 export type PromptType = (typeof PROMPT_TYPES)[number];
 
@@ -136,7 +139,9 @@ export const PROMPT_PREVIEW_LIMIT = 50;
  * One entry in a persona's prompt pool. Each prompt belongs to one persona.
  * A `text` prompt carries its own prose in `text`; a `note` prompt carries a
  * JSON reference to a Floating Note (see NotePromptRef) and contributes that
- * note's live body — so its stored `text` is never shown or injected as-is.
+ * note's live body; a `doc` prompt carries a JSON reference to a Docs vault
+ * file (see DocPromptRef) and contributes that file's current content. Live
+ * prompts never show or inject their stored `text` as-is.
  */
 export interface PersonaPrompt {
   id: string;
@@ -282,8 +287,14 @@ export const IMPORT_NAME_SUFFIX = "NEW-IMPORT";
  */
 export interface ExportedPrompt {
   type: PromptType;
+  /** The prose, or the live source's body at export time (self-contained file). */
   text: string;
+  /** Present on "note" prompts: the durable Floating Note id, for re-linking. */
   noteId?: string;
+  /** Present on "doc" prompts: the Docs vault id, for re-linking. */
+  vaultId?: string;
+  /** Present on "doc" prompts: the file's path within its vault, for re-linking. */
+  path?: string;
 }
 
 /** One exported persona: everything a fresh import needs, nothing it doesn't. */
@@ -303,14 +314,16 @@ export interface ExportedPersona {
 }
 
 /**
- * Maps a live persona onto its export shape, resolving note prompts against
- * the live note map: each becomes its note's CURRENT body (the verbatim
- * snapshot) plus the durable noteId for optional re-linking at import. No
- * ids, timestamps, or chat mappings — those belong to the source BB.
+ * Maps a live persona onto its export shape, resolving live prompts against
+ * the body caches: each note/doc prompt becomes its source's CURRENT content
+ * (the verbatim snapshot) plus the durable pointer (noteId, or vaultId+path)
+ * for optional re-linking at import. No ids, timestamps, or chat mappings —
+ * those belong to the source BB.
  */
 export function personaToExport(
   persona: Persona,
   noteBodies: ReadonlyMap<string, string>,
+  docBodies: ReadonlyMap<string, string> = new Map(),
 ): ExportedPersona {
   return {
     format: PERSONAS_EXPORT_FORMAT,
@@ -326,6 +339,20 @@ export function personaToExport(
     prompts: persona.prompts.map((prompt) => {
       if (prompt.type === "text") {
         return { type: "text" as const, text: prompt.text };
+      }
+      if (prompt.type === "doc") {
+        const ref = decodeDocPromptRef(prompt.text);
+        return {
+          type: "doc" as const,
+          text:
+            ref === null
+              ? prompt.text
+              : (docBodies.get(docPromptRefKey(ref.vaultId, ref.path)) ??
+                DOC_UNAVAILABLE_TEXT),
+          // decodeDocPromptRef guarantees both fields on any well-formed row.
+          vaultId: ref?.vaultId,
+          path: ref?.path,
+        };
       }
       const ref = decodeNotePromptRef(prompt.text);
       return {
@@ -429,33 +456,99 @@ export function decodeNotePromptRef(text: string): NotePromptRef | null {
 export const NOTE_UNAVAILABLE_TEXT = "[Floating note is unavailable]";
 
 /**
+ * The blob stored in a doc prompt's `text` column: a JSON object naming the
+ * Docs vault file it points at by durable vault id and vault-relative path.
+ * The `kind` discriminant is what marks the blob (with the prompt's `type`)
+ * so nothing else in the system mistakes it for prompt prose.
+ */
+export interface DocPromptRef {
+  kind: "docs-vault";
+  vaultId: string;
+  path: string;
+}
+
+export function encodeDocPromptRef(vaultId: string, path: string): string {
+  return JSON.stringify({ kind: "docs-vault", vaultId, path });
+}
+
+/**
+ * Parses a stored doc prompt body back into its file reference. Strict on
+ * purpose: anything that isn't exactly `{ kind: "docs-vault", vaultId, path }`
+ * reads as null, and a null is treated as an ordinary text prompt (a
+ * hand-edited or corrupted row degrades instead of crashing). NUL bytes are
+ * rejected too — the cache key joins vaultId and path with one.
+ */
+export function decodeDocPromptRef(text: string): DocPromptRef | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const candidate = parsed as Record<string, unknown>;
+  if (candidate.kind !== "docs-vault") return null;
+  if (typeof candidate.vaultId !== "string" || candidate.vaultId.length === 0) {
+    return null;
+  }
+  if (typeof candidate.path !== "string" || candidate.path.length === 0) {
+    return null;
+  }
+  if (candidate.vaultId.includes("\u0000") || candidate.path.includes("\u0000")) {
+    return null;
+  }
+  return { kind: "docs-vault", vaultId: candidate.vaultId, path: candidate.path };
+}
+
+/** The cache key one Docs file reference resolves against. */
+export function docPromptRefKey(vaultId: string, path: string): string {
+  return `${vaultId}\u0000${path}`;
+}
+
+/** What a doc prompt contributes when its file can't be read. */
+export const DOC_UNAVAILABLE_TEXT = "[Docs file is unavailable]";
+
+/**
  * The display/instruction text one prompt contributes. A text prompt is its
  * own text; a note prompt is its note's CURRENT body, read from the live
- * note map the server keeps — which is the whole point of attaching a note:
- * edits to the note flow through without touching the pool.
+ * note map the server keeps; a doc prompt is its file's current content, read
+ * from the same server's doc map. Live resolution is the whole point of
+ * attaching a source: edits to it flow through without touching the pool.
  */
 export function resolvedPromptText(
   prompt: PersonaPrompt,
   noteBodies: ReadonlyMap<string, string>,
+  docBodies: ReadonlyMap<string, string> = new Map(),
 ): string {
   if (prompt.type === "text") return prompt.text;
+  if (prompt.type === "doc") {
+    const ref = decodeDocPromptRef(prompt.text);
+    if (ref === null) return prompt.text;
+    return (
+      docBodies.get(docPromptRefKey(ref.vaultId, ref.path)) ?? DOC_UNAVAILABLE_TEXT
+    );
+  }
   const ref = decodeNotePromptRef(prompt.text);
   if (ref === null) return prompt.text;
   return noteBodies.get(ref.noteId) ?? NOTE_UNAVAILABLE_TEXT;
 }
 
 /**
- * A copy of `prompts` in which every note prompt's text has been replaced by
- * its note's current body. What `joinedPromptText` and
+ * A copy of `prompts` in which every live prompt's text has been replaced by
+ * its source's current body. What `joinedPromptText` and
  * `renderPersonaInstructions` receive when the caller wants live content.
  */
 export function resolvePromptTexts(
   prompts: readonly PersonaPrompt[],
   noteBodies: ReadonlyMap<string, string>,
+  docBodies: ReadonlyMap<string, string> = new Map(),
 ): PersonaPrompt[] {
   return prompts.map((prompt) => {
     if (prompt.type === "text") return prompt;
-    return { ...prompt, text: resolvedPromptText(prompt, noteBodies) };
+    return {
+      ...prompt,
+      text: resolvedPromptText(prompt, noteBodies, docBodies),
+    };
   });
 }
 
@@ -751,16 +844,18 @@ export interface PersonaPromptRow {
 
 export function rowToPrompt(row: PersonaPromptRow): PersonaPrompt {
   // Any unrecognized stored type reads as "text" rather than flowing uncaught
-  // into the prompt RPCs' zod schemas. A "note" row whose body is no longer a
-  // decodable reference (hand-edited, corrupted) degrades the same way — its
-  // raw text stays visible and editable instead of crashing the read.
+  // into the prompt RPCs' zod schemas. A "note" or "doc" row whose body is no
+  // longer a decodable reference (hand-edited, corrupted) degrades the same
+  // way — its raw text stays visible and editable instead of crashing.
   const storedType = PROMPT_TYPES.includes(row.type as PromptType)
     ? (row.type as PromptType)
     : "text";
   const type =
     storedType === "note" && decodeNotePromptRef(row.text) === null
       ? "text"
-      : storedType;
+      : storedType === "doc" && decodeDocPromptRef(row.text) === null
+        ? "text"
+        : storedType;
   return {
     id: row.id,
     personaId: row.persona_id,

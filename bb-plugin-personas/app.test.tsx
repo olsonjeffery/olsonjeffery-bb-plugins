@@ -119,6 +119,37 @@ const PERSONA_WITH_NOTE = {
   updatedAt: 5,
 };
 
+// One published persona whose pool holds a live Docs prompt: the wire text is
+// the file's resolved content (the server resolves it), and docVaultId +
+// docPath are the link.
+const PERSONA_WITH_DOC = {
+  id: "persona_8",
+  name: "Boatswain",
+  emoji: "⚓",
+  color: "cyan" as const,
+  prompts: [
+    {
+      id: "prompt_doc",
+      personaId: "persona_8",
+      type: "doc" as const,
+      text: "Swab the deck daily.",
+      docVaultId: "personal",
+      docPath: "playbooks/pirate.md",
+      position: 0,
+      createdAt: 0,
+      updatedAt: 0,
+    },
+  ],
+  providerId: "codex",
+  model: "gpt-5.5",
+  reasoningLevel: "medium" as const,
+  projectId: null,
+  defaultUserMessage: "",
+  status: "published" as const,
+  createdAt: 0,
+  updatedAt: 3,
+};
+
 // One published persona whose composer page injects a Default User Message.
 const PERSONA_WITH_MESSAGE = {
   id: "persona_6",
@@ -167,6 +198,7 @@ const PERSONAS_BY_ID: Record<
   | typeof PERSONA_WITH_NOTE
   | typeof PERSONA_WITH_MESSAGE
   | typeof PERSONA_WITH_BLANK_MESSAGE
+  | typeof PERSONA_WITH_DOC
 > = {
   persona_1: PERSONA_WITH_CHATS,
   persona_2: PERSONA_NO_CHATS,
@@ -174,6 +206,7 @@ const PERSONAS_BY_ID: Record<
   persona_5: PERSONA_WITH_NOTE,
   persona_6: PERSONA_WITH_MESSAGE,
   persona_7: PERSONA_WITH_BLANK_MESSAGE,
+  persona_8: PERSONA_WITH_DOC,
 };
 
 // The getPluginHealth RPC's self field: where this Personas install came
@@ -227,26 +260,6 @@ const FLOATING_NOTES_ROW_DISABLED = {
   available: false,
 };
 
-const HEALTH_AVAILABLE = {
-  floatingNotesAvailable: true,
-  tools: [FLOATING_NOTES_ROW],
-  self: SELF_MANAGED,
-};
-
-// Floating Notes missing: "Not installed", the one Install link — and no
-// Add-note affordance anywhere in the persona config screen.
-const HEALTH_MISSING = {
-  floatingNotesAvailable: false,
-  tools: [FLOATING_NOTES_ROW_MISSING],
-  self: SELF_MANAGED,
-};
-
-const HEALTH_DISABLED = {
-  floatingNotesAvailable: false,
-  tools: [FLOATING_NOTES_ROW_DISABLED],
-  self: SELF_MANAGED,
-};
-
 // Thread Tags missing: the row always shows, with the one-click install
 // button standing where an outbound link would be.
 const THREAD_TAGS_ROW_MISSING = {
@@ -271,24 +284,82 @@ const THREAD_TAGS_ROW = {
   available: true,
 };
 
+const DOCS_ROW = {
+  id: "simple-notes",
+  label: "Docs",
+  installed: true,
+  enabled: true,
+  status: "running",
+  version: "0.2.3",
+  installUrl: null,
+  available: true,
+};
+
+const DOCS_ROW_MISSING = {
+  id: "simple-notes",
+  label: "Docs",
+  installed: false,
+  enabled: false,
+  status: null,
+  version: null,
+  installUrl: null,
+  available: false,
+};
+
+const HEALTH_AVAILABLE = {
+  floatingNotesAvailable: true,
+  docsAvailable: true,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW, DOCS_ROW],
+  self: SELF_MANAGED,
+};
+
+// Floating Notes missing: "Not installed", the one Install link — and no
+// Add-note affordance anywhere in the persona config screen. Docs still
+// present, so its own picker stays reachable.
+const HEALTH_MISSING = {
+  floatingNotesAvailable: false,
+  docsAvailable: true,
+  tools: [FLOATING_NOTES_ROW_MISSING, THREAD_TAGS_ROW, DOCS_ROW],
+  self: SELF_MANAGED,
+};
+
+const HEALTH_DISABLED = {
+  floatingNotesAvailable: false,
+  docsAvailable: true,
+  tools: [FLOATING_NOTES_ROW_DISABLED, THREAD_TAGS_ROW, DOCS_ROW],
+  self: SELF_MANAGED,
+};
+
+// Docs missing (or disabled): the dropdown survives for Floating Notes, but
+// no Add-Docs-document affordance appears anywhere.
+const HEALTH_DOCS_MISSING = {
+  floatingNotesAvailable: true,
+  docsAvailable: false,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW, DOCS_ROW_MISSING],
+  self: SELF_MANAGED,
+};
+
 const HEALTH_THREAD_TAGS_MISSING = {
   floatingNotesAvailable: true,
   threadTagsAvailable: false,
-  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW_MISSING],
+  docsAvailable: true,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW_MISSING, DOCS_ROW],
   self: SELF_MANAGED,
 };
 
 const HEALTH_THREAD_TAGS_INSTALLED = {
   floatingNotesAvailable: true,
   threadTagsAvailable: true,
-  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW],
+  docsAvailable: true,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW, DOCS_ROW],
   self: SELF_MANAGED,
 };
 
 // A path install: the settings page must show the in-progress marker.
 const HEALTH_PATH_INSTALL = {
   floatingNotesAvailable: true,
-  tools: [FLOATING_NOTES_ROW],
+  docsAvailable: true,
+  tools: [FLOATING_NOTES_ROW, THREAD_TAGS_ROW, DOCS_ROW],
   self: SELF_PATH,
 };
 
@@ -306,6 +377,41 @@ const FLOATING_NOTES = {
       title: "Parrot care",
       body: "Feed crackers twice a day.",
       updatedAt: 10,
+    },
+  ],
+};
+
+const DOCS_SOURCES = {
+  vaults: [
+    {
+      id: "personal",
+      name: "Personal",
+      notes: [
+        {
+          path: "playbooks/pirate.md",
+          title: "Pirate playbook",
+          preview: "Swab the deck daily.",
+          modifiedAtMs: 5,
+        },
+        {
+          path: "plans/standup.md",
+          title: "Standup notes",
+          preview: "Three blockers.",
+          modifiedAtMs: 4,
+        },
+      ],
+    },
+    {
+      id: "work",
+      name: "Work",
+      notes: [
+        {
+          path: "handbook/intro.md",
+          title: "Handbook",
+          preview: "Welcome aboard.",
+          modifiedAtMs: 2,
+        },
+      ],
     },
   ],
 };
@@ -372,6 +478,7 @@ const RPC = {
   deletePersona: () => ({ ok: true }),
   getPluginHealth: () => HEALTH_AVAILABLE,
   listFloatingNotes: () => FLOATING_NOTES,
+  listDocsSources: () => DOCS_SOURCES,
 };
 
 async function loadPanel() {
@@ -843,27 +950,64 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
-  it("offers Add Floating Note only while Floating Notes is available", async () => {
+  it("offers each source picker only while its plugin is available", async () => {
     const panel = await loadPanel();
 
-    // Floating Notes healthy: the dropdown offers the note picker.
+    // Both plugins healthy: the dropdown offers both pickers.
     const both = renderSlot(panel, { subPath: "persona_3/edit" }, { rpc: RPC });
     fireEvent.click(
       await both.findByRole("button", { name: "More add options" }),
     );
     await both.findByRole("menuitem", { name: "Add Floating Note" });
+    await both.findByRole("menuitem", { name: "Add Docs document" });
     both.lifecycle.unmount();
 
-    // Floating Notes missing: no dropdown at all — the config screen offers
-    // no Add-note affordance, just the plain typed-text + Add button.
-    const none = renderSlot(
+    // Floating Notes missing: the dropdown survives for Docs, but no
+    // Add-note affordance appears anywhere.
+    const noNotes = renderSlot(
       panel,
       { subPath: "persona_3/edit" },
       { rpc: { ...RPC, getPluginHealth: () => HEALTH_MISSING } },
     );
+    fireEvent.click(
+      await noNotes.findByRole("button", { name: "More add options" }),
+    );
+    await noNotes.findByRole("menuitem", { name: "Add Docs document" });
+    expect(noNotes.queryByRole("menuitem", { name: "Add Floating Note" })).toBeNull();
+    noNotes.lifecycle.unmount();
+
+    // Docs missing: the mirror image — notes pickable, no Docs affordance.
+    const noDocs = renderSlot(
+      panel,
+      { subPath: "persona_3/edit" },
+      { rpc: { ...RPC, getPluginHealth: () => HEALTH_DOCS_MISSING } },
+    );
+    fireEvent.click(
+      await noDocs.findByRole("button", { name: "More add options" }),
+    );
+    await noDocs.findByRole("menuitem", { name: "Add Floating Note" });
+    expect(noDocs.queryByRole("menuitem", { name: "Add Docs document" })).toBeNull();
+    noDocs.lifecycle.unmount();
+
+    // Both missing: no dropdown at all — the config screen offers just the
+    // plain typed-text + Add button.
+    const none = renderSlot(
+      panel,
+      { subPath: "persona_3/edit" },
+      {
+        rpc: {
+          ...RPC,
+          getPluginHealth: () => ({
+            ...HEALTH_MISSING,
+            floatingNotesAvailable: false,
+            docsAvailable: false,
+            tools: [FLOATING_NOTES_ROW_MISSING, THREAD_TAGS_ROW, DOCS_ROW_MISSING],
+          }),
+        },
+      },
+    );
     await none.findByText("No prompts yet — add one below.");
     expect(none.queryByRole("button", { name: "More add options" })).toBeNull();
-    expect(none.queryByRole("menuitem", { name: "Add Floating Note" })).toBeNull();
     expect(none.queryByRole("button", { name: "+ Add" })).not.toBeNull();
     none.lifecycle.unmount();
   });
@@ -938,6 +1082,93 @@ describe("personas nav panel", () => {
     slot.lifecycle.unmount();
   });
 
+  it("attaches a Docs document from the picker as a live vault reference, with inline search filtering", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_3/edit" }, { rpc: RPC });
+
+    fireEvent.click(
+      await slot.findByRole("button", { name: "More add options" }),
+    );
+    fireEvent.click(
+      await slot.findByRole("menuitem", { name: "Add Docs document" }),
+    );
+
+    // The picker lists the first vault's documents; typing filters the list
+    // inline.
+    await slot.findByText("Pirate playbook");
+    await slot.findByText("Standup notes");
+    fireEvent.change(slot.getByLabelText("Search documents"), {
+      target: { value: "standup" },
+    });
+    expect(slot.queryByText("Pirate playbook")).toBeNull();
+    fireEvent.click(await slot.findByRole("button", { name: /Standup notes/ }));
+
+    // Selecting the document dismissed the modal and attached it BY vault id
+    // and path — a live reference, not a copy of the file's current content.
+    await waitFor(() => {
+      const addCall = slot.inspection.rpcCalls.find(
+        (call) => call.method === "addPersonaPrompt",
+      );
+      expect(addCall?.input).toEqual({
+        personaId: "persona_3",
+        type: "doc",
+        vaultId: "personal",
+        path: "plans/standup.md",
+      });
+    });
+    expect(
+      slot.queryByText(
+        "Pick one vault document to add to this persona's prompt pool.",
+      ),
+    ).toBeNull();
+
+    slot.lifecycle.unmount();
+  });
+
+  it("switches vaults in the Docs picker and attaches from the other vault", async () => {
+    // Radix's Select needs these; jsdom ships neither.
+    Element.prototype.scrollIntoView = () => {};
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
+
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_3/edit" }, { rpc: RPC });
+
+    fireEvent.click(
+      await slot.findByRole("button", { name: "More add options" }),
+    );
+    fireEvent.click(
+      await slot.findByRole("menuitem", { name: "Add Docs document" }),
+    );
+
+    // The default vault is the first one; the other vault's documents are
+    // nowhere in the list.
+    await slot.findByText("Pirate playbook");
+    expect(slot.queryByText("Handbook")).toBeNull();
+
+    // Two vaults exist, so the vault selector shows; switching lists the
+    // other vault's documents in place, no dialog reload.
+    fireEvent.click(slot.getByLabelText("Vault"));
+    fireEvent.click(await slot.findByText("Work"));
+    await slot.findByText("Handbook");
+    expect(slot.queryByText("Pirate playbook")).toBeNull();
+
+    fireEvent.click(await slot.findByRole("button", { name: /Handbook/ }));
+    await waitFor(() => {
+      const addCall = slot.inspection.rpcCalls.find(
+        (call) => call.method === "addPersonaPrompt",
+      );
+      expect(addCall?.input).toEqual({
+        personaId: "persona_3",
+        type: "doc",
+        vaultId: "work",
+        path: "handbook/intro.md",
+      });
+    });
+
+    slot.lifecycle.unmount();
+  });
+
   it("renders a note entry as a live Floating Note: badged, never editable, only removable", async () => {
     const panel = await loadPanel();
     const slot = renderSlot(panel, { subPath: "persona_5/edit" }, { rpc: RPC });
@@ -956,6 +1187,30 @@ describe("personas nav panel", () => {
       expect(removeCall?.input).toEqual({
         personaId: "persona_5",
         promptId: "prompt_note",
+      });
+    });
+
+    slot.lifecycle.unmount();
+  });
+
+  it("renders a doc entry as a live Docs reference: badged, never editable, only removable", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_8/edit" }, { rpc: RPC });
+
+    // The wire already resolved the file's live content for the entry display.
+    await slot.findByText("Docs");
+    await slot.findByText("Swab the deck daily.");
+    // Not editable: no Edit affordance exists for the doc entry.
+    expect(slot.queryByRole("button", { name: /^Edit/ })).toBeNull();
+
+    (await slot.findByRole("button", { name: "Remove prompt: Swab the deck daily." })).click();
+    await waitFor(() => {
+      const removeCall = slot.inspection.rpcCalls.find(
+        (call) => call.method === "removePersonaPrompt",
+      );
+      expect(removeCall?.input).toEqual({
+        personaId: "persona_8",
+        promptId: "prompt_doc",
       });
     });
 

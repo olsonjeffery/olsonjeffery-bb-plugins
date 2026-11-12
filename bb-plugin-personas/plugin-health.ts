@@ -13,6 +13,15 @@ export const FLOATING_NOTES_PLUGIN_URL =
 /** The installed-plugin id of the Thread Tags plugin. */
 export const THREAD_TAGS_PLUGIN_ID = "thread-tags";
 
+/**
+ * The installed-plugin id of BB's built-in Docs plugin. Its package is
+ * `bb-plugin-simple-notes` (display name "Docs"), so the id is
+ * "simple-notes" whether it ships with BB (source `builtin:docs`) or is
+ * installed standalone. Shown in the Plugin health box so a disabled Docs
+ * explains why the Add-Docs-document affordance is gone.
+ */
+export const DOCS_PLUGIN_ID = "simple-notes";
+
 /** Where to send someone who still needs to install Thread Tags. */
 export const THREAD_TAGS_PLUGIN_URL =
   "https://github.com/VladPolet/bb-plugin-thread-tags";
@@ -71,6 +80,12 @@ export interface PluginHealthReport {
    * the Floating Notes flag; identical to the thread-tags row's `available`.
    */
   threadTagsAvailable: boolean;
+  /**
+   * Whether the built-in Docs plugin is installed and enabled, the same
+   * one-rule gate for the Docs-file prompt source; identical to the
+   * simple-notes row's `available`.
+   */
+  docsAvailable: boolean;
   tools: ToolHealth[];
   /**
    * Where this plugin's own install came from, so the settings page can
@@ -132,6 +147,20 @@ export function isThreadTagsAvailable(
 }
 
 /**
+ * Whether the built-in Docs plugin is available, for server-side callers
+ * that already hold a plugins list. The single source of the
+ * `docsAvailable` flag; pluginHealth below renders the same answer into the
+ * RPC output.
+ */
+export function isDocsAvailable(
+  plugins: readonly InstalledPluginSummary[],
+): boolean {
+  return isAvailable(
+    plugins.find((plugin) => plugin.id === DOCS_PLUGIN_ID),
+  );
+}
+
+/**
  * True when a plugin row describes a usable plugin: present, enabled, and
  * not in a hard-failure status. Plugin rows are untrusted input, so an
  * unknown status counts as available rather than crashing the health read.
@@ -148,7 +177,8 @@ function toToolHealth(
   input: {
     id: string;
     label: string;
-    installUrl: string;
+    /** null = nowhere to send a missing install (BB's built-ins). */
+    installUrl: string | null;
     plugin: InstalledPluginSummary | undefined;
   },
 ): ToolHealth {
@@ -159,7 +189,8 @@ function toToolHealth(
     enabled: input.plugin?.enabled ?? false,
     status: input.plugin?.status ?? null,
     version: input.plugin?.version ?? null,
-    installUrl: input.plugin === undefined ? input.installUrl : null,
+    // The link only ever shows while the tool is missing.
+    installUrl: input.plugin === undefined ? (input.installUrl ?? null) : null,
     available: isAvailable(input.plugin),
   };
 }
@@ -198,13 +229,22 @@ export function pluginHealth(
     installUrl: THREAD_TAGS_PLUGIN_URL,
     plugin: plugins.find((plugin) => plugin.id === THREAD_TAGS_PLUGIN_ID),
   });
+  // Docs ships with BB, so there is nowhere to send a missing install — the
+  // row's red X (or disabled readout) is all the guidance it needs.
+  const docs = toToolHealth({
+    id: DOCS_PLUGIN_ID,
+    label: "Docs",
+    installUrl: null,
+    plugin: plugins.find((plugin) => plugin.id === DOCS_PLUGIN_ID),
+  });
   const self = plugins.find(
     (plugin) => selfId !== undefined && plugin.id === selfId,
   );
   return {
     floatingNotesAvailable: floatingNotes.available,
     threadTagsAvailable: threadTags.available,
-    tools: [floatingNotes, threadTags],
+    docsAvailable: docs.available,
+    tools: [floatingNotes, threadTags, docs],
     self: {
       version: self?.version ?? null,
       source: self?.source ?? null,

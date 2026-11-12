@@ -27,7 +27,9 @@ import { PersonaAvatar } from "@/components/PersonaAvatar";
 import { ThreadTagBadge } from "@/components/ThreadTagBadge";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import {
+  DocsPickerDialog,
   FloatingNotePickerDialog,
+  type AttachableDoc,
   type AttachableNote,
 } from "@/components/PromptSourcePicker";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
@@ -166,11 +168,11 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [isPoolBusy, setIsPoolBusy] = useState(false);
-  // The + Add dropdown: open while its menu shows. The only source picker
-  // left is Floating Notes; the menu (and the dropdown affordance) vanishes
-  // entirely when that plugin is unavailable.
+  // The + Add dropdown: open while its menu shows. Its items are the source
+  // pickers the installed plugins allow; the menu (and the dropdown
+  // affordance) vanishes entirely when none of them is available.
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [picker, setPicker] = useState<"note" | null>(null);
+  const [picker, setPicker] = useState<"note" | "doc" | null>(null);
   const addMenuRef = useRef<HTMLDivElement | null>(null);
 
   const options = data?.[0] ?? null;
@@ -181,8 +183,10 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
 
   // Same one-plugin rule the server-side source RPCs gate on; the menu only
   // offers a picker whose plugin is actually there. Floating Notes missing
-  // means the config screen offers no Add-note affordance at all.
+  // means the config screen offers no Add-note affordance for notes; Docs
+  // missing the same for vault documents.
   const floatingNotesAvailable = health?.floatingNotesAvailable ?? false;
+  const docsAvailable = health?.docsAvailable ?? false;
 
   // Thread Tags present on this BB, from the same fresh health snapshot the
   // Add gate reads — an install, enable, or remove lands on the next visit.
@@ -410,9 +414,10 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   const selectedModel = available.find((candidate) => candidate.id === model);
   const isDraft = persona.status === "draft";
   const prompts = persona.prompts;
-  // Whether the + Add dropdown exists at all: it does only while Floating
-  // Notes is available; a missing plugin means no Add-note affordance.
-  const hasPromptSources = floatingNotesAvailable;
+  // Whether the + Add dropdown exists at all: it does while any prompt-source
+  // plugin (Floating Notes, Docs) is available; a BB with none of them means
+  // no Add-source affordance at all.
+  const hasPromptSources = floatingNotesAvailable || docsAvailable;
 
   // Blockers reflect what's on screen right now, not the last save that
   // landed — otherwise Publish would only enable after a round trip.
@@ -558,6 +563,29 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
       .finally(() => setIsPoolBusy(false));
   }
 
+  /**
+   * Attaches a Docs vault document as a live reference, not a copy: the pool
+   * entry keeps the vault id + vault-relative path, and its displayed and
+   * injected text always reads the file's current content. Selecting the
+   * document is what dismisses the picker.
+   */
+  function attachDoc(doc: AttachableDoc): void {
+    setPicker(null);
+    setIsPoolBusy(true);
+    rpc
+      .call("addPersonaPrompt", {
+        personaId,
+        type: "doc",
+        vaultId: doc.vaultId,
+        path: doc.path,
+      })
+      .then(() => reload())
+      .catch((cause) => {
+        toast.error(cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => setIsPoolBusy(false));
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-baseline justify-between">
@@ -643,13 +671,14 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
           <ul className="divide-y divide-border rounded-lg border border-border">
             {prompts.map((prompt) => (
               <li key={prompt.id} className="flex items-center gap-2 px-3 py-2">
-                {prompt.type === "note" ? (
-                  // A note entry is a live pointer, not prose: it renders the
-                  // note's current body (resolved server-side) and can only be
-                  // removed — never edited, or it would drift from its note.
+                {prompt.type !== "text" ? (
+                  // A live entry is a pointer, not prose: it renders its
+                  // source's current content (resolved server-side) and can
+                  // only be removed — never edited, or it would drift from
+                  // the Floating Note or Docs file it points at.
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-secondary-foreground">
-                      Floating Note
+                      {prompt.type === "note" ? "Floating Note" : "Docs"}
                     </span>
                     <span
                       className="min-w-0 flex-1 truncate text-sm"
@@ -663,7 +692,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
                     {promptPreview(prompt.text)}
                   </span>
                 )}
-                {prompt.type === "note" ? null : (
+                {prompt.type === "text" ? (
                   <Button
                     type="button"
                     size="sm"
@@ -674,7 +703,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
                   >
                     Edit
                   </Button>
-                )}
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -759,17 +788,32 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
                     aria-label="Add prompt from"
                     className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-border bg-background py-1 shadow-sm"
                   >
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="block w-full cursor-pointer px-3 py-1.5 text-left text-sm hover:bg-state-hover"
-                      onClick={() => {
-                        setAddMenuOpen(false);
-                        setPicker("note");
-                      }}
-                    >
-                      Add Floating Note
-                    </button>
+                    {floatingNotesAvailable ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full cursor-pointer px-3 py-1.5 text-left text-sm hover:bg-state-hover"
+                        onClick={() => {
+                          setAddMenuOpen(false);
+                          setPicker("note");
+                        }}
+                      >
+                        Add Floating Note
+                      </button>
+                    ) : null}
+                    {docsAvailable ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full cursor-pointer px-3 py-1.5 text-left text-sm hover:bg-state-hover"
+                        onClick={() => {
+                          setAddMenuOpen(false);
+                          setPicker("doc");
+                        }}
+                      >
+                        Add Docs document
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -782,7 +826,8 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
           <p className="text-xs text-muted-foreground">
             Every prompt in the pool is injected into each turn of this
             persona&apos;s chats. Floating Note entries inject the note&apos;s
-            current content — edit the note and this persona follows.
+            current content — edit the note and this persona follows. Docs
+            entries do the same for their vault file.
           </p>
         )}
       </div>
@@ -1045,6 +1090,12 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
       {picker === "note" ? (
         <FloatingNotePickerDialog
           onSelectNote={attachNote}
+          onClose={() => setPicker(null)}
+        />
+      ) : null}
+      {picker === "doc" ? (
+        <DocsPickerDialog
+          onSelectDoc={attachDoc}
           onClose={() => setPicker(null)}
         />
       ) : null}

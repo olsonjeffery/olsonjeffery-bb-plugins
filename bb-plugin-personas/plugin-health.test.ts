@@ -4,11 +4,13 @@
 // is covered in server.test.ts.
 import { describe, expect, it } from "vitest";
 import {
+  DOCS_PLUGIN_ID,
   FLOATING_NOTES_PLUGIN_ID,
   FLOATING_NOTES_PLUGIN_URL,
   THREAD_TAGS_PLUGIN_ID,
   THREAD_TAGS_PLUGIN_SOURCE,
   THREAD_TAGS_PLUGIN_URL,
+  isDocsAvailable,
   isFloatingNotesAvailable,
   isThreadTagsAvailable,
   pluginHealth,
@@ -93,19 +95,46 @@ describe("pluginHealth", () => {
       .toBe(false);
   });
 
-  it("appends the Thread Tags row after Floating Notes", () => {
+  it("appends the Thread Tags row after Floating Notes, and the Docs row after it", () => {
     const report = pluginHealth([
       makePlugin({}),
       makePlugin({ id: THREAD_TAGS_PLUGIN_ID, version: "0.1.0" }),
+      makePlugin({ id: DOCS_PLUGIN_ID, version: "0.2.3" }),
     ]);
     expect(report.threadTagsAvailable).toBe(true);
-    expect(report.tools).toHaveLength(2);
+    expect(report.docsAvailable).toBe(true);
+    expect(report.tools).toHaveLength(3);
     expect(report.tools[1]).toMatchObject({
       id: THREAD_TAGS_PLUGIN_ID,
       label: "Thread Tags",
       installed: true,
       available: true,
       // No link once the plugin is present.
+      installUrl: null,
+    });
+    expect(report.tools[2]).toMatchObject({
+      id: DOCS_PLUGIN_ID,
+      label: "Docs",
+      installed: true,
+      available: true,
+    });
+  });
+
+  it("isDocsAvailable follows the same one-rule statuses", () => {
+    expect(isDocsAvailable([makePlugin({ id: DOCS_PLUGIN_ID })])).toBe(true);
+    expect(
+      isDocsAvailable([makePlugin({ id: DOCS_PLUGIN_ID, status: "disabled" })]),
+    ).toBe(false);
+    expect(isDocsAvailable([])).toBe(false);
+  });
+
+  it("gives the built-in Docs row no install link even while missing", () => {
+    const missing = pluginHealth([]).tools[2]!;
+    expect(missing).toMatchObject({
+      id: DOCS_PLUGIN_ID,
+      label: "Docs",
+      installed: false,
+      available: false,
       installUrl: null,
     });
   });

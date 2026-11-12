@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { promptPreview } from "@/personas";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 
@@ -25,6 +32,8 @@ interface SourcePickerDialogProps {
   items: PickerItem[];
   isLoading: boolean;
   error: string | null;
+  /** Optional control row between the description and the search field. */
+  toolbar?: ReactNode;
   onSelect: (id: string) => void;
   onClose: () => void;
 }
@@ -42,6 +51,7 @@ function SourcePickerDialog({
   items,
   isLoading,
   error,
+  toolbar,
   onSelect,
   onClose,
 }: SourcePickerDialogProps) {
@@ -66,6 +76,7 @@ function SourcePickerDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {toolbar}
         <Input
           aria-label={searchLabel}
           value={search}
@@ -115,6 +126,14 @@ export interface AttachableNote {
   updatedAt: number;
 }
 
+/** One attachable Docs document, as the personas RPC returns it. */
+export interface AttachableDoc {
+  vaultId: string;
+  path: string;
+  title: string;
+  preview: string;
+}
+
 export function FloatingNotePickerDialog({
   onSelectNote,
   onClose,
@@ -145,6 +164,88 @@ export function FloatingNotePickerDialog({
       onSelect={(id) => {
         const note = notes.find((candidate) => candidate.id === id);
         if (note !== undefined) onSelectNote(note);
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+/** One Docs vault with its markdown documents, as the personas RPC returns it. */
+interface DocsSourceVault {
+  id: string;
+  name: string;
+  notes: { path: string; title: string; preview: string; modifiedAtMs: number }[];
+}
+
+/**
+ * The picker modal behind "Add Docs document": a vault selector over a
+ * search field filtering the selected vault's documents inline, one click to
+ * pick. Mounted only while open, so the source list loads lazily per open.
+ * The vault choice lives in the dialog — switching vaults re-filters in
+ * place, no extra round trip.
+ */
+export function DocsPickerDialog({
+  onSelectDoc,
+  onClose,
+}: {
+  onSelectDoc: (doc: AttachableDoc) => void;
+  onClose: () => void;
+}) {
+  const rpc = usePersonasRpc();
+  const { data, error, isLoading } = useQuery(
+    () => rpc.call("listDocsSources", null),
+    "docs-sources-picker",
+  );
+  const vaults = data?.vaults ?? [];
+  const [vaultId, setVaultId] = useState<string | null>(null);
+  // The first vault is the default selection (the docs plugin's own
+  // first-created vault); an empty vault list keeps the selector quiet.
+  const selectedVaultId = vaultId ?? vaults[0]?.id ?? null;
+  const selectedVault =
+    vaults.find((vault) => vault.id === selectedVaultId) ?? null;
+  const notes = selectedVault?.notes ?? [];
+
+  return (
+    <SourcePickerDialog
+      title="Add Docs document"
+      description="Pick one vault document to add to this persona's prompt pool."
+      searchLabel="Search documents"
+      searchPlaceholder="Search documents…"
+      items={notes.map((note) => ({
+        // The vault id + path pair identifies the document; the title (or the
+        // bare path when untitled) is what the row and the search filter on.
+        id: `${note.path}`,
+        label: note.title.trim().length > 0 ? note.title : note.path,
+        secondary: promptPreview(note.preview),
+      }))}
+      isLoading={isLoading}
+      error={error}
+      toolbar={
+        vaults.length > 1 ? (
+          <Select value={selectedVaultId ?? ""} onValueChange={setVaultId}>
+            <SelectTrigger aria-label="Vault">
+              <SelectValue placeholder="Vault" />
+            </SelectTrigger>
+            <SelectContent>
+              {vaults.map((vault) => (
+                <SelectItem key={vault.id} value={vault.id}>
+                  {vault.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null
+      }
+      onSelect={(path) => {
+        const note = notes.find((candidate) => candidate.path === path);
+        if (note !== undefined && selectedVaultId !== null) {
+          onSelectDoc({
+            vaultId: selectedVaultId,
+            path: note.path,
+            title: note.title,
+            preview: note.preview,
+          });
+        }
       }}
       onClose={onClose}
     />

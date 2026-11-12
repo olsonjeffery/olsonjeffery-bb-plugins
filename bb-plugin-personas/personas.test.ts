@@ -3,10 +3,14 @@ import {
   avatarTint,
   clampDefaultUserMessage,
   clampPromptText,
+  decodeDocPromptRef,
   decodeNotePromptRef,
   displayName,
+  docPromptRefKey,
+  DOC_UNAVAILABLE_TEXT,
   draftBlockers,
   emojiPickerHint,
+  encodeDocPromptRef,
   encodeNotePromptRef,
   EMOJI_GROUPS,
   EMOJIS,
@@ -27,6 +31,7 @@ import {
   personaIdFromDispatchItemId,
   pickEmoji,
   PROMPT_PREVIEW_LIMIT,
+  PROMPT_TYPES,
   promptPreview,
   previewInstructions,
   REASONING_LEVELS,
@@ -557,6 +562,27 @@ describe("rowToPrompt", () => {
       "text",
     );
   });
+
+  it("reads a doc row as a doc prompt, keeping the stored reference body", () => {
+    const doc = rowToPrompt({
+      ...row,
+      type: "doc",
+      text: encodeDocPromptRef("personal", "playbooks/pirate.md"),
+    });
+    expect(doc).toMatchObject({ type: "doc" });
+    expect(decodeDocPromptRef(doc.text)).toEqual({
+      kind: "docs-vault",
+      vaultId: "personal",
+      path: "playbooks/pirate.md",
+    });
+  });
+
+  it("degrades a doc row whose body is no longer a decodable reference", () => {
+    // Hand-edited or corrupted: same degradation a note row gets.
+    expect(rowToPrompt({ ...row, type: "doc", text: "not a blob" }).type).toBe(
+      "text",
+    );
+  });
 });
 
 describe("newPromptId", () => {
@@ -615,8 +641,55 @@ describe("encodeNotePromptRef / decodeNotePromptRef", () => {
   });
 });
 
+describe("encodeDocPromptRef / decodeDocPromptRef", () => {
+  it("round-trips a vault id and vault-relative path", () => {
+    expect(
+      decodeDocPromptRef(encodeDocPromptRef("personal", "playbooks/pirate.md")),
+    ).toEqual({
+      kind: "docs-vault",
+      vaultId: "personal",
+      path: "playbooks/pirate.md",
+    });
+  });
+
+  it("rejects ordinary prose, non-JSON, and malformed blobs", () => {
+    expect(decodeDocPromptRef("Always answer in pirate speak.")).toBeNull();
+    expect(decodeDocPromptRef("not json")).toBeNull();
+    expect(decodeDocPromptRef('{"kind":"floating-note","noteId":"n"}')).toBeNull();
+    expect(decodeDocPromptRef('{"kind":"docs-vault","path":"p.md"}')).toBeNull();
+    expect(
+      decodeDocPromptRef('{"kind":"docs-vault","vaultId":"v","path":""}'),
+    ).toBeNull();
+    expect(
+      decodeDocPromptRef('{"kind":"docs-vault","vaultId":"","path":"p.md"}'),
+    ).toBeNull();
+    // NUL is the cache-key separator; a ref carrying one is not decodable.
+    expect(
+      decodeDocPromptRef('{"kind":"docs-vault","vaultId":"v\\u0000x","path":"p.md"}'),
+    ).toBeNull();
+    expect(decodeDocPromptRef("null")).toBeNull();
+  });
+
+  it("keys the body cache per vault and per path", () => {
+    expect(docPromptRefKey("personal", "plans/a.md")).toBe(
+      "personal\u0000plans/a.md",
+    );
+    // Same file name in two vaults resolves independently.
+    expect(docPromptRefKey("work", "plans/a.md")).not.toBe(
+      docPromptRefKey("personal", "plans/a.md"),
+    );
+  });
+
+  it("keeps 'doc' among the extensible prompt types", () => {
+    expect(PROMPT_TYPES).toContain("doc");
+  });
+});
+
 describe("resolvedPromptText / resolvePromptTexts", () => {
   const bodies = new Map([["note_live", "Feed crackers twice a day."]]);
+  const docBodies = new Map([
+    [docPromptRefKey("personal", "playbooks/pirate.md"), "Swab the deck daily."],
+  ]);
   const textPrompt = (id: string): PersonaPrompt => ({
     id,
     personaId: "persona_1",
@@ -632,6 +705,15 @@ describe("resolvedPromptText / resolvePromptTexts", () => {
     type: "note",
     text: encodeNotePromptRef(noteId),
     position: 1,
+    createdAt: 0,
+    updatedAt: 0,
+  });
+  const docPrompt = (id: string, vaultId: string, path: string): PersonaPrompt => ({
+    id,
+    personaId: "persona_1",
+    type: "doc",
+    text: encodeDocPromptRef(vaultId, path),
+    position: 2,
     createdAt: 0,
     updatedAt: 0,
   });
@@ -651,16 +733,59 @@ describe("resolvedPromptText / resolvePromptTexts", () => {
     );
   });
 
-  it("resolvePromptTexts leaves text prompts untouched and only swaps note bodies", () => {
+  it("a doc prompt is its file's current content, keyed by vault and path", () => {
+    expect(
+      resolvedPromptText(
+        docPrompt("prompt_3", "personal", "playbooks/pirate.md"),
+        bodies,
+        docBodies,
+      ),
+    ).toBe("Swab the deck daily.");
+  });
+
+  it("a doc whose file isn't known resolves to the unavailable marker", () => {
+    expect(
+      resolvedPromptText(
+        docPrompt("prompt_3", "personal", "plans/gone.md"),
+        bodies,
+        docBodies,
+      ),
+    ).toBe(DOC_UNAVAILABLE_TEXT);
+    expect(
+      resolvedPromptText(
+        docPrompt("prompt_3", "work", "playbooks/pirate.md"),
+        bodies,
+        docBodies,
+      ),
+    ).toBe(DOC_UNAVAILABLE_TEXT);
+  });
+
+  it("resolvePromptTexts leaves text prompts untouched and only swaps live bodies", () => {
     const resolved = resolvePromptTexts(
-      [textPrompt("prompt_1"), notePrompt("prompt_2", "note_live")],
+      [
+        textPrompt("prompt_1"),
+        notePrompt("prompt_2", "note_live"),
+        docPrompt("prompt_3", "personal", "playbooks/pirate.md"),
+      ],
       bodies,
+      docBodies,
     );
     expect(resolved[0]).toEqual(textPrompt("prompt_1"));
     expect(resolved[1]).toEqual({
       ...notePrompt("prompt_2", "note_live"),
       text: "Feed crackers twice a day.",
     });
+    expect(resolved[2]).toEqual({
+      ...docPrompt("prompt_3", "personal", "playbooks/pirate.md"),
+      text: "Swab the deck daily.",
+    });
+  });
+
+  it("resolves live prompts against empty caches without doc bodies passed", () => {
+    // The doc map is optional; a doc prompt then reads as unavailable.
+    expect(
+      resolvedPromptText(docPrompt("prompt_3", "personal", "plans/x.md"), bodies),
+    ).toBe(DOC_UNAVAILABLE_TEXT);
   });
 });
 
@@ -772,6 +897,55 @@ describe("personaToExport", () => {
     const exported = personaToExport(makePersona({ prompts }), notes);
     expect(exported.prompts).toEqual([
       { type: "note", text: NOTE_UNAVAILABLE_TEXT, noteId: "note_gone" },
+    ]);
+  });
+
+  it("exports doc prompts as their file's current content plus the vault id and path", () => {
+    const docs = new Map([
+      [docPromptRefKey("personal", "playbooks/pirate.md"), "Swab the deck daily."],
+    ]);
+    const prompts: PersonaPrompt[] = [
+      {
+        id: "prompt_1",
+        personaId: "persona_9",
+        type: "doc",
+        text: encodeDocPromptRef("personal", "playbooks/pirate.md"),
+        position: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ];
+    const exported = personaToExport(makePersona({ prompts }), notes, docs);
+    expect(exported.prompts).toEqual([
+      {
+        type: "doc",
+        text: "Swab the deck daily.",
+        vaultId: "personal",
+        path: "playbooks/pirate.md",
+      },
+    ]);
+  });
+
+  it("exports a doc prompt whose file can't be read as the unavailable marker, keeping the pointer", () => {
+    const prompts: PersonaPrompt[] = [
+      {
+        id: "prompt_1",
+        personaId: "persona_9",
+        type: "doc",
+        text: encodeDocPromptRef("personal", "plans/gone.md"),
+        position: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ];
+    const exported = personaToExport(makePersona({ prompts }), notes);
+    expect(exported.prompts).toEqual([
+      {
+        type: "doc",
+        text: DOC_UNAVAILABLE_TEXT,
+        vaultId: "personal",
+        path: "plans/gone.md",
+      },
     ]);
   });
 });

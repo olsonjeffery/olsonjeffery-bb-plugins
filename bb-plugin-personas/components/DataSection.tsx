@@ -88,7 +88,7 @@ export function DataSection() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">Personas data</p>
             <p className="truncate text-xs text-muted-foreground">
-              All personas with their prompts, emoji, and colors — note prompts copy their note's current body.
+              All personas with their prompts, emoji, and colors — live prompts copy their note or vault file's current content.
             </p>
           </div>
         </div>

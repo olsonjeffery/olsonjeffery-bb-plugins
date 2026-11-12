@@ -452,6 +452,81 @@ describe("instruction routing", () => {
       "[Floating note is unavailable]",
     );
   });
+
+  it("contributes a doc prompt's live content, and follows edits to the file", async () => {
+    // The file's content changes between reads, the way a real edit would.
+    let content = "Swab the deck daily.";
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content,
+        contentEncoding: "utf8",
+      }),
+    });
+
+    const personaId = await createPublishedPersona();
+    await host.harness.behavior.callRpc("addPersonaPrompt", {
+      personaId,
+      type: "doc",
+      vaultId: "personal",
+      path: "playbooks/pirate.md",
+    });
+    const threadId = dispatchThreadStart(personaId);
+
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(provide({ threadId, projectId: "proj_personal" })).toContain(
+      "Swab the deck daily.",
+    );
+
+    // The file is edited in Docs; the persona follows on the next refresh
+    // (any reader — here, the editor's getPersona).
+    content = "Scrub the deck twice daily, and polish the brass.";
+    await host.harness.behavior.callRpc("getPersona", { personaId });
+    expect(provide({ threadId, projectId: "proj_personal" })).toContain(
+      "Scrub the deck twice daily, and polish the brass.",
+    );
+  });
+
+  it("contributes the unavailable marker when the Docs file can't be read", async () => {
+    // No readNote stub at all: every refresh fails, so the cache stays empty.
+    stubCrossPluginRpc({});
+    const personaId = await createPublishedPersona();
+    await host.harness.behavior.callRpc("addPersonaPrompt", {
+      personaId,
+      type: "doc",
+      vaultId: "personal",
+      path: "plans/gone.md",
+    });
+    const threadId = dispatchThreadStart(personaId);
+
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(provide({ threadId, projectId: "proj_personal" })).toContain(
+      "[Docs file is unavailable]",
+    );
+  });
+
+  it("never injects a Docs file that only carries binary bytes", async () => {
+    // The path was re-pointed at a binary: readNote answers base64, which is
+    // not prompt text, so the entry degrades to the unavailable marker.
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: "AAECAw==",
+        contentEncoding: "base64",
+      }),
+    });
+    const personaId = await createPublishedPersona();
+    await host.harness.behavior.callRpc("addPersonaPrompt", {
+      personaId,
+      type: "doc",
+      vaultId: "personal",
+      path: "attachments/logo.png",
+    });
+    const threadId = dispatchThreadStart(personaId);
+
+    const provide = host.harness.registrations.instructionProvider!;
+    expect(provide({ threadId, projectId: "proj_personal" })).toContain(
+      "[Docs file is unavailable]",
+    );
+  });
 });
 
 describe("prompt pool", () => {
@@ -636,6 +711,119 @@ describe("prompt pool", () => {
     expect((await getPrompts(personaId))[0]?.type).toBe("note");
   });
 
+  it("adds a doc prompt as a live reference, storing the vault and path — not a copy of the file", async () => {
+    const calls = stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: "Swab the deck daily.",
+        contentEncoding: "utf8",
+      }),
+    });
+    const personaId = await createDraft();
+    const { prompt } = (await host.harness.behavior.callRpc(
+      "addPersonaPrompt",
+      {
+        personaId,
+        type: "doc",
+        vaultId: "personal",
+        path: "playbooks/pirate.md",
+      },
+    )) as {
+      prompt: {
+        id: string;
+        type: string;
+        docVaultId?: string;
+        docPath?: string;
+        text: string;
+      };
+    };
+
+    // The wire carries the live content and the durable link, never the blob.
+    expect(prompt).toMatchObject({
+      personaId,
+      type: "doc",
+      docVaultId: "personal",
+      docPath: "playbooks/pirate.md",
+      text: "Swab the deck daily.",
+    });
+    // The read went to the built-in Docs plugin by vault id and path.
+    expect(calls[0]).toMatchObject({
+      pluginId: "simple-notes",
+      method: "readNote",
+      input: { vaultId: "personal", path: "playbooks/pirate.md" },
+    });
+    // The durable row stores the reference, so later file edits flow through.
+    const row = host.bb.storage
+      .database()
+      .prepare("SELECT type, text FROM persona_prompts WHERE id = ?")
+      .get(prompt.id) as { type: string; text: string };
+    expect(row.type).toBe("doc");
+    expect(JSON.parse(row.text)).toEqual({
+      kind: "docs-vault",
+      vaultId: "personal",
+      path: "playbooks/pirate.md",
+    });
+  });
+
+  it("lets a persona hold the same Docs file twice — the pool is the user's to curate", async () => {
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: "Swab the deck daily.",
+        contentEncoding: "utf8",
+      }),
+    });
+    const personaId = await createDraft();
+    const add = { personaId, type: "doc", vaultId: "personal", path: "playbooks/pirate.md" };
+    await expect(
+      host.harness.behavior.callRpc("addPersonaPrompt", add),
+    ).resolves.toBeTruthy();
+    await expect(
+      host.harness.behavior.callRpc("addPersonaPrompt", add),
+    ).resolves.toBeTruthy();
+    expect(await getPrompts(personaId)).toHaveLength(2);
+  });
+
+  it("rejects editing a doc prompt — remove it and attach the file again instead", async () => {
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: "Swab the deck daily.",
+        contentEncoding: "utf8",
+      }),
+    });
+    const personaId = await createDraft();
+    const { prompt } = (await host.harness.behavior.callRpc(
+      "addPersonaPrompt",
+      { personaId, type: "doc", vaultId: "personal", path: "plans/a.md" },
+    )) as { prompt: { id: string } };
+    await expect(
+      host.harness.behavior.callRpc("updatePersonaPrompt", {
+        personaId,
+        promptId: prompt.id,
+        text: "Hand-edited text.",
+      }),
+    ).rejects.toThrow("Docs prompts can't be edited");
+    // The reference survived the rejected edit.
+    expect((await getPrompts(personaId))[0]?.type).toBe("doc");
+  });
+
+  it("removes a doc prompt like any other pool entry", async () => {
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: "Swab the deck daily.",
+        contentEncoding: "utf8",
+      }),
+    });
+    const personaId = await createDraft();
+    const { prompt } = (await host.harness.behavior.callRpc(
+      "addPersonaPrompt",
+      { personaId, type: "doc", vaultId: "personal", path: "plans/a.md" },
+    )) as { prompt: { id: string } };
+    await host.harness.behavior.callRpc("removePersonaPrompt", {
+      personaId,
+      promptId: prompt.id,
+    });
+    expect(await getPrompts(personaId)).toHaveLength(0);
+  });
+
   it("removes a note prompt like any other pool entry", async () => {
     stubCrossPluginRpc({
       "floating-notes:listNotes": () => ({
@@ -751,6 +939,115 @@ describe("prompt-pool sources", () => {
     await expect(
       host.harness.behavior.callRpc("listFloatingNotes", null),
     ).rejects.toThrow("Floating Notes is not installed and enabled");
+    expect(
+      host.harness.inspection.sdk.callsTo("plugins.callRpc"),
+    ).toHaveLength(0);
+  });
+
+  it("lists every Docs vault with its documents newest-first, reading only the fields a prompt needs", async () => {
+    const calls = stubCrossPluginRpc({
+      "simple-notes:listNotes": (input) => {
+        const { vaultId } = input as { vaultId?: string };
+        if (vaultId === "personal") {
+          return {
+            vaults: [],
+            notes: [
+              { path: "plans/old.md", title: "Old", preview: "Old preview.", modifiedAtMs: 1 },
+              { path: "plans/new.md", title: "New", preview: "New preview.", modifiedAtMs: 2 },
+            ],
+            error: null,
+          };
+        }
+        return {
+          vaults: [
+            { id: "personal", name: "Personal", hostId: null, rootPath: "/docs/personal" },
+            { id: "work", name: "Work", hostId: "host_b", rootPath: "/docs/work" },
+          ],
+          notes: [],
+          error: null,
+        };
+      },
+    });
+
+    const { vaults } = (await host.harness.behavior.callRpc(
+      "listDocsSources",
+      null,
+    )) as {
+      vaults: Array<{
+        id: string;
+        name: string;
+        notes: { path: string; title: string; preview: string; modifiedAtMs: number }[];
+      }>;
+    };
+
+    // The vault discovery asked the docs plugin once without a vault id.
+    expect(calls[0]).toMatchObject({
+      pluginId: "simple-notes",
+      method: "listNotes",
+      input: {},
+    });
+    // Each vault's notes are one listNotes call away, newest modified first.
+    expect(vaults).toEqual([
+      {
+        id: "personal",
+        name: "Personal",
+        notes: [
+          { path: "plans/new.md", title: "New", preview: "New preview.", modifiedAtMs: 2 },
+          { path: "plans/old.md", title: "Old", preview: "Old preview.", modifiedAtMs: 1 },
+        ],
+      },
+      { id: "work", name: "Work", notes: [] },
+    ]);
+  });
+
+  it("treats a vault whose listing failed as an empty one", async () => {
+    stubCrossPluginRpc({
+      "simple-notes:listNotes": (input) => {
+        const { vaultId } = input as { vaultId?: string };
+        if (vaultId === undefined) {
+          return {
+            vaults: [{ id: "personal", name: "Personal", hostId: null, rootPath: "/d" }],
+            notes: [],
+            error: null,
+          };
+        }
+        // The docs plugin reports per-vault failures inline rather than
+        // throwing; the vault still lists (empty) instead of sinking.
+        return { vaults: [], notes: [], error: "Disk hiccup" };
+      },
+    });
+
+    const { vaults } = (await host.harness.behavior.callRpc(
+      "listDocsSources",
+      null,
+    )) as { vaults: Array<{ id: string; name: string; notes: unknown[] }> };
+    expect(vaults).toEqual([{ id: "personal", name: "Personal", notes: [] }]);
+  });
+
+  it("lists no Docs vaults when the plugin has none configured", async () => {
+    // Zero vaults: the docs plugin throws instead of answering empty.
+    stubCrossPluginRpc({
+      "simple-notes:listNotes": () => {
+        throw new Error("No vault configured");
+      },
+    });
+    const { vaults } = (await host.harness.behavior.callRpc(
+      "listDocsSources",
+      null,
+    )) as { vaults: unknown[] };
+    expect(vaults).toEqual([]);
+  });
+
+  it("refuses to list Docs sources when the plugin isn't available", async () => {
+    stubCrossPluginRpc({});
+    host.harness.inspection.sdk.stub(
+      "plugins.list",
+      (async () => ({ plugins: [] })) as never,
+    );
+
+    await expect(
+      host.harness.behavior.callRpc("listDocsSources", null),
+    ).rejects.toThrow("Docs is not installed and enabled");
     expect(
       host.harness.inspection.sdk.callsTo("plugins.callRpc"),
     ).toHaveLength(0);
@@ -1442,8 +1739,21 @@ describe("getPluginHealth", () => {
         installUrl: "https://github.com/VladPolet/bb-plugin-thread-tags",
         available: false,
       },
+      {
+        // The built-in Docs plugin runs in the default host list: the row
+        // reads available, with no install link because it ships with BB.
+        id: "simple-notes",
+        label: "Docs",
+        installed: true,
+        enabled: true,
+        status: "running",
+        version: "0.2.3",
+        installUrl: null,
+        available: true,
+      },
     ]);
     expect(health.threadTagsAvailable).toBe(false);
+    expect(health.docsAvailable).toBe(true);
   });
 
   it("reports the install source of the Personas plugin itself", async () => {
@@ -1525,6 +1835,17 @@ describe("getPluginHealth", () => {
         status: null,
         version: null,
         installUrl: "https://github.com/VladPolet/bb-plugin-thread-tags",
+        available: false,
+      },
+      {
+        // Missing too — but a built-in has no install link to offer.
+        id: "simple-notes",
+        label: "Docs",
+        installed: false,
+        enabled: false,
+        status: null,
+        version: null,
+        installUrl: null,
         available: false,
       },
     ]);
@@ -1903,6 +2224,46 @@ describe("export/import", () => {
     ]);
   });
 
+  it("exports doc prompts as the file's current content plus the vault id and path", async () => {
+    const personaId = await createPublishedPersona();
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: "Fresh file content.",
+        contentEncoding: "utf8",
+      }),
+    });
+    await host.harness.behavior.callRpc("addPersonaPrompt", {
+      personaId,
+      type: "doc",
+      vaultId: "personal",
+      path: "playbooks/pirate.md",
+    });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "exportPersonas",
+      null,
+    )) as {
+      personas: Array<{
+        prompts: Array<{
+          type: string;
+          text: string;
+          vaultId?: string;
+          path?: string;
+        }>;
+      }>;
+    };
+
+    expect(personas[0]!.prompts).toEqual([
+      { type: "text", text: PROMPT_TEXT },
+      {
+        type: "doc",
+        text: "Fresh file content.",
+        vaultId: "personal",
+        path: "playbooks/pirate.md",
+      },
+    ]);
+  });
+
   it("imports a fresh persona published, with fresh ids and preserved prompt order", async () => {
     const result = (await host.harness.behavior.callRpc("importPersonas", {
       personas: [
@@ -2087,6 +2448,138 @@ describe("export/import", () => {
     ]);
     // One note listing served the whole batch.
     expect(notes).toHaveLength(1);
+  });
+
+  it("re-attaches doc prompts whose file reads here and degrades to text when it doesn't", async () => {
+    const reads = stubCrossPluginRpc({
+      "simple-notes:readNote": (input) => {
+        const { path } = input as { path: string };
+        if (path === "playbooks/pirate.md") {
+          return { content: "Fresh file content.", contentEncoding: "utf8" };
+        }
+        throw new Error(`Path does not exist: ${path}`);
+      },
+    });
+
+    await host.harness.behavior.callRpc("importPersonas", {
+      personas: [
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Re-linked",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [
+            {
+              type: "doc",
+              text: "Stale snapshot.",
+              vaultId: "personal",
+              path: "playbooks/pirate.md",
+            },
+          ],
+        },
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Degraded",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [
+            {
+              type: "doc",
+              text: "Stale snapshot.",
+              vaultId: "personal",
+              path: "plans/gone.md",
+            },
+          ],
+        },
+      ],
+    });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as {
+      personas: Array<{
+        name: string;
+        prompts: Array<{
+          type: string;
+          text: string;
+          docVaultId?: string;
+          docPath?: string;
+        }>;
+      }>;
+    };
+    const byName = new Map(personas.map((p) => [p.name, p]));
+    expect(byName.get("Re-linked")!.prompts).toMatchObject([
+      {
+        type: "doc",
+        text: "Fresh file content.",
+        docVaultId: "personal",
+        docPath: "playbooks/pirate.md",
+      },
+    ]);
+    expect(byName.get("Degraded")!.prompts).toMatchObject([
+      { type: "text", text: "Stale snapshot." },
+    ]);
+    // Each distinct file was read once to serve the whole batch (the
+    // floating-notes listing the note import path always performs is the
+    // third call).
+    expect(
+      reads.filter((call) => call.method === "readNote"),
+    ).toHaveLength(2);
+  });
+
+  it("imports doc prompts as verbatim text when Docs isn't available", async () => {
+    // No readNote stub and an empty plugin list: nothing is readable here.
+    stubCrossPluginRpc({});
+    host.harness.inspection.sdk.stub(
+      "plugins.list",
+      (async () => ({ plugins: [] })) as never,
+    );
+
+    await host.harness.behavior.callRpc("importPersonas", {
+      personas: [
+        {
+          format: "bb-plugin-personas/v1",
+          name: "Degraded",
+          emoji: "🦜",
+          color: null,
+          status: "published",
+          providerId: "codex",
+          model: "gpt-5.5",
+          reasoningLevel: null,
+          projectId: null,
+          defaultUserMessage: "",
+          prompts: [
+            {
+              type: "doc",
+              text: "Stale snapshot.",
+              vaultId: "personal",
+              path: "playbooks/pirate.md",
+            },
+          ],
+        },
+      ],
+    });
+
+    const { personas } = (await host.harness.behavior.callRpc(
+      "listPersonas",
+      null,
+    )) as { personas: Array<{ prompts: Array<{ type: string; text: string }> }> };
+    expect(personas[0]!.prompts).toMatchObject([
+      { type: "text", text: "Stale snapshot." },
+    ]);
   });
 
   it("round-trips: export → import reproduces names, emoji, color, and prompt order under (NEW-IMPORT)", async () => {

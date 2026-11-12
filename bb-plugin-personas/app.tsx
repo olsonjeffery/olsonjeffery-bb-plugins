@@ -231,9 +231,9 @@ export default definePluginApp((app) => {
   });
 
   // The Export & import card: one personas.json file, one object per persona,
-  // prompts verbatim (note prompts carry their note's body at export time),
-  // emoji and color included; import is additive and renames on collision as
-  // "Name (NEW-IMPORT)".
+  // prompts verbatim (live prompts carry their source's content at export
+  // time), emoji and color included; import is additive and renames on
+  // collision as "Name (NEW-IMPORT)".
   app.slots.settingsSection({
     id: "personas-data",
     title: "Export & import",

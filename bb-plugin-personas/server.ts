@@ -8,10 +8,14 @@ import { z } from "zod";
 import {
   clampDefaultUserMessage,
   clampPromptText,
+  decodeDocPromptRef,
   decodeNotePromptRef,
   defaultThreadTagLabel,
   displayName,
+  docPromptRefKey,
+  DOC_UNAVAILABLE_TEXT,
   draftBlockers,
+  encodeDocPromptRef,
   encodeNotePromptRef,
   MAX_DEFAULT_USER_MESSAGE,
   MAX_NAME,
@@ -40,7 +44,9 @@ import {
 } from "./personas.js";
 import { pluginHealth, selfInstallLabel } from "./plugin-health.js";
 import {
+  DOCS_PLUGIN_ID,
   FLOATING_NOTES_PLUGIN_ID,
+  isDocsAvailable,
   isFloatingNotesAvailable,
   THREAD_TAGS_PLUGIN_ID,
   THREAD_TAGS_PLUGIN_SOURCE,
@@ -63,14 +69,20 @@ const PersonaColor = z.enum(PERSONA_COLORS);
 const PersonaPromptSchema = z.object({
   id: z.string(),
   personaId: z.string(),
-  // "text" carries its own prose; "note" points at a Floating Note.
-  type: z.enum(["text", "note"]),
-  // For "text" prompts: the prose. For "note" prompts: the note's live body,
-  // resolved server-side so the wire never leaks the stored JSON reference.
+  // "text" carries its own prose; "note" points at a Floating Note; "doc"
+  // points at a file in a Docs vault.
+  type: z.enum(["text", "note", "doc"]),
+  // For "text" prompts: the prose. For live prompts: the source's current
+  // content, resolved server-side so the wire never leaks the stored JSON
+  // reference.
   text: z.string(),
   // Present only on "note" prompts: the durable Floating Note id this entry
   // points at.
   noteId: z.string().optional(),
+  // Present only on "doc" prompts: the Docs vault id and vault-relative path
+  // this entry points at.
+  docVaultId: z.string().optional(),
+  docPath: z.string().optional(),
   position: z.number().int(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
@@ -167,9 +179,51 @@ const FloatingNoteSchema = z.object({
 // shape carries the export snapshot plus the durable note id, and the import
 // checks this list to see which of them still exist here.
 const ExportedPromptSchema = z.object({
-  type: z.enum(["text", "note"]),
+  type: z.enum(["text", "note", "doc"]),
   text: z.string(),
   noteId: z.string().optional(),
+  vaultId: z.string().optional(),
+  path: z.string().optional(),
+});
+
+// -- Docs (BB's built-in Docs plugin, id "simple-notes") wire shapes -------
+//
+// Field mirrors of the docs plugin's own zod contracts, read the same way the
+// Floating Notes block above reads Floating Notes': only the fields this
+// plugin consumes are declared (plain z.object strips the rest rather than
+// becoming a cross-plugin contract).
+
+/** One Docs vault, as the picker's vault list and per-vault grouping see it. */
+const DocsVaultSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+});
+
+/** One attachable Docs markdown document, as the picker modal sees it. */
+const DocsNoteSummarySchema = z.object({
+  path: z.string(),
+  title: z.string(),
+  preview: z.string(),
+  modifiedAtMs: z.number(),
+});
+
+// The docs plugin's listNotes reply for one vault. The real payload carries
+// hosts, entries, entryOrder, and truncation state; a prompt attachment needs
+// only the vault list and the markdown note summaries.
+const DocsListNotesOutput = z.object({
+  vaults: z.array(DocsVaultSchema),
+  notes: z.array(DocsNoteSummarySchema),
+  // The docs plugin reports per-vault read failures inline (error non-null)
+  // rather than throwing; the picker surfaces that as an empty vault.
+  error: z.string().nullable(),
+});
+
+// The docs plugin's readNote reply: any vault file's bytes, utf8 for text.
+// mimeType/sizeBytes/sha256/modifiedAtMs are stripped — a prompt needs the
+// text and the knowledge of whether it was text at all.
+const DocsReadNoteOutput = z.object({
+  content: z.string(),
+  contentEncoding: z.enum(["base64", "utf8"]),
 });
 
 //
@@ -237,10 +291,11 @@ export const rpcContract = defineRpcContract({
     input: z.object({ personaId: z.string(), patch: PersonaPatchSchema }).strict(),
     output: z.object({ ok: z.boolean() }),
   },
-  // Adds one prompt to a persona's pool: either typed prose (type "text")
-  // or a live Floating Note reference (type "note", by durable note id — the
-  // note's current body is read at render time, so later edits flow through).
-  // Duplicates are allowed; the user curates their own pool.
+  // Adds one prompt to a persona's pool: typed prose (type "text"), a live
+  // Floating Note reference (type "note", by durable note id), or a live
+  // Docs vault file reference (type "doc", by vault id + vault-relative
+  // path). Each live entry is read at render time, so later edits to the
+  // source flow through. Duplicates are allowed; the user curates the pool.
   addPersonaPrompt: {
     input: z.discriminatedUnion("type", [
       z
@@ -257,11 +312,21 @@ export const rpcContract = defineRpcContract({
           noteId: z.string().min(1),
         })
         .strict(),
+      z
+        .object({
+          personaId: z.string(),
+          type: z.literal("doc"),
+          // Vault ids and paths come straight from the docs plugin's own
+          // listing; the bounds here only stop nonsense at the boundary.
+          vaultId: z.string().min(1).max(200),
+          path: z.string().min(1).max(400),
+        })
+        .strict(),
     ]),
     output: z.object({ prompt: PersonaPromptSchema }),
   },
-  // Rewrites one TEXT prompt's text. Note prompts aren't editable — remove
-  // the entry and attach the note again instead.
+  // Rewrites one TEXT prompt's text. Note and doc prompts aren't editable —
+  // remove the entry and attach the source again instead.
   updatePersonaPrompt: {
     input: z
       .object({
@@ -370,6 +435,7 @@ export const rpcContract = defineRpcContract({
     output: z.object({
       floatingNotesAvailable: z.boolean(),
       threadTagsAvailable: z.boolean(),
+      docsAvailable: z.boolean(),
       tools: z.array(ToolHealthSchema),
       self: z.object({
         version: z.string().nullable(),
@@ -387,6 +453,22 @@ export const rpcContract = defineRpcContract({
   listFloatingNotes: {
     input: z.null(),
     output: z.object({ notes: z.array(FloatingNoteSchema) }),
+  },
+  // Every Docs vault with its markdown documents, for the editor's "Add Docs
+  // document" picker. Throws when the built-in Docs plugin isn't
+  // installed-and-enabled; a vault that fails to read lists as empty rather
+  // than sinking the picker.
+  listDocsSources: {
+    input: z.null(),
+    output: z.object({
+      vaults: z.array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string(),
+          notes: z.array(DocsNoteSummarySchema),
+        }),
+      ),
+    }),
   },
   // -- Thread Tags (bb-plugin-thread-tags) ----------------------------------
 
@@ -617,10 +699,12 @@ export default async function plugin(bb: BbPluginApi) {
     `loaded ${personasById.size} personas across ${personaIdByThreadId.size} threads`,
   );
 
-  // Live Floating Note bodies by durable note id — the read path note prompts
+  // Live Floating Note bodies by durable note id, and live Docs file
+  // contents by vault id + path — the read paths the live prompt types
   // resolve against. contributeInstructions is synchronous, so it can only
-  // read this cache; the refresh paths below keep the cache fresh.
+  // read these caches; the refresh paths below keep them fresh.
   const noteBodiesById = new Map<string, string>();
+  const docBodiesByRef = new Map<string, string>();
 
   /** True when any persona's pool holds a note prompt. */
   function anyNotePrompts(): boolean {
@@ -628,6 +712,31 @@ export default async function plugin(bb: BbPluginApi) {
       if (prompts.some((prompt) => prompt.type === "note")) return true;
     }
     return false;
+  }
+
+  /** True when any persona's pool holds a doc prompt. */
+  function anyDocPrompts(): boolean {
+    for (const prompts of promptsByPersonaId.values()) {
+      if (prompts.some((prompt) => prompt.type === "doc")) return true;
+    }
+    return false;
+  }
+
+  /** Every doc reference any pool currently holds, without duplicates. */
+  function referencedDocRefs(): { vaultId: string; path: string }[] {
+    const refs = new Map<string, { vaultId: string; path: string }>();
+    for (const prompts of promptsByPersonaId.values()) {
+      for (const prompt of prompts) {
+        if (prompt.type !== "doc") continue;
+        const ref = decodeDocPromptRef(prompt.text);
+        if (ref === null) continue;
+        refs.set(docPromptRefKey(ref.vaultId, ref.path), {
+          vaultId: ref.vaultId,
+          path: ref.path,
+        });
+      }
+    }
+    return [...refs.values()];
   }
 
   /**
@@ -656,12 +765,64 @@ export default async function plugin(bb: BbPluginApi) {
   }
 
   /**
-   * One prompt in wire shape. A note prompt never leaks its stored JSON
-   * reference: `text` is its note's CURRENT body (or the unavailable marker),
-   * and `noteId` carries the durable link the UI renders from.
+   * Re-reads every referenced Docs file into the cache. A no-op while no
+   * persona holds a doc prompt or Docs is unavailable; one file failing to
+   * read only drops that file from the cache (its prompt shows the
+   * unavailable marker) and never blanks the rest. Binary files are skipped:
+   * their bytes are not prompt text.
+   */
+  async function refreshDocBodies(): Promise<void> {
+    if (!anyDocPrompts()) return;
+    try {
+      const { plugins } = await bb.sdk.plugins.list();
+      if (!isDocsAvailable(plugins)) return;
+      await Promise.all(
+        referencedDocRefs().map(async (ref) => {
+          try {
+            const file = await bb.sdk.plugins.callRpc({
+              pluginId: DOCS_PLUGIN_ID,
+              method: "readNote",
+              input: { vaultId: ref.vaultId, path: ref.path },
+              outputSchema: DocsReadNoteOutput,
+            });
+            if (file.contentEncoding === "utf8") {
+              docBodiesByRef.set(docPromptRefKey(ref.vaultId, ref.path), file.content);
+            } else {
+              docBodiesByRef.delete(docPromptRefKey(ref.vaultId, ref.path));
+            }
+          } catch {
+            // One unreadable file must not sink the others; the cache keeps
+            // its last-known body for it.
+          }
+        }),
+      );
+    } catch (cause) {
+      bb.log.warn(
+        `doc refresh failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  }
+
+  /**
+   * One prompt in wire shape. A live prompt never leaks its stored JSON
+   * reference: `text` is its source's CURRENT content (or the unavailable
+   * marker), and the durable link rides in its own fields the UI renders
+   * from (`noteId`, or `docVaultId`+`docPath`).
    */
   function toWirePrompt(prompt: PersonaPrompt) {
     if (prompt.type === "text") return { ...prompt };
+    if (prompt.type === "doc") {
+      // rowToPrompt guarantees a "doc" row decodes.
+      const ref = decodeDocPromptRef(prompt.text)!;
+      return {
+        ...prompt,
+        text:
+          docBodiesByRef.get(docPromptRefKey(ref.vaultId, ref.path)) ??
+          DOC_UNAVAILABLE_TEXT,
+        docVaultId: ref.vaultId,
+        docPath: ref.path,
+      };
+    }
     // rowToPrompt guarantees a "note" row decodes.
     const ref = decodeNotePromptRef(prompt.text)!;
     return {
@@ -785,11 +946,11 @@ export default async function plugin(bb: BbPluginApi) {
     if (personaId === undefined) return null;
     const persona = personasById.get(personaId);
     if (persona === undefined) return null;
-    // Note prompts contribute their notes' CURRENT bodies, read from the
-    // cache the refresh paths keep warm.
+    // Live prompts contribute their source's CURRENT content, read from the
+    // caches the refresh paths keep warm.
     return renderPersonaInstructions({
       ...persona,
-      prompts: resolvePromptTexts(persona.prompts, noteBodiesById),
+      prompts: resolvePromptTexts(persona.prompts, noteBodiesById, docBodiesByRef),
     });
   });
 
@@ -914,6 +1075,13 @@ export default async function plugin(bb: BbPluginApi) {
     }
   }
 
+  async function assertDocsAvailable(): Promise<void> {
+    const { plugins } = await bb.sdk.plugins.list();
+    if (!isDocsAvailable(plugins)) {
+      throw new Error("Docs is not installed and enabled");
+    }
+  }
+
   bb.rpc.register(rpcContract, {
     listPersonas: () => ({
       personas: [...personasById.values()]
@@ -924,8 +1092,8 @@ export default async function plugin(bb: BbPluginApi) {
     getPersona: async ({ personaId }) => {
       const persona = personasById.get(personaId);
       if (persona === undefined) return { persona: null };
-      // Fresh note bodies for the pool entries this response renders.
-      await refreshNoteBodies();
+      // Fresh source bodies for the pool entries this response renders.
+      await Promise.all([refreshNoteBodies(), refreshDocBodies()]);
       return { persona: toWirePersona(persona) };
     },
 
@@ -1048,6 +1216,20 @@ export default async function plugin(bb: BbPluginApi) {
           createdAt: now,
           updatedAt: now,
         };
+      } else if (addition.type === "doc") {
+        prompt = {
+          id: newPromptId(),
+          personaId,
+          type: "doc",
+          // The durable reference, not the file's current content — that's
+          // what keeps the entry live as the file is edited later.
+          text: encodeDocPromptRef(addition.vaultId, addition.path),
+          position:
+            prompts.reduce((max, entry) => Math.max(max, entry.position), -1) +
+            1,
+          createdAt: now,
+          updatedAt: now,
+        };
       } else {
         const clamped = clampPromptText(addition.text);
         if (clamped.length === 0) {
@@ -1080,9 +1262,11 @@ export default async function plugin(bb: BbPluginApi) {
       );
       prompts.push(prompt);
       touchPersona(persona, now);
-      // Attach time is the first moment the note's body is needed, so read it
-      // now: the response below (and the editor's reload) shows live text.
+      // Attach time is the first moment the source's content is needed, so
+      // read it now: the response below (and the editor's reload) shows live
+      // text.
       if (prompt.type === "note") await refreshNoteBodies();
+      if (prompt.type === "doc") await refreshDocBodies();
       announce();
       return { prompt: toWirePrompt(prompt) };
     },
@@ -1092,11 +1276,16 @@ export default async function plugin(bb: BbPluginApi) {
       const prompts = promptsFor(personaId);
       const prompt = prompts.find((entry) => entry.id === promptId);
       if (prompt === undefined) throw new Error(`Unknown prompt: ${promptId}`);
-      // A note prompt points at its note; its own body is a reference, not
+      // A live prompt points at its source; its own body is a reference, not
       // prose, so there is nothing to edit. Remove and re-attach instead.
       if (prompt.type === "note") {
         throw new Error(
           "Note prompts can't be edited — remove the entry and attach the note again",
+        );
+      }
+      if (prompt.type === "doc") {
+        throw new Error(
+          "Docs prompts can't be edited — remove the entry and attach the file again",
         );
       }
       const clamped = clampPromptText(text);
@@ -1217,8 +1406,8 @@ export default async function plugin(bb: BbPluginApi) {
     // persona_threads in memory. Never a per-persona threads.list or a per-thread
     // threads.get.
     listRail: async () => {
-      // Fresh note bodies: the rail's subtitle renders pool previews.
-      await refreshNoteBodies();
+      // Fresh source bodies: the rail's subtitle renders pool previews.
+      await Promise.all([refreshNoteBodies(), refreshDocBodies()]);
       const chatsByPersonaId = new Map<
         string,
         { threadId: string; title: string | null; status: string; updatedAt: number }[]
@@ -1368,12 +1557,14 @@ export default async function plugin(bb: BbPluginApi) {
     // -- Export / import (personas-v1) ---------------------------------------
 
     exportPersonas: async () => {
-      await refreshNoteBodies();
+      await Promise.all([refreshNoteBodies(), refreshDocBodies()]);
       return {
         personas: [...personasById.values()]
           // Export order mirrors the rail: most recently touched first.
           .sort((a, b) => b.updatedAt - a.updatedAt)
-          .map((persona) => personaToExport(persona, noteBodiesById)),
+          .map((persona) =>
+            personaToExport(persona, noteBodiesById, docBodiesByRef),
+          ),
       };
     },
 
@@ -1402,6 +1593,64 @@ export default async function plugin(bb: BbPluginApi) {
         }
       } catch {
         // Notes stay unimportable this round; every note prompt degrades to
+        // its snapshot text rather than the batch failing.
+      }
+
+      // The batch's distinct Docs file refs, read once each so the import
+      // both learns which files are reachable HERE and seeds the live body
+      // cache with what it read. Docs missing → every doc prompt degrades to
+      // its verbatim snapshot text rather than the batch failing.
+      const importableDocRefs = new Set<string>();
+      try {
+        const { plugins } = await bb.sdk.plugins.list();
+        if (isDocsAvailable(plugins)) {
+          const refs = new Map<string, { vaultId: string; path: string }>();
+          for (const entry of personas) {
+            if (typeof entry !== "object" || entry === null) continue;
+            const prompts = (entry as { prompts?: unknown }).prompts;
+            if (!Array.isArray(prompts)) continue;
+            for (const prompt of prompts) {
+              if (typeof prompt !== "object" || prompt === null) continue;
+              const candidate = prompt as Record<string, unknown>;
+              if (candidate.type !== "doc") continue;
+              if (
+                typeof candidate.vaultId !== "string" ||
+                typeof candidate.path !== "string" ||
+                candidate.vaultId.length === 0 ||
+                candidate.path.length === 0
+              ) {
+                continue;
+              }
+              refs.set(docPromptRefKey(candidate.vaultId, candidate.path), {
+                vaultId: candidate.vaultId,
+                path: candidate.path,
+              });
+            }
+          }
+          await Promise.all(
+            [...refs.values()].map(async (ref) => {
+              try {
+                const file = await bb.sdk.plugins.callRpc({
+                  pluginId: DOCS_PLUGIN_ID,
+                  method: "readNote",
+                  input: { vaultId: ref.vaultId, path: ref.path },
+                  outputSchema: DocsReadNoteOutput,
+                });
+                if (file.contentEncoding === "utf8") {
+                  importableDocRefs.add(docPromptRefKey(ref.vaultId, ref.path));
+                  docBodiesByRef.set(
+                    docPromptRefKey(ref.vaultId, ref.path),
+                    file.content,
+                  );
+                }
+              } catch {
+                // Unreachable here → the prompt degrades to its snapshot.
+              }
+            }),
+          );
+        }
+      } catch {
+        // Docs stay unimportable this round; every doc prompt degrades to
         // its snapshot text rather than the batch failing.
       }
 
@@ -1453,17 +1702,47 @@ export default async function plugin(bb: BbPluginApi) {
               );
               if (ref === null || !importableNoteIds.has(ref.noteId)) continue;
             }
+            if (exportedPrompt.type === "doc" && text.length === 0) {
+              // Same rule for a Docs file: an unreachable source contributes
+              // nothing, so an empty-snapshot doc prompt skips itself only
+              // when the file can't be read here either.
+              const docRef =
+                exportedPrompt.vaultId !== undefined &&
+                exportedPrompt.path !== undefined
+                  ? { vaultId: exportedPrompt.vaultId, path: exportedPrompt.path }
+                  : null;
+              if (
+                docRef === null ||
+                !importableDocRefs.has(
+                  docPromptRefKey(docRef.vaultId, docRef.path),
+                )
+              ) {
+                continue;
+              }
+            }
             const isLiveNote =
               exportedPrompt.type === "note" &&
               exportedPrompt.noteId !== undefined &&
               importableNoteIds.has(exportedPrompt.noteId);
+            const isLiveDoc =
+              exportedPrompt.type === "doc" &&
+              exportedPrompt.vaultId !== undefined &&
+              exportedPrompt.path !== undefined &&
+              importableDocRefs.has(
+                docPromptRefKey(exportedPrompt.vaultId, exportedPrompt.path),
+              );
             const prompt: PersonaPrompt = {
               id: newPromptId(),
               personaId,
-              type: isLiveNote ? "note" : "text",
+              type: isLiveNote ? "note" : isLiveDoc ? "doc" : "text",
               text: isLiveNote
                 ? encodeNotePromptRef(exportedPrompt.noteId!)
-                : text,
+                : isLiveDoc
+                  ? encodeDocPromptRef(
+                      exportedPrompt.vaultId!,
+                      exportedPrompt.path!,
+                    )
+                  : text,
               position,
               createdAt: now,
               updatedAt: now,
@@ -1640,21 +1919,67 @@ export default async function plugin(bb: BbPluginApi) {
       );
       return { notes };
     },
+
+    // Every Docs vault with its markdown documents (newest first) for the
+    // "Add Docs document" picker. One listNotes call per vault — a vault
+    // that fails to read lists as empty rather than sinking the picker, and
+    // a BB with no vault at all lists none.
+    listDocsSources: async () => {
+      await assertDocsAvailable();
+      let first: z.output<typeof DocsListNotesOutput>;
+      try {
+        first = await bb.sdk.plugins.callRpc({
+          pluginId: DOCS_PLUGIN_ID,
+          method: "listNotes",
+          input: {},
+          outputSchema: DocsListNotesOutput,
+        });
+      } catch {
+        // Zero vaults configured: the docs plugin throws instead of
+        // answering with an empty list, and an empty picker is the honest
+        // readout either way.
+        return { vaults: [] };
+      }
+      const vaults = await Promise.all(
+        first.vaults.map(async (vault) => {
+          try {
+            const listed = await bb.sdk.plugins.callRpc({
+              pluginId: DOCS_PLUGIN_ID,
+              method: "listNotes",
+              input: { vaultId: vault.id },
+              outputSchema: DocsListNotesOutput,
+            });
+            return {
+              id: vault.id,
+              name: vault.name,
+              notes: [...listed.notes].sort(
+                (a, b) => b.modifiedAtMs - a.modifiedAtMs,
+              ),
+            };
+          } catch {
+            return { id: vault.id, name: vault.name, notes: [] };
+          }
+        }),
+      );
+      return { vaults };
+    },
   });
 
-  // Keeps the note-body cache warm between the explicit refresh points: a
+  // Keeps the live-body caches warm between the explicit refresh points: a
   // long-lived chat re-reading its persona's instructions mid-conversation, or
   // a second window watching the rail, shouldn't have to wait for the next
-  // reader. No-ops while no pool holds a note prompt; a failure inside
-  // refreshNoteBodies logs and keeps the last-known bodies.
+  // reader. Each refresh no-ops while no pool holds its prompt type; a
+  // failure inside either refresh logs and keeps the last-known bodies.
   bb.background.service("refresh-note-prompts", {
     // The service's start stays pending until the abort signal (reload /
     // disable / shutdown), which is what keeps it "running" in bb's eyes.
     start(signal) {
       void refreshNoteBodies();
+      void refreshDocBodies();
       return new Promise<void>((resolve) => {
         const timer = setInterval(() => {
           void refreshNoteBodies();
+          void refreshDocBodies();
         }, 60_000);
         signal.addEventListener("abort", () => {
           clearInterval(timer);

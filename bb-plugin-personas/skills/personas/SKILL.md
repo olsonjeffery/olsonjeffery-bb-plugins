@@ -1,6 +1,6 @@
 ---
 name: personas
-description: "BB Personas settings and operating constraints: the prompt pool, the Plugin health section, the Floating Notes availability flag, the Thread Tags (sidebar badge) integration, and how to develop the plugin."
+description: "BB Personas settings and operating constraints: the prompt pool, the Plugin health section, the Floating Notes availability flag, the Docs availability flag, the Thread Tags (sidebar badge) integration, and how to develop the plugin."
 ---
 
 # Personas
@@ -31,9 +31,10 @@ on every turn.
   `persona_prompts` SQLite table). Each prompt is tied to exactly one
   persona; deleting the persona deletes its pool.
 - Prompt types are extensible (`PROMPT_TYPES` in `personas.ts`): `text`
-  carries its own prose, and `note` is a live Floating Note reference. Any
-  unrecognized stored type reads as `text`; a `note` row whose body is no
-  longer a decodable reference degrades the same way.
+  carries its own prose, `note` is a live Floating Note reference, and `doc`
+  is a live Docs vault file reference. Any unrecognized stored type reads as
+  `text`; a `note` or `doc` row whose body is no longer a decodable
+  reference degrades the same way.
 - Each prompt holds up to 3500 characters (`MAX_PROMPT_TEXT`). Pool entries
   in the editor display the first 50 characters plus an ellipsis on
   overflow (`PROMPT_PREVIEW_LIMIT`).
@@ -56,9 +57,9 @@ on every turn.
 - The server keeps a live map of note bodies (`refreshNoteBodies`), read
   from Floating Notes via `bb.sdk.plugins.callRpc` (listNotes, view
   "active", limit 500). Refreshes run: on attach, on `getPersona` /
-  `listRail` / `startChat` when a pool holds a note prompt, and on a 60s
-  background sweep (`refresh-note-prompts`) that no-ops while no pool holds
-  one and never blanks the cache on failure.
+  `listRail` when a pool holds a note prompt, and on a 60s background sweep
+  (`refresh-note-prompts`) that no-ops while no pool holds one and never
+  blanks the cache on failure.
 - The wire never leaks the blob: `toWirePrompt` sends note prompts with
   `text` = the note's current body (or `[Floating note is unavailable]`)
   and `noteId` carrying the link. `contributeInstructions` resolves through
@@ -66,6 +67,36 @@ on every turn.
 - Note entries render badged ("Floating Note") in the editor and are only
   removable — `updatePersonaPrompt` rejects them server-side; remove and
   re-attach instead.
+
+## Doc prompts (live Docs vault file references)
+
+- The editor's **+ Add** dropdown's second item, "Add Docs document", sources
+  prompts from BB's built-in Docs plugin (installed id `simple-notes`, source
+  `builtin:docs`). Attaching one adds a prompt of type `doc` whose stored
+  `text` is a JSON reference (`encodeDocPromptRef`:
+  `{"kind":"docs-vault","vaultId":…,"path":…}`) to a vault id plus a
+  vault-relative path — never a copy of the file.
+- The server keeps a live map of doc bodies (`refreshDocBodies`, keyed by
+  `docPromptRefKey(vaultId, path)`), read from Docs via
+  `bb.sdk.plugins.callRpc` (readNote). Refreshes run: on attach, on
+  `getPersona` / `listRail` when a pool holds a doc prompt, and on the same
+  60s background sweep (`refresh-note-prompts`) as the note bodies. A file
+  that fails to read only drops itself from the cache; a file that now reads
+  as binary (`contentEncoding: "base64"`) is dropped too — bytes are not
+  prompt text.
+- The wire never leaks the blob: `toWirePrompt` sends doc prompts with
+  `text` = the file's current content (or `[Docs file is unavailable]`) and
+  `docVaultId` + `docPath` carrying the link. `contributeInstructions`
+  resolves through the cache the same way.
+- The picker reads Docs' `listNotes` RPC: one call without a vault id to
+  discover the vaults (the docs plugin THROWS "No vault configured" when
+  zero vaults — the picker reads that as an empty list), then one per vault
+  for its markdown documents (`notes`: path, title, preview, modifiedAtMs),
+  each vault degrading to empty rather than sinking the picker. Two or more
+  vaults get a vault `Select` above the search field.
+- Doc entries render badged ("Docs") in the editor and are only removable —
+  `updatePersonaPrompt` rejects them server-side; remove and re-attach
+  instead.
 
 ## Thread Tags (sidebar badges)
 
@@ -204,6 +235,9 @@ old deep links.
 - **Floating Notes** — a green check when it is installed and enabled, a red
   X when it is not, plus an inline **Install** link to its bb plugin page
   (<https://github.com/vburojevic/bb-plugin-floating-notes>) while missing.
+- **Docs** — the same green check / red X readout for BB's built-in Docs
+  plugin, the source of the Add-Docs-document picker. It ships with BB, so
+  the row has no install link; a red X means Docs is disabled.
 - **Thread Tags** — the same green check / red X readout of install, status,
   and version, plus a one-click **Install This Plugin** button while the
   plugin is missing (installs from the community source in place, no page
@@ -220,10 +254,11 @@ personas between BB instances:
   included — as a top-level JSON array, downloaded as `personas.json`. Each
   object carries `format: "bb-plugin-personas/v1"`, name, emoji, the chosen
   avatar color (or null = auto tint), status, provider/model/reasoning,
-  Default User Message, and the prompts: text prompts verbatim, note prompts
-  as both the note's CURRENT body (verbatim snapshot, so the file is
-  self-contained) and the durable `noteId` for re-linking. No ids, no
-  timestamps, no chat mappings, and `projectId` exports as null.
+  Default User Message, and the prompts: text prompts verbatim, live prompts
+  as both their source's CURRENT content (verbatim snapshot, so the file is
+  self-contained) and the durable pointer — `noteId` for notes,
+  `vaultId` + `path` for docs — for re-linking. No ids, no timestamps, no
+  chat mappings, and `projectId` exports as null.
 - **Import** (`importPersonas` RPC) is additive and collision-safe: fresh
   persona/prompt ids, prompt order preserved (`position` = array index), and
   a taken name imports as "Name (NEW-IMPORT)", numbering up
@@ -243,6 +278,11 @@ personas between BB instances:
   body over the snapshot), one that doesn't degrades to its verbatim
   snapshot text. Floating Notes absent → every note prompt becomes text; the
   import never fails because of it.
+- Doc re-linking: the batch's distinct vault+path refs are each read once
+  (readNote) — a file that reads here as utf8 re-attaches as a live doc
+  prompt (fresh body over the snapshot, cache seeded with what was read),
+  one that doesn't degrades to its verbatim snapshot text. Docs absent →
+  every doc prompt becomes text; the import never fails because of it.
 
 ## Operating constraints
 
@@ -252,13 +292,18 @@ personas between BB instances:
 - A plugin counts as available only when it is installed, enabled, and not in
   a hard-failure status (`disabled`, `missing`, `error`, `incompatible`).
   The server-side availability checks (`isFloatingNotesAvailable` /
-  `isThreadTagsAvailable` in `plugin-health.ts`), the source-picker gate,
-  the Thread tag picker, the tag application, and the settings rows all
-  share this one rule.
-- Floating Notes missing degrades quietly: the + Add dropdown never renders
-  (so no Add-note affordance appears in the persona config screen), existing
-  note prompts display and inject "[Floating note is unavailable]" instead of
-  crashing, and the background note sweep just no-ops.
+  `isThreadTagsAvailable` / `isDocsAvailable` in `plugin-health.ts`), the
+  source-picker gate, the Thread tag picker, the tag application, and the
+  settings rows all share this one rule.
+- Floating Notes missing degrades quietly: the + Add dropdown loses its
+  Add-note item (disappearing entirely only when NO source plugin is
+  available), existing note prompts display and inject "[Floating note is
+  unavailable]" instead of crashing, and the background note sweep just
+  no-ops.
+- Docs missing degrades the same way: no Add-Docs-document item, existing
+  doc prompts display and inject "[Docs file is unavailable]" instead of
+  crashing, and the background doc sweep just no-ops. Docs is a built-in, so
+  its Plugin health row carries no install link.
 - Thread Tags missing degrades the same way: no Thread tag cell in persona
   settings and untagged new chats. The persona's stored tag pointer is kept
   while the plugin is away, so a re-install re-lights the old badges when

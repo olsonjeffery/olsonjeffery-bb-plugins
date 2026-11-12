@@ -2,10 +2,12 @@
 // settingsSection). A leading row shows where this install came from (a
 // local in-progress path checkout vs a managed git/catalog install), then
 // one row per cooperating plugin the Personas plugin can use — today that is
-// Floating Notes and Thread Tags — with a green check when the plugin is
-// installed and enabled, a red X when it is not, and, while missing, a
-// one-click install button (Thread Tags) or an inline link to its bb plugin
-// page (Floating Notes, which is a bigger install that keeps its own page).
+// Floating Notes, Thread Tags, and BB's built-in Docs — with a green check
+// when the plugin is installed and enabled, a red X when it is not, and,
+// while missing, a one-click install button (Thread Tags), an inline link to
+// its bb plugin page (Floating Notes, which is a bigger install that keeps
+// its own page), or nothing (Docs, which ships with BB and can only be
+// re-enabled in settings).
 import { useState } from "react";
 import { toast } from "sonner";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
