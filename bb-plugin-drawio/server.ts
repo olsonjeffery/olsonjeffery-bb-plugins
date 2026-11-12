@@ -5,7 +5,10 @@
 // .drawio discovery cache, draft storage, and the RPC contract the frontend
 // drives. The plugin reports needs-configuration until a draw.io instance URL
 // is set; everything except the embedded editor already works before that.
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import {
+  experimental_PluginRpcRefusal,
+  type BbPluginApi,
+} from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
   REALTIME_CHANNEL,
@@ -176,7 +179,22 @@ export default async function plugin(bb: BbPluginApi) {
     },
 
     "vault.read": async ({ vaultId, path }) => {
-      const file = await vault.read(vaultId, path);
+      let file: Awaited<ReturnType<typeof vault.read>>;
+      try {
+        file = await vault.read(vaultId, path);
+      } catch (cause) {
+        if (isMissingVaultFile(cause)) {
+          // A stale deep link (or a file an agent deleted) must not linger in
+          // the discovery cache either — self-heal it here.
+          store.noteVaultRemove(vaultId, path);
+          publish({ reason: "vault-files", vaultId });
+          throw new experimental_PluginRpcRefusal({
+            code: "not_found",
+            message: `This diagram does not exist in the vault: ${path}`,
+          });
+        }
+        throw cause;
+      }
       if (file.contentEncoding !== "utf8") {
         throw new Error("This file is not UTF-8 text; the editor cannot open it");
       }
@@ -274,4 +292,10 @@ function normalizeFolder(folder: string): string {
     return "diagrams";
   }
   return clean;
+}
+
+/** The docs plugin surfaces missing files as plain handler errors; mirror its own heuristic. */
+function isMissingVaultFile(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return /\bENOENT\b|path does not exist|not found/i.test(message);
 }

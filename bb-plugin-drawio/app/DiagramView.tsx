@@ -5,7 +5,11 @@
 // drives Save / Save As / Export, and never clobbers on conflict — a CAS
 // mismatch opens the reload-or-overwrite dialog instead.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRpc, useSettings } from "@get-bb/plugin-sdk/app";
+import {
+  useRpc,
+  useSettings,
+  experimental_PluginRpcCallError,
+} from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import type { rpcContract, DocRef } from "../contract.js";
 import { STARTER_XML } from "../contract.js";
@@ -49,6 +53,8 @@ export interface DiagramViewProps {
   starterXml?: string;
   /** Called after Save As created a saved document (the surface re-targets). */
   onSavedAs?: (ref: DocRef) => void;
+  /** Called from the not-found state to leave the dead link (body only). */
+  onBack?: () => void;
   /** Compact toolbars for narrow tab surfaces. */
   compact?: boolean;
   className?: string;
@@ -62,13 +68,16 @@ interface ReadyLoad {
   recovery: { content: string; updatedAt: number } | null;
 }
 
-export function DiagramView({ refValue, starterXml, onSavedAs, compact, className }: DiagramViewProps) {
+export function DiagramView({ refValue, starterXml, onSavedAs, onBack, compact, className }: DiagramViewProps) {
   const rpc = useRpc<typeof rpcContract>();
   const values = useSettings().values ?? {};
   const adapter = useMemo(() => sourceFor(refValue), [refValue]);
 
   const [load, setLoad] = useState<
-    { state: "loading" } | { state: "error"; message: string } | ReadyLoad
+    | { state: "loading" }
+    | { state: "error"; message: string }
+    | { state: "not-found"; message: string }
+    | ReadyLoad
   >({ state: "loading" });
 
   const reload = useCallback(() => {
@@ -97,7 +106,10 @@ export function DiagramView({ refValue, starterXml, onSavedAs, compact, classNam
         });
       })
       .catch((cause: unknown) => {
-        if (!cancelled) {
+        if (cancelled) return;
+        if (cause instanceof experimental_PluginRpcCallError && cause.code === "not_found") {
+          setLoad({ state: "not-found", message: cause.message });
+        } else {
           setLoad({ state: "error", message: cause instanceof Error ? cause.message : String(cause) });
         }
       });
@@ -211,6 +223,31 @@ export function DiagramView({ refValue, starterXml, onSavedAs, compact, classNam
   }, [load.state]);
 
   if (load.state !== "ready") {
+    if (load.state === "not-found") {
+      return (
+        <div className={cn("flex min-h-0 flex-1 items-center justify-center p-6", className)}>
+          <div className="max-w-md text-center text-sm text-muted-foreground">
+            <Icon name="FileQuestion" className="mx-auto mb-2 size-5 text-muted-foreground" />
+            <p className="font-medium text-foreground">This diagram does not exist</p>
+            <p className="mt-1">{load.message}</p>
+            <p className="mt-1">
+              It was deleted elsewhere (another window or an agent), or this is a stale link.
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              {onBack ? (
+                <Button variant="outline" size="sm" onClick={onBack}>
+                  <Icon name="ArrowLeft" className="size-3.5" />
+                  All diagrams
+                </Button>
+              ) : null}
+              <Button variant="ghost" size="sm" onClick={reload}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     if (load.state === "error") {
       return (
         <div className={cn("flex min-h-0 flex-1 items-center justify-center p-6", className)}>

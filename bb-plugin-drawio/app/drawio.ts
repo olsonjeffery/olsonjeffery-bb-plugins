@@ -129,11 +129,19 @@ function decodeBase64Url(value: string): string | null {
   }
 }
 
-/** subPath for a doc ref: `open/vault/<id>/<segments>` / `open/file/<b64>/<segments>`. */
+/**
+ * subPath for a doc ref: `open/vault/<id>/<segments>` / `open/file/<b64>/<segments>`.
+ *
+ * The segments are passed RAW on purpose: `toPluginPanel` percent-encodes
+ * them itself, and the panel route hands the component the URL's
+ * percent-encoded form back, which `parseSubPath` decodes. Pre-encoding here
+ * would double-encode (a space becomes %20, then %2520) and the editor would
+ * look for a file literally named `Untitled%20diagram.drawio`.
+ */
 export function refToSubPath(ref: DocRef): string {
-  const segments = ref.path.split("/").map((segment) => encodeURIComponent(segment));
+  const segments = ref.path.split("/");
   if (ref.kind === "vault") {
-    return ["open", "vault", encodeURIComponent(ref.vaultId), ...segments].join("/");
+    return ["open", "vault", ref.vaultId, ...segments].join("/");
   }
   return ["open", "file", encodeBase64Url(JSON.stringify(ref.source)), ...segments].join("/");
 }

@@ -223,6 +223,32 @@ describe("drawio backend", () => {
       expect((saveCall?.input as { expectedSha256?: unknown }).expectedSha256).toBeNull();
     });
 
+    it("read of a deleted diagram self-heals the cache and reports not_found", async () => {
+      const docs = docsHarness();
+      docs.setRespond((method, input) => {
+        if (method === "listNotes") return emptyListNotes();
+        if (method === "syncSnapshot") {
+          return {
+            files: [file("diagrams/gone.drawio", "AAA", 10)],
+            directories: ["diagrams"],
+          };
+        }
+        if (method === "readNote") {
+          throw new Error("HTTP 404: Path does not exist: /notes/diagrams/gone.drawio");
+        }
+        throw new Error(`unexpected method ${method}`);
+      });
+      const { host } = await makeHost({ settings: { instanceUrl: "http://d.example" }, callRpc: docs.callRpc });
+
+      // Cache the entry, then watch the missing-file read retire it.
+      await host.behavior.callRpc("vault.files", { vaultId: "v1", refresh: false });
+      await expect(
+        host.behavior.callRpc("vault.read", { vaultId: "v1", path: "diagrams/gone.drawio" }),
+      ).rejects.toThrow(/does not exist in the vault/);
+      const after = await host.behavior.callRpc("vault.files", { vaultId: "v1", refresh: false });
+      expect(after.files).toEqual([]);
+    });
+
     it("delete discards the document's draft", async () => {
       const docs = docsHarness();
       docs.setRespond((method) => {

@@ -103,6 +103,20 @@ describe("subPath codec", () => {
     expect(parsed.ref).toEqual({ kind: "draft", draftKey: key });
   });
 
+  it("survives the route's own percent-encoding (no double encoding)", () => {
+    // toPluginPanel takes unencoded segments and encodes them; the panel
+    // receives the percent-encoded URL form. A pre-encoded ref used to
+    // double-encode (space → %20 → %2520) and look for a file literally
+    // named `Untitled%20diagram.drawio`.
+    const ref = { kind: "vault", vaultId: "personal", path: "diagrams/Untitled diagram.drawio" } as const;
+    const encoded = refToSubPath(ref)
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    expect(encoded).toContain("Untitled%20diagram.drawio");
+    expect(parseSubPath(encoded).ref).toEqual(ref);
+  });
+
   it("degrades unknown subPaths to home", () => {
     expect(parseSubPath("").ref).toBeNull();
     expect(parseSubPath("nonsense").ref).toBeNull();

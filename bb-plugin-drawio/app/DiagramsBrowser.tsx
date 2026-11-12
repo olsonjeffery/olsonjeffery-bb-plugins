@@ -208,7 +208,14 @@ export function DiagramsBrowser({ variant, onOpenRef, onOpenTab }: DiagramsBrows
           defaultFolder={typeof values.defaultFolder === "string" ? values.defaultFolder : "diagrams"}
           onClose={() => setNewOpen(false)}
           onCreate={async (targetVaultId, path) => {
-            await rpc.call("vault.create", { vaultId: targetVaultId, path, content: STARTER_XML });
+            const result = await rpc.call("vault.create", {
+              vaultId: targetVaultId,
+              path,
+              content: STARTER_XML,
+            });
+            if (result.outcome === "conflict") {
+              throw new Error("That file already exists. Pick another name.");
+            }
             setNewOpen(false);
             loadFiles(false);
             onOpenRef({ kind: "vault", vaultId: targetVaultId, path });

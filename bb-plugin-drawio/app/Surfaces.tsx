@@ -92,6 +92,7 @@ export function DiagramsPanelBody({ subPath }: PluginNavPanelProps) {
           // After Save As, the body re-targets to the saved document.
           openRef(ref);
         }}
+        onBack={goHome}
       />
     </div>
   );
