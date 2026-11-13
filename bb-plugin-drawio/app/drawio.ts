@@ -51,6 +51,88 @@ export function isMixedContent(instanceUrl: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Read-only viewer frame
+// ---------------------------------------------------------------------------
+
+/** Toolbar tokens for the static viewer's floating toolbar. */
+export const VIEWER_TOOLBAR = "zoom pages";
+
+/**
+ * HTML attribute values are re-parsed by the browser: a raw `&` in the
+ * diagram XML would decode entity references out of the JSON, so every
+ * attribute value this document builds goes through here.
+ */
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/**
+ * The srcdoc document for a read-only diagram frame: draw.io's static viewer
+ * (`viewer.min.js`, loaded from the configured instance) renders the given XML
+ * fitted into the frame. The viewer has no editing surface at all, which is
+ * what makes sidebar opens genuinely read-only — the embed editor's load
+ * action has no such flag, so it can never be trusted for this.
+ *
+ * Frame config: fixed container (`resize: false`) that the viewer fits and
+ * centers into instead of growing, zooming up allowed so a diagram fills the
+ * frame, no deferred render for hidden tabs, zoom + page navigation in the
+ * viewer's own floating toolbar. The host hook replaces the viewer's element
+ * scan to attach a resize observer that refits on every frame-size change
+ * (fullscreen toggles, panel resizes) without reloading the frame.
+ *
+ * Returns null when the instance URL is not a usable absolute URL.
+ */
+export function viewerSrcDoc(instanceUrl: string, xml: string): string | null {
+  const trimmed = instanceUrl.trim();
+  if (trimmed === "") return null;
+  let origin: string;
+  try {
+    origin = new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
+  const base = trimmed.endsWith("/") ? trimmed : `${trimmed}/`;
+  const config = {
+    "auto-fit": true,
+    "allow-zoom-in": true,
+    "check-visible-state": false,
+    resize: false,
+    toolbar: VIEWER_TOOLBAR,
+    xml,
+  };
+  return (
+    "<!doctype html>" +
+    "<html>" +
+    '<head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    "<style>" +
+    "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}" +
+    "</style></head>" +
+    "<body>" +
+    '<div class="mxgraph" style="width:100%;height:100%" data-mxgraph="' +
+    escapeHtmlAttribute(JSON.stringify(config)) +
+    '"></div>' +
+    "<script>window.DRAWIO_BASE_URL=" +
+    JSON.stringify(origin) +
+    ";window.onDrawioViewerLoad=function(){var div=document.querySelector('div.mxgraph');" +
+    "if(div==null||typeof GraphViewer==='undefined')return;" +
+    "GraphViewer.createViewerForElement(div,function(viewer){" +
+    "var lastW=-1,lastH=-1;var refit=function(){var w=div.offsetWidth,h=div.offsetHeight;" +
+    "if(w!==lastW||h!==lastH){lastW=w;lastH=h;try{viewer.fitGraph();}catch(e){}}};" +
+    "if(typeof ResizeObserver==='function'){new ResizeObserver(refit).observe(div);}" +
+    "else{window.addEventListener('resize',refit);}});};</script>" +
+    '<script src="' +
+    escapeHtmlAttribute(`${base}js/viewer.min.js`) +
+    '"></script>' +
+    "</body></html>"
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tab params ⇄ JSON (persisted by bb)
 // ---------------------------------------------------------------------------
 
@@ -89,13 +171,17 @@ export function isFileSourceJson(value: unknown): value is FileSourceJson {
   );
 }
 
-/** Drops empty scope fields so persisted tab params stay canonical. */
+/**
+ * Canonical persisted source: nullable scope fields never arrive as missing
+ * keys (the RPC input schema rejects `undefined`), so a host that omits one
+ * still round-trips through tabs and deep links.
+ */
 export function normalizeSource(source: FileSourceJson): FileSourceJson {
   return {
     kind: source.kind,
-    threadId: source.threadId,
-    environmentId: source.environmentId,
-    projectId: source.projectId,
+    threadId: source.threadId ?? null,
+    environmentId: source.environmentId ?? null,
+    projectId: source.projectId ?? null,
     ...(typeof (source as { hostId?: unknown }).hostId === "string"
       ? { hostId: (source as { hostId: string }).hostId }
       : {}),

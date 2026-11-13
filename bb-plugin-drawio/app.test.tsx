@@ -1,10 +1,13 @@
 // bb-plugin-drawio — frontend surfaces over the app testing runtime: the
 // registrations validate, the home posture reacts to configuration, the
-// browser lists vault diagrams over RPC, and deep links land on the editor.
+// browser lists vault diagrams over RPC, deep links land on the editor,
+// sidebar surfaces render the read-only viewer with the dashboard handoff,
+// and the toolbar lifts the surface to the viewport.
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
+import { fireEvent } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { refToSubPath } from "./app/drawio.js";
+import { refToSubPath, viewerSrcDoc } from "./app/drawio.js";
 
 const RPC = {
   "config.status": () => ({
@@ -29,6 +32,7 @@ const RPC = {
   }),
   "drafts.list": () => ({ drafts: [] }),
   "vault.read": () => ({ content: "<mxfile/>", sha256: "sha", modifiedAtMs: 1 }),
+  "workspace.read": () => ({ content: "<mxfile/>", sha256: "sha", modifiedAtMs: 1 }),
   "drafts.get": () => ({ draft: null }),
 };
 
@@ -107,6 +111,105 @@ describe("drawio frontend", () => {
     // in jsdom, but the toolbar and its connect overlay render.
     await slot.findByText("flow.drawio");
     await slot.findByText("Save");
+    slot.lifecycle.unmount();
+  });
+
+  it("the read-only viewer frame is built from the static viewer bundle", () => {
+    const doc = viewerSrcDoc(
+      "http://draw.example.com:12300",
+      '<mxfile><diagram id="1" name="Page-1">a &amp; b</diagram></mxfile>',
+    );
+    expect(doc).toContain("viewer.min.js");
+    expect(doc).toContain('window.DRAWIO_BASE_URL="http://draw.example.com:12300"');
+    // Parse the frame document back: the config must round-trip through the
+    // HTML attribute exactly (quotes and entity references in the XML too).
+    const frame = new DOMParser().parseFromString(doc, "text/html");
+    const config = JSON.parse(frame.querySelector("div.mxgraph")!.getAttribute("data-mxgraph")!);
+    expect(config).toMatchObject({
+      "auto-fit": true,
+      "allow-zoom-in": true,
+      "check-visible-state": false,
+      resize: false,
+      toolbar: "zoom pages",
+    });
+    expect(config.xml).toContain("a &amp; b");
+  });
+
+  it("viewerSrcDoc rejects an unconfigured instance", () => {
+    expect(viewerSrcDoc("   ", "<mxfile/>")).toBeNull();
+    expect(viewerSrcDoc("not a url", "<mxfile/>")).toBeNull();
+  });
+
+  it("thread diagram tabs render the read-only viewer with the dashboard handoff", async () => {
+    const app = await loadApp();
+    const tab = app.tabs.find((entry) => entry.context.kind === "thread" && entry.id === "diagram");
+    expect(tab).toBeDefined();
+    const slot = await renderSlot(
+      { component: tab!.component },
+      { threadId: "t1", params: { kind: "vault", vaultId: "v1", path: "diagrams/flow.drawio" } },
+      { rpc: RPC, settings: SETTINGS },
+    );
+    await slot.findByText("flow.drawio");
+    // The frame is the static viewer document, not the embed editor.
+    const frame = slot.container.querySelector("iframe");
+    expect(frame).not.toBeNull();
+    expect(frame!.getAttribute("srcdoc")).toContain("data-mxgraph");
+    expect(frame!.getAttribute("srcdoc")).toContain("viewer.min.js");
+    // No editing surface: no Save/Export; a reload plus the handoff instead.
+    expect(slot.queryByText("Save")).toBeNull();
+    expect(slot.queryByText("Export")).toBeNull();
+    await slot.findByLabelText("Reload from disk");
+    const openInEditor = await slot.findByText("Open in editor");
+    fireEvent.click(openInEditor);
+    expect(slot.navigateCalls).toEqual([
+      {
+        method: "toPluginPanel",
+        path: "diagrams",
+        options: { subPath: refToSubPath({ kind: "vault", vaultId: "v1", path: "diagrams/flow.drawio" }) },
+      },
+    ]);
+    slot.lifecycle.unmount();
+  });
+
+  it("the fileOpener renders the read-only viewer for opened files", async () => {
+    const app = await loadApp();
+    const opener = app.fileOpeners[0]!;
+    const slot = await renderSlot(
+      { component: opener.component },
+      {
+        path: "arch/flow.drawio",
+        source: { kind: "thread-storage", threadId: "t1", environmentId: null, projectId: null },
+      },
+      { rpc: RPC, settings: SETTINGS },
+    );
+    await slot.findByText("flow.drawio");
+    const frame = slot.container.querySelector("iframe");
+    expect(frame).not.toBeNull();
+    expect(frame!.getAttribute("srcdoc")).toContain("data-mxgraph");
+    expect(slot.queryByText("Save")).toBeNull();
+    await slot.findByText("Open in editor");
+    slot.lifecycle.unmount();
+  });
+
+  it("the toolbar lifts the surface to the viewport (CSS fallback in jsdom)", async () => {
+    const app = await loadApp();
+    const subPath = refToSubPath({ kind: "vault", vaultId: "v1", path: "diagrams/flow.drawio" });
+    const slot = await renderSlot(
+      app.navPanels[0]!,
+      { subPath },
+      { rpc: RPC, settings: SETTINGS },
+    );
+    await slot.findByText("flow.drawio");
+    fireEvent.click(slot.getByRole("button", { name: "Fullscreen" }));
+    // jsdom has no Fullscreen API, so the fixed-overlay fallback applies...
+    const lifted = slot.getByRole("button", { name: "Exit fullscreen" }).closest(".inset-0");
+    expect(lifted).not.toBeNull();
+    expect(lifted!.className).toContain("fixed");
+    expect(lifted!.className).toContain("z-40");
+    // ...and toggling again puts it back inline.
+    fireEvent.click(slot.getByRole("button", { name: "Exit fullscreen" }));
+    expect(slot.getByRole("button", { name: "Fullscreen" })).toBeDefined();
+    expect(slot.container.querySelector(".fixed.inset-0")).toBeNull();
     slot.lifecycle.unmount();
   });
 });

@@ -4,6 +4,15 @@
 // DocumentSource, keeps the dirty/save state, autosaves to the drafts table,
 // drives Save / Save As / Export, and never clobbers on conflict — a CAS
 // mismatch opens the reload-or-overwrite dialog instead.
+//
+// Two render modes: the embed editor (dashboard surfaces) and the read-only
+// static viewer (sidebar surfaces — thread tabs, the fileOpener). Read-only
+// has no editing surface at all; its toolbar reloads from disk and hands off
+// to the dashboard via onOpenInEditor instead of unlocking in place.
+//
+// A fullscreen toggle lifts the whole surface (toolbar + frame) to the
+// viewport: the Fullscreen API when the browser has it, otherwise a fixed
+// overlay that still sits below bb's dialogs so they keep working.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useRpc,
@@ -15,6 +24,7 @@ import type { rpcContract, DocRef } from "../contract.js";
 import { STARTER_XML } from "../contract.js";
 import { DrawioEditor } from "./DrawioEditor.js";
 import type { DrawioEditorHandle } from "./DrawioEditor.js";
+import { DrawioViewer } from "./DrawioViewer.js";
 import {
   dataUriToBytes,
   downloadExport,
@@ -55,11 +65,23 @@ export interface DiagramViewProps {
   onSavedAs?: (ref: DocRef) => void;
   /** Called from the not-found state to leave the dead link (body only). */
   onBack?: () => void;
-  /** Browser-opened diagrams start as the read-only viewer; Edit unlocks. */
-  startReadOnly?: boolean;
+  /**
+   * Render the static read-only viewer instead of the embed editor. There is
+   * no in-place unlock: editing happens in the dashboard, reached through
+   * `onOpenInEditor`.
+   */
+  readOnly?: boolean;
+  /** Opens this document on the dashboard's editable body route. */
+  onOpenInEditor?: () => void;
   /** Compact toolbars for narrow tab surfaces. */
   compact?: boolean;
   className?: string;
+}
+
+/** The document-level fullscreen element, with the webkit-prefixed fallback. */
+function fullscreenElement(): Element | null {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  return document.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
 }
 
 interface ReadyLoad {
@@ -70,10 +92,11 @@ interface ReadyLoad {
   recovery: { content: string; updatedAt: number } | null;
 }
 
-export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startReadOnly, compact, className }: DiagramViewProps) {
+export function DiagramView({ refValue, starterXml, onSavedAs, onBack, readOnly, onOpenInEditor, compact, className }: DiagramViewProps) {
   const rpc = useRpc<typeof rpcContract>();
   const values = useSettings().values ?? {};
   const adapter = useMemo(() => sourceFor(refValue), [refValue]);
+  const readOnlySurface = readOnly === true;
 
   const [load, setLoad] = useState<
     | { state: "loading" }
@@ -89,7 +112,9 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
       .load(rpc)
       .then(async (doc) => {
         let recovery: { content: string; updatedAt: number } | null = null;
-        if (!doc.untitled) {
+        // Recovery is an editing affordance; the read-only viewer never shows
+        // it (the dashboard offers the kept draft when opened there).
+        if (!doc.untitled && !readOnlySurface) {
           try {
             const { draft } = await rpc.call("drafts.get", { key: doc.draftKey });
             if (draft !== null && draft.content !== doc.content) {
@@ -118,7 +143,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
     return () => {
       cancelled = true;
     };
-  }, [adapter, rpc, starterXml]);
+  }, [adapter, rpc, starterXml, readOnlySurface]);
 
   useEffect(() => reload(), [reload]);
 
@@ -129,11 +154,90 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState<{ currentSha256: string | null } | null>(null);
   const [saveAsOpen, setSaveAsOpen] = useState(false);
-  const [editable, setEditable] = useState(startReadOnly !== true);
 
   // Hooks stay above any early return; guards below check load state instead.
   const draftKey = adapter.draftKey;
-  useDraftAutosave(rpc, dirty && !adapter.untitled ? draftKey : null, editorXml, dirty);
+  useDraftAutosave(
+    rpc,
+    dirty && !readOnlySurface && !adapter.untitled ? draftKey : null,
+    editorXml,
+    dirty && !readOnlySurface,
+  );
+
+  // Fullscreen: the whole surface (toolbar + frame) lifted to the viewport.
+  // The Fullscreen API is used when the browser has it (top layer above all
+  // chrome); otherwise the surface becomes a fixed overlay that sits BELOW
+  // bb's dialogs (z-40 < z-50) so they keep working over it.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const exitFullscreen = useCallback(() => {
+    const doc = document as Document & { webkitExitFullscreen?: () => void };
+    if (fullscreenElement() !== null && typeof document.exitFullscreen === "function") {
+      void document.exitFullscreen().catch(() => undefined);
+    } else if (
+      fullscreenElement() !== null &&
+      typeof doc.webkitExitFullscreen === "function"
+    ) {
+      doc.webkitExitFullscreen();
+    } else {
+      setFullscreen(false); // the fixed-overlay fallback path
+    }
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    // The state — not the document element — drives the decision: in the
+    // fixed-overlay fallback there is no fullscreen element to check, so the
+    // state is the only record that the lift is active.
+    if (fullscreen) {
+      exitFullscreen();
+      return;
+    }
+    const surface = rootRef.current as
+      | (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void })
+      | null;
+    if (surface === null) return;
+    if (typeof surface.requestFullscreen === "function") {
+      // Denied (or an unpromising old build) → the fixed-overlay fallback.
+      surface.requestFullscreen().catch(() => setFullscreen(true));
+    } else if (typeof surface.webkitRequestFullscreen === "function") {
+      const result = surface.webkitRequestFullscreen();
+      if (result !== undefined && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch(() => setFullscreen(true));
+      }
+    } else {
+      setFullscreen(true); // no Fullscreen API: fixed overlay
+    }
+  }, [fullscreen, exitFullscreen]);
+
+  // Tracks native transitions (the toggle button, Escape) for this surface.
+  useEffect(() => {
+    const sync = () => setFullscreen(fullscreenElement() === rootRef.current);
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
+
+  // Escape leaves the fixed-overlay fallback; native fullscreen handles its own.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && fullscreenElement() === null) setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreen]);
+
+  // Unmounting while this surface is the native fullscreen element → leave.
+  useEffect(
+    () => () => {
+      if (fullscreenElement() !== null) exitFullscreen();
+    },
+    [exitFullscreen],
+  );
 
   // The XML the saved copy is known to hold; dirty = editor diverges from it.
   // (draw.io keeps firing save/autosave events after a save, so dirty must be
@@ -154,6 +258,9 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
       try {
         const outcome = await result;
         if (outcome.outcome === "conflict") {
+          // The dialog is portaled outside a native top layer; drop the
+          // fullscreen lift so it is visible and interactive.
+          exitFullscreen();
           setConflict({ currentSha256: outcome.currentSha256 });
           return false;
         }
@@ -173,13 +280,19 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
         setSaving(false);
       }
     },
-    [adapter, rpc],
+    [adapter, rpc, exitFullscreen],
   );
 
   const save = useCallback(() => {
-    if (load.state !== "ready" || !dirty || saving) return;
+    if (readOnlySurface || load.state !== "ready" || !dirty || saving) return;
     void applySave(adapter.save(rpc, editorXml, load.sha256));
-  }, [load, dirty, saving, applySave, adapter, rpc, editorXml]);
+  }, [readOnlySurface, load, dirty, saving, applySave, adapter, rpc, editorXml]);
+
+  const openSaveAs = useCallback(() => {
+    // Same portal consideration as the conflict dialog above.
+    exitFullscreen();
+    setSaveAsOpen(true);
+  }, [exitFullscreen]);
 
   // Ctrl/Cmd+S saves like the editor's own Ctrl+S does.
   useEffect(() => {
@@ -196,7 +309,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
   const exportAs = useCallback(
     async (format: ExportFormat) => {
       const editor = editorRef.current;
-      if (editor === null || load.state !== "ready") return;
+      if (readOnlySurface || editor === null || load.state !== "ready") return;
       try {
         const result = await editor.exportDiagram(format);
         downloadExport(result, exportFilename(adapter.title(), format));
@@ -204,12 +317,12 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
         toast.error(cause instanceof Error ? cause.message : String(cause));
       }
     },
-    [adapter, load.state],
+    [adapter, load.state, readOnlySurface],
   );
 
   const copyPng = useCallback(async () => {
     const editor = editorRef.current;
-    if (editor === null || load.state !== "ready") return;
+    if (readOnlySurface || editor === null || load.state !== "ready") return;
     try {
       const result = await editor.exportDiagram("png");
       const bytes = result.dataUri === null ? null : dataUriToBytes(result.dataUri);
@@ -223,7 +336,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [load.state]);
+  }, [load.state, readOnlySurface]);
 
   if (load.state !== "ready") {
     if (load.state === "not-found") {
@@ -280,20 +393,30 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
   const uiTheme = (values.uiTheme as "min" | "sketch" | "atlas") ?? "min";
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+    <div
+      ref={rootRef}
+      className={cn(
+        "flex min-h-0 flex-1 flex-col bg-background",
+        fullscreen && "fixed inset-0 z-40",
+        className,
+      )}
+    >
       <DiagramToolbar
         title={adapter.title()}
-        subtitle={adapterSubtitle(adapter, !editable)}
+        subtitle={adapterSubtitle(adapter, readOnlySurface)}
         dirty={dirty}
         saving={saving}
         untitled={adapter.untitled}
-        readOnly={!editable}
+        readOnly={readOnlySurface}
         compact={compact === true}
+        fullscreen={fullscreen}
         onSave={save}
-        onEdit={() => setEditable(true)}
+        onOpenInEditor={onOpenInEditor}
+        onReload={reload}
         onExport={(format) => void exportAs(format)}
         onCopyPng={() => void copyPng()}
-        onSaveAs={adapter.untitled ? () => setSaveAsOpen(true) : undefined}
+        onSaveAs={adapter.untitled && !readOnlySurface ? openSaveAs : undefined}
+        onToggleFullscreen={toggleFullscreen}
       />
 
       {conflict !== null ? (
@@ -319,7 +442,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
         />
       ) : null}
 
-      {load.recovery !== null ? (
+      {!readOnlySurface && load.recovery !== null ? (
         <RecoveryBanner
           updatedAt={load.recovery.updatedAt}
           onRestore={() => {
@@ -361,16 +484,19 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, startRead
         />
       ) : null}
 
-      <DrawioEditor
-        ref={editorRef}
-        instanceUrl={instanceUrl}
-        uiTheme={uiTheme}
-        xml={load.content}
-        editable={editable}
-        onXml={markXml}
-        onReady={() => undefined}
-        className="min-h-0"
-      />
+      {readOnlySurface ? (
+        <DrawioViewer instanceUrl={instanceUrl} xml={load.content} className="min-h-0" />
+      ) : (
+        <DrawioEditor
+          ref={editorRef}
+          instanceUrl={instanceUrl}
+          uiTheme={uiTheme}
+          xml={load.content}
+          onXml={markXml}
+          onReady={() => undefined}
+          className="min-h-0"
+        />
+      )}
     </div>
   );
 }
@@ -392,11 +518,14 @@ function DiagramToolbar({
   untitled,
   readOnly,
   compact,
+  fullscreen,
   onSave,
-  onEdit,
+  onOpenInEditor,
+  onReload,
   onExport,
   onCopyPng,
   onSaveAs,
+  onToggleFullscreen,
 }: {
   title: string;
   subtitle: string | null;
@@ -405,11 +534,14 @@ function DiagramToolbar({
   untitled: boolean;
   readOnly: boolean;
   compact: boolean;
+  fullscreen: boolean;
   onSave: () => void;
-  onEdit: () => void;
+  onOpenInEditor: (() => void) | undefined;
+  onReload: () => void;
   onExport: (format: ExportFormat) => void;
   onCopyPng: () => void;
   onSaveAs: (() => void) | undefined;
+  onToggleFullscreen: () => void;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
@@ -423,15 +555,37 @@ function DiagramToolbar({
             aria-label="Unsaved changes"
           />
         ) : null}
-        {subtitle !== null && !compact ? (
-          <span className="hidden truncate text-xs text-muted-foreground md:inline">{subtitle}</span>
+        {subtitle !== null && (!compact || readOnly) ? (
+          // "read-only" always shows (it is the surface's contract); the
+          // editable location subtitle yields space on narrow surfaces.
+          <span
+            className={cn(
+              "truncate text-xs text-muted-foreground",
+              !readOnly && "hidden md:inline",
+            )}
+          >
+            {subtitle}
+          </span>
         ) : null}
       </div>
       {readOnly ? (
-        <Button variant="outline" size="sm" onClick={onEdit} aria-label="Switch this tab to the full editor">
-          <Icon name="Pencil" className="size-3.5" />
-          Edit
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            className="px-2"
+            onClick={onReload}
+            aria-label="Reload from disk"
+          >
+            <Icon name="ArrowReloadHorizontal" className="size-3.5" />
+          </Button>
+          {onOpenInEditor !== undefined ? (
+            <Button variant="outline" size="sm" onClick={onOpenInEditor}>
+              <Icon name="Edit" className="size-3.5" />
+              Open in editor
+            </Button>
+          ) : null}
+        </>
       ) : (
         <>
           {untitled && onSaveAs !== undefined ? (
@@ -444,27 +598,36 @@ function DiagramToolbar({
             <Icon name={saving ? "Loading" : "Save"} className={cn("size-3.5", saving && "animate-spin")} />
             Save
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Icon name="Download" className="size-3.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Download</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => onExport("png")}>PNG image</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("jpeg")}>JPEG image</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("svg")}>SVG vector</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("pdf")}>PDF document</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("xmlpng")}>PNG with embedded XML</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("xml")}>draw.io XML</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onCopyPng}>Copy PNG to clipboard</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       )}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Icon name="Download" className="size-3.5" />
-            Export
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Download</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => onExport("png")}>PNG image</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onExport("jpeg")}>JPEG image</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onExport("svg")}>SVG vector</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onExport("pdf")}>PDF document</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onExport("xmlpng")}>PNG with embedded XML</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onExport("xml")}>draw.io XML</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onCopyPng}>Copy PNG to clipboard</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Button
+        variant="outline"
+        size="sm"
+        className="px-2"
+        onClick={onToggleFullscreen}
+        aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+      >
+        <Icon name={fullscreen ? "Minimize2" : "Maximize2"} className="size-3.5" />
+      </Button>
     </div>
   );
 }

@@ -241,12 +241,22 @@ export function ThreadBrowserTab(_props: { threadId: string }) {
   return <VaultBrowser variant="panel" onOpenDiagram={openInThread} />;
 }
 
-/** One open diagram beside a thread; opened from the thread's browser. */
+/**
+ * One open diagram beside a thread; opened from the thread's browser. Read-only
+ * — sidebar surfaces never edit; the toolbar hands off to the dashboard.
+ */
 export function ThreadDiagramTab({ params }: { threadId: string; params: unknown }) {
-  const panel = experimental_useAppPanel();
+  const navigate = useBbNavigate();
   const parsed = useMemo(() => parseTabParams(params), [params]);
 
-  if (parsed === null || parsed.kind !== "vault" && parsed.kind !== "file") {
+  const openInDashboard = useCallback(() => {
+    if (parsed === null || (parsed.kind !== "vault" && parsed.kind !== "file")) return;
+    // The plugin page's body route is the editable dashboard surface; this
+    // moves the main body there and leaves the thread's tab as it is.
+    navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(parsed as DocRef) });
+  }, [navigate, parsed]);
+
+  if (parsed === null || (parsed.kind !== "vault" && parsed.kind !== "file")) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center p-4">
         <p className="max-w-xs text-center text-xs text-muted-foreground">
@@ -262,8 +272,8 @@ export function ThreadDiagramTab({ params }: { threadId: string; params: unknown
       refValue={parsed as DocRef}
       compact
       className="h-full"
-      startReadOnly
-      onSavedAs={(ref) => openAsTab(panel, ref, "thread")}
+      readOnly
+      onOpenInEditor={openInDashboard}
     />
   );
 }
@@ -281,21 +291,38 @@ export function openThreadBrowserFromAction(panel: Pick<ExperimentalPanelControl
 // fileOpener: any .drawio file BB opens
 // ---------------------------------------------------------------------------
 
+/**
+ * Any `.drawio` file BB opens — the file picker, a markdown link, `bb thread
+ * open` — renders the read-only viewer. A sidebar open can look, reload, and
+ * hand off to the dashboard, but never edit.
+ */
 export function FileOpenerEditor({ path, source }: PluginFileOpenerProps) {
-  const refValue: DocRef = {
-    kind: "file",
-    source: normalizeSource({
-      kind: source.kind,
-      threadId: source.threadId,
-      environmentId: source.environmentId,
-      projectId: source.projectId,
-      ...(source.experimental_hostId ? { hostId: source.experimental_hostId } : {}),
+  const navigate = useBbNavigate();
+  const refValue: DocRef = useMemo(
+    () => ({
+      kind: "file",
+      source: normalizeSource({
+        kind: source.kind,
+        threadId: source.threadId,
+        environmentId: source.environmentId,
+        projectId: source.projectId,
+        ...(source.experimental_hostId ? { hostId: source.experimental_hostId } : {}),
+      }),
+      path,
     }),
-    path,
-  };
+    [path, source],
+  );
+  const openInDashboard = useCallback(() => {
+    navigate.toPluginPanel(PANEL_PATH, { subPath: refToSubPath(refValue) });
+  }, [navigate, refValue]);
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DiagramView refValue={refValue} className="min-h-0" />
+      <DiagramView
+        refValue={refValue}
+        className="min-h-0"
+        readOnly
+        onOpenInEditor={openInDashboard}
+      />
     </div>
   );
 }

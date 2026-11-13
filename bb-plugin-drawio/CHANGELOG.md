@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.0 — real read-only sidebar opens, fullscreen everywhere
+
+- **Sidebar opens are actually read-only now.** Thread diagram tabs and every
+  `fileOpener` open render draw.io's **static viewer** (`viewer.min.js`, fit
+  and center with zoom + page nav) in a srcdoc frame instead of the embed
+  editor — the viewer has no editing surface at all. The previous approach
+  sent `editable: 0` on the embed `load` action, which every draw.io release
+  silently ignores, so sidebar frames stayed fully editable. Read-only
+  toolbars drop Save/Save As/Export (the viewer speaks no export protocol),
+  show the read-only subtitle, reload from disk, and hand off with **Open in
+  editor** — which routes the dashboard body to the document; no in-tab
+  unlock. Draft-net and recovery stay dashboard-only, and persisted source
+  params now canonicalize missing scope fields to null so RPC input always
+  validates.
+- **Fullscreen toggle on every diagram surface** (dashboard body, action
+  tabs, thread tabs, fileOpener): one button in the toolbar lifts the whole
+  surface (toolbar + frame) to the viewport — the Fullscreen API (native top
+  layer, Escape exits) when the browser has it, otherwise a fixed overlay
+  pinned `inset-0` that deliberately sits below bb's dialogs (z-40 < z-50) so
+  they keep working over it; Escape also exits the overlay. Native-fullscreen
+  surfaces drop the lift before opening the Save As or conflict dialogs,
+  which portal outside the top layer.
+- Editor/read-only frame chrome (mixed-content banner, connecting/error body)
+  is shared; the viewer detects a frame that never renders and offers retry
+  instead of a silent blank.
+
 ## Unreleased
 
 - **One Open action, always a tab**: row click and the menu both open the
@@ -8,10 +34,12 @@
 - The thread's inline-diagram tab is a normal action tab again (the hidden
   launcher is gone — the likely cause of "Open in tab" doing nothing inside
   threads).
-- **Diagrams opened from the Draw.io Browser start read-only** (the embed
+- ~~Diagrams opened from the Draw.io Browser start read-only (the embed
   protocol's `editable:0` load — draw.io's viewer mode); the tab's toolbar
   shows an **Edit** button that switches it to the full editor. Body deep
-  links and the fileOpener keep opening editable.
+  links and the fileOpener keep opening editable.~~ Superseded by 0.2.0: that
+  flag is silently ignored by draw.io, and the in-tab Edit unlock is gone —
+  read-only now means read-only.
 
 - **Diagrams inside threads**: a Diagram button in the thread header opens the
   Draw.io Browser in the thread's right panel (also available in that panel's

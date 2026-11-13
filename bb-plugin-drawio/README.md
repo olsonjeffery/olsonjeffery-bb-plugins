@@ -47,12 +47,20 @@ separate store, no exports hoarded by the plugin: a diagram is just a
   `.drawio` files only appear here.
 - **Diagrams inside threads** — a **Diagram** button in every thread header
   opens/focuses the browser in that thread's right panel; clicking a diagram
-  pins it as an inline tab beside the transcript (CAS saves work the same).
+  pins it as an inline tab beside the transcript. Thread tabs are
+  **read-only** (see below) with a reload button and an **Open in editor**
+  handoff to the dashboard.
 - **One tab per diagram** — each open diagram is an action tab with persisted
   params; several can be open at once, and they survive restarts.
-- **System `.drawio` editor** — a `fileOpener` renders the embedded editor for
-  any `.drawio` file BB opens: the file picker, a markdown link, or
-  `bb thread open`.
+- **Read-only viewer for sidebar opens** — any `.drawio` file BB opens outside
+  the dashboard (the file picker, a markdown link, `bb thread open`) renders
+  draw.io's static viewer: it cannot edit, so a sidebar open can never change
+  the file. Its toolbar reloads from disk (picking up agent edits) and hands
+  off to the dashboard for editing.
+- **Fullscreen** — every diagram surface's toolbar has a fullscreen toggle
+  that lifts the whole view (toolbar + frame) to the viewport: the Fullscreen
+  API where the browser has it, a fixed overlay (still below dialogs) where it
+  doesn't, and Escape or the toggle to come back.
 
 ## Persistence
 
@@ -80,6 +88,22 @@ instance origin before it is parsed, and outbound messages target that origin.
 
 An https BB page cannot embed an http instance (browser mixed content); the
 editor detects that and says so instead of showing a blank frame.
+
+## Read-only viewer
+
+Dashboard surfaces (the plugin page's editor and its action tabs) use the
+embed editor above. Sidebar surfaces — thread diagram tabs and every
+`fileOpener` open — use draw.io's **static viewer** (`viewer.min.js`) in a
+srcdoc frame instead: the viewer has no editing surface at all, which is what
+makes those opens genuinely read-only (the embed editor's `load` action has no
+read-only flag — every draw.io release silently ignores one, and an editor
+frame left editable could always move shapes).
+
+The frame config fits the diagram into the box (`resize: false`, zooming up
+allowed) and a resize observer refits on every frame-size change, so the
+fullscreen toggle rescales the diagram without reloading the frame. The
+viewer's floating toolbar provides zoom and page navigation; reload and
+"Open in editor" live in bb's own toolbar around it.
 
 ## Settings
 

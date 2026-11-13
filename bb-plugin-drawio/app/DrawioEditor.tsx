@@ -23,8 +23,8 @@ import {
   useState,
 } from "react";
 import type { ExportFormat, ExportResult } from "./drawio.js";
-import { embedOrigin, embedUrl, isMixedContent } from "./drawio.js";
-import { Icon } from "@/components/ui/icon";
+import { embedOrigin, embedUrl } from "./drawio.js";
+import { FrameFallback, MixedContentBanner } from "./FrameFallback.js";
 import { cn } from "@/lib/utils";
 
 /** Outbound messages to the editor. */
@@ -54,12 +54,6 @@ export interface DrawioEditorProps {
   uiTheme: "min" | "sketch" | "atlas";
   /** The XML handed over on init. */
   xml: string;
-  /**
-   * Load the diagram editable (the editor) or read-only (the viewer). The
-   * embed protocol's `editable` flag on the load action draws the full editor
-   * or the viewer for the same document; toggling remounts the iframe.
-   */
-  editable: boolean;
   /** Current editor XML (autosave/save events). */
   onXml: (xml: string) => void;
   onReady: () => void;
@@ -71,7 +65,7 @@ const EXPORT_TIMEOUT_MS = 30_000;
 const READY_TIMEOUT_MS = 20_000;
 
 export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
-  function DrawioEditor({ instanceUrl, uiTheme, xml, editable, onXml, onReady, onExit, className }, ref) {
+  function DrawioEditor({ instanceUrl, uiTheme, xml, onXml, onReady, onExit, className }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
     // The load payload is captured by ref so the message listener never
     // re-subscribes because the document changed.
@@ -157,12 +151,7 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
 
         switch (message.event) {
           case "init": {
-            post({
-              action: "load",
-              xml: loadXmlRef.current,
-              autosave: 1,
-              ...(editable ? {} : { editable: 0 }),
-            });
+            post({ action: "load", xml: loadXmlRef.current, autosave: 1 });
             break;
           }
           case "load": {
@@ -203,7 +192,7 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
       };
       // The bridge binds once per iframe mount; xml/onXml/onReady ride refs.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [src, origin, reloadNonce, editable]);
+    }, [src, origin, reloadNonce]);
 
     useImperativeHandle(
       ref,
@@ -248,22 +237,14 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
     );
 
     if (src === null || origin === null) {
-      return <EditorFallback detail="The draw.io instance URL is not configured." />;
+      return <FrameFallback detail="The draw.io instance URL is not configured." />;
     }
 
     return (
       <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-        {isMixedContent(instanceUrl) ? (
-          <div className="flex items-start gap-2 border-b border-border bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
-            <Icon name="AlertTriangle" className="mt-0.5 size-3.5 shrink-0" />
-            <span>
-              This page is served over HTTPS but the draw.io instance is HTTP, so the browser blocks
-              the embedded editor. Serve the instance over HTTPS.
-            </span>
-          </div>
-        ) : null}
+        <MixedContentBanner instanceUrl={instanceUrl} />
         <iframe
-          key={`${reloadNonce}:${editable ? "edit" : "view"}`}
+          key={reloadNonce}
           ref={iframeRef}
           src={src}
           title="draw.io diagram editor"
@@ -275,7 +256,7 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
         />
         {status !== "ready" ? (
           <div className="absolute inset-x-0 bottom-0 top-0 flex items-center justify-center bg-background/70 backdrop-blur-[2px]">
-            <EditorFallback
+            <FrameFallback
               loading={status === "connecting"}
               detail={status === "error" ? (statusDetail ?? "The editor did not load.") : null}
               onRetry={status === "error" ? () => setReloadNonce((nonce) => nonce + 1) : undefined}
@@ -286,38 +267,3 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
     );
   },
 );
-
-function EditorFallback({
-  loading,
-  detail,
-  onRetry,
-}: {
-  loading?: boolean;
-  detail: string | null;
-  onRetry?: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
-      {loading ? (
-        <>
-          <Icon name="Loading" className="size-5 animate-spin" />
-          <p>Connecting to the draw.io instance…</p>
-        </>
-      ) : (
-        <>
-          <Icon name="AlertCircle" className="size-5 text-destructive" />
-          <p className="max-w-md">{detail ?? "The editor did not load."}</p>
-          {onRetry ? (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
-            >
-              Retry
-            </button>
-          ) : null}
-        </>
-      )}
-    </div>
-  );
-}

@@ -24,6 +24,10 @@ human makes lands in the same file you would write.
 
 ## Rules when the human has the editor open
 
+- **Sidebar opens are read-only.** Diagrams opened beside a thread or through
+  the file picker render a viewer that cannot edit; the human sees your
+  writes there after pressing the toolbar's reload button. Editing happens in
+  the Diagrams dashboard (the plugin page), where the CAS rules below apply.
 - **Never write blind.** The editor saves with compare-and-swap (it carries
   the sha256 it loaded). If you overwrite a file the human is editing, their
   next save comes back as a conflict and they must choose reload-or-overwrite.
