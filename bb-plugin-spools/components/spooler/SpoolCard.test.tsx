@@ -391,18 +391,16 @@ describe("SpoolCard", () => {
       expect(document.querySelector(".spooler-spool-workcount")).toBeNull();
     });
 
-    it("keeps the pip spinner while expanded (the section grammar shows it regardless)", () => {
+    it("keeps the working meta + pip spinner folded; drops both expanded", () => {
       const running = (): PluginSidebarThread =>
         makeThread({ id: "tw2", title: "Member tw2", indicator: "runtime" });
-      renderEl(
-        makeProps({
-          collapsed: false,
-          data: {
-            ...makeProps().data,
-            members: [running(), running()],
-          },
-        }),
-      );
+      const data = {
+        ...makeProps().data,
+        members: [running(), running()],
+      };
+      const view = renderEl(makeProps({ collapsed: true, data }));
+      // Folded: the caption owns the working signal — the rows are hidden.
+      expect(screen.getByText(/Spool · 2 working/)).toBeTruthy();
       const pip = document.querySelector(
         ".spooler-spool-pip .spooler-spool-count",
       ) as HTMLElement;
@@ -411,14 +409,15 @@ describe("SpoolCard", () => {
           ".spooler-spool-pip-status.spooler-spinner.spooler-tone-success",
         ),
       ).toBeTruthy();
-      // The pip overlay persists in either state; the meta line carries
-      // "Spool · 2 working".
+      // Expanded: the member rows carry it — the caption drops the meta
+      // suffix and the pip overlay, and the count pip stays neutral.
+      view.rerender(h(SpoolCard, makeProps({ collapsed: false, data })));
+      expect(screen.getByText("Spool")).toBeTruthy();
+      expect(screen.queryByText(/Spool · 2 working/)).toBeNull();
       expect(
-        pip.querySelector(
-          ".spooler-spool-pip-status.spooler-spinner.spooler-tone-success",
-        ),
-      ).toBeTruthy();
-      expect(screen.getByText(/Spool · 2 working/)).toBeTruthy();
+        pip.querySelector(".spooler-spool-pip-status"),
+      ).toBeNull();
+      expect(pip.querySelector(".spooler-pip-numeral")?.textContent).toBe("2");
     });
 
   });

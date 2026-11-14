@@ -272,19 +272,24 @@ export function SpoolCardImpl({
           >
             <Icon name="MoreHorizontal" aria-hidden="true" />
           </button>
+          {/* The working read rides the SAME folded-caption rule as the
+              attention pills: folded (rows hidden) the meta carries
+              "Spool · N working" and the pip overlays its spinner; expanded
+              the member rows carry it, so the caption drops both and stays
+              "Spool" with a plain count pip. */}
           <span
             className="spooler-spool-meta"
-            title={`Spool · ${nWorking} working`}
+            title={collapsed && nWorking > 0 ? `Spool · ${nWorking} working` : "Spool"}
           >
             {"Spool"}
-            {nWorking > 0 ? ` · ${nWorking} working` : ""}
+            {collapsed && nWorking > 0 ? ` · ${nWorking} working` : ""}
           </span>
           <span className="spooler-spool-pip">
             <span
               className="spooler-spool-count"
               title={`${data.members.length} thread${data.members.length === 1 ? "" : "s"} in this spool`}
             >
-              {nWorking > 0 ? (
+              {collapsed && nWorking > 0 ? (
                 <span
                   className="spooler-spool-pip-status spooler-spinner spooler-tone-success"
                   title={`${nWorking} working`}

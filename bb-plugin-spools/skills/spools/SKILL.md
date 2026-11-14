@@ -54,7 +54,9 @@ reference.
   attention and the caption would say every state twice): "N failed" on
   the destructive surface, "N needs you" on the attention surface with
   its pulsing amber dot, "N working" as success text with a spinner —
-  each pill only when its count is above zero. Section identity is
+  each pill only when its count is above zero. Spool cards follow the
+  same rule for their whole working read (meta suffix + pip spinner).
+  Section identity is
   **icon-only**: colour dots, hue vars and colour pickers are gone;
   stored colour values are ignored, not migrated.
 
@@ -221,10 +223,12 @@ collapsed and expanded, so the outer row never duplicates the panel:
 grouping only (other groupings keep ordinary rows): the SpoolIcon glyph owns the icon
 rail (there is no grip — dragging retired), the title sits above one muted meta line
 reading **"Spool · N working"**, and the trailing cluster reads ⋯ · label · count pip
-(the pip is a passive count now). While the roster is folded, the caption carries the
-SAME **AttentionPills** lane the section caption uses — "N failed" / "N needs you"
-(pulsing amber dot), no working pill (the meta line + pip spinner own that count);
-expanded, the lane drops and the member rows carry the attention. Membership is stored
+(the pip is a passive count now). The caption follows the FOLDED-CAPTION rule: while
+the roster is folded it carries the SAME **AttentionPills** lane the section caption
+uses ("N failed" / "N needs you", pulsing amber dot) plus the working read — the meta
+line's "· N working" and the pip's green spinner overlay; expanded, ALL of it drops
+(pills, meta suffix, pip spinner — a plain count pip) and the member rows carry every
+state themselves. Membership is stored
 entirely in per-thread plugin metadata
 (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
