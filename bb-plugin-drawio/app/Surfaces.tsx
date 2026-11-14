@@ -30,7 +30,6 @@ import {
 import { DiagramView } from "./DiagramView.js";
 import { VaultBrowser } from "./VaultBrowser.js";
 import { HomeView } from "./HomeView.js";
-import { Icon } from "@/components/ui/icon";
 
 const DIAGRAM_TAB_REFERENCE = {
   id: "diagram",
@@ -103,18 +102,11 @@ export function DiagramsPanelBody({ subPath }: PluginNavPanelProps) {
   if (refValue === null) {
     return <HomeView onOpenRef={openRef} onOpenDraft={openDraft} />;
   }
+  // One header row: the document toolbar carries the "← All diagrams" back
+  // control (onBack doubles as the dead-link escape hatch), so nothing sits
+  // between bb's panel header and the diagram.
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1">
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={goHome}
-        >
-          <Icon name="ArrowLeft" className="size-3.5" />
-          All diagrams
-        </button>
-      </div>
       <DiagramView
         refValue={refValue}
         className="min-h-0"

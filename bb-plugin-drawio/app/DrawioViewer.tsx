@@ -13,8 +13,8 @@
 // graph; a frame that never renders (instance down, script blocked) becomes
 // an explicit error with retry instead of a silent blank frame.
 import { useEffect, useRef, useState } from "react";
-import { isMixedContent, viewerSrcDoc } from "./drawio.js";
-import { FrameFallback, MixedContentBanner } from "./FrameFallback.js";
+import { viewerSrcDoc } from "./drawio.js";
+import { FrameFallback } from "./FrameFallback.js";
 import { cn } from "@/lib/utils";
 
 const VIEWER_READY_POLL_MS = 250;
@@ -62,7 +62,6 @@ export function DrawioViewer({ instanceUrl, xml, className }: DrawioViewerProps)
   if (srcDoc === null) {
     return (
       <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-        <MixedContentBanner instanceUrl={instanceUrl} />
         <FrameFallback detail="The draw.io instance URL is not configured." />
       </div>
     );
@@ -70,7 +69,6 @@ export function DrawioViewer({ instanceUrl, xml, className }: DrawioViewerProps)
 
   return (
     <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-      {isMixedContent(instanceUrl) ? <MixedContentBanner instanceUrl={instanceUrl} /> : null}
       <iframe
         key={reloadNonce}
         ref={iframeRef}

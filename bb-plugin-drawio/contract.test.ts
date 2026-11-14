@@ -12,7 +12,6 @@ import {
   draftToSubPath,
   embedOrigin,
   embedUrl,
-  isMixedContent,
   parseSubPath,
   parseTabParams,
   refToSubPath,
@@ -155,11 +154,6 @@ describe("embed config", () => {
     expect(embedOrigin("")).toBeNull();
   });
 
-  it("never flags mixed content from a non-https page", () => {
-    // jsdom serves http://localhost, so http instances are fine here.
-    expect(isMixedContent("http://localhost:8080")).toBe(false);
-    expect(isMixedContent("")).toBe(false);
-  });
 });
 
 describe("starter xml", () => {

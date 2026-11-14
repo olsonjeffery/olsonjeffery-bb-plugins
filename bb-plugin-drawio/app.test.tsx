@@ -1,6 +1,7 @@
 // bb-plugin-drawio — frontend surfaces over the app testing runtime: the
 // registrations validate, the home posture reacts to configuration, the
-// browser lists vault diagrams over RPC, deep links land on the editor,
+// browser lists vault diagrams over RPC, deep links land on the editor with
+// the whole header collapsed into one toolbar row (back control included),
 // sidebar surfaces render the read-only viewer with the dashboard handoff,
 // and the toolbar lifts the surface to the viewport.
 // @vitest-environment jsdom
@@ -111,6 +112,25 @@ describe("drawio frontend", () => {
     // in jsdom, but the toolbar and its connect overlay render.
     await slot.findByText("flow.drawio");
     await slot.findByText("Save");
+    // One header row: the back control lives IN the toolbar (the standalone
+    // back bar is gone), so "All diagrams" appears exactly once.
+    expect(slot.getAllByText("All diagrams")).toHaveLength(1);
+    slot.lifecycle.unmount();
+  });
+
+  it("the toolbar's back control returns to the diagram list", async () => {
+    const app = await loadApp();
+    const subPath = refToSubPath({ kind: "vault", vaultId: "v1", path: "diagrams/flow.drawio" });
+    const slot = await renderSlot(
+      app.navPanels[0]!,
+      { subPath },
+      { rpc: RPC, settings: SETTINGS },
+    );
+    await slot.findByText("flow.drawio");
+    fireEvent.click(slot.getByRole("button", { name: "All diagrams" }));
+    expect(slot.navigateCalls).toEqual([
+      { method: "toPluginPanel", path: "diagrams", options: { subPath: "" } },
+    ]);
     slot.lifecycle.unmount();
   });
 

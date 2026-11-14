@@ -1,25 +1,7 @@
 // bb-plugin-drawio — frame chrome shared by the embed editor and the
-// read-only viewer: the mixed-content banner and the connecting/error body.
+// read-only viewer: the connecting/error body.
 import { Icon } from "@/components/ui/icon";
-import { isMixedContent } from "./drawio.js";
 import { cn } from "@/lib/utils";
-
-/**
- * https app page + http instance = the browser blocks the frame's script and
- * shows nothing. Say why instead of a blank frame.
- */
-export function MixedContentBanner({ instanceUrl }: { instanceUrl: string }) {
-  if (!isMixedContent(instanceUrl)) return null;
-  return (
-    <div className="flex items-start gap-2 border-b border-border bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
-      <Icon name="AlertTriangle" className="mt-0.5 size-3.5 shrink-0" />
-      <span>
-        This page is served over HTTPS but the draw.io instance is HTTP, so the browser blocks
-        the embedded editor. Serve the instance over HTTPS.
-      </span>
-    </div>
-  );
-}
 
 export function FrameFallback({
   loading,

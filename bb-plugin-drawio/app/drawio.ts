@@ -39,17 +39,6 @@ export function embedOrigin(instanceUrl: string): string | null {
   }
 }
 
-/**
- * https app page + http instance = browser mixed-content: the iframe silently
- * refuses to load. Detect it so the UI can say why the page is blank.
- */
-export function isMixedContent(instanceUrl: string): boolean {
-  if (typeof window === "undefined") return false;
-  if (window.location.protocol !== "https:") return false;
-  const url = embedUrl({ instanceUrl, uiTheme: "min" });
-  return url !== null && url.startsWith("http://");
-}
-
 // ---------------------------------------------------------------------------
 // Read-only viewer frame
 // ---------------------------------------------------------------------------

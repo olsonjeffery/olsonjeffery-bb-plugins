@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — one header row
+
+- The plugin page's document view collapses to a **single header row**: the
+  "← All diagrams" back control now lives at the left of the document
+  toolbar (it doubles as the dead-link escape hatch), and the standalone
+  back bar is gone. bb's own plugin panel header above it is bb chrome and
+  stays.
+- **The HTTPS/HTTP warning banner is gone.** It claimed the browser blocks
+  the embedded editor whenever the app page is HTTPS and the instance HTTP —
+  but bb's desktop webview renders that combination fine, so the banner was
+  a standing false positive over a working editor ("row four is gibberish").
+  If a frame genuinely fails to load, the connect/error fallback says so and
+  offers retry.
+
 ## 0.2.0 — real read-only sidebar opens, fullscreen everywhere
 
 - **Sidebar opens are actually read-only now.** Thread diagram tabs and every
@@ -22,11 +36,9 @@
   they keep working over it; Escape also exits the overlay. Native-fullscreen
   surfaces drop the lift before opening the Save As or conflict dialogs,
   which portal outside the top layer.
-- Editor/read-only frame chrome (mixed-content banner, connecting/error body)
-  is shared; the viewer detects a frame that never renders and offers retry
-  instead of a silent blank.
-
-## Unreleased
+- Editor/read-only frame chrome (the connecting/error body) is shared; the
+  viewer detects a frame that never renders and offers retry instead of a
+  silent blank.
 
 - **One Open action, always a tab**: row click and the menu both open the
   diagram as a tab in the surface's own panel (plugin page or thread); the
@@ -34,12 +46,6 @@
 - The thread's inline-diagram tab is a normal action tab again (the hidden
   launcher is gone — the likely cause of "Open in tab" doing nothing inside
   threads).
-- ~~Diagrams opened from the Draw.io Browser start read-only (the embed
-  protocol's `editable:0` load — draw.io's viewer mode); the tab's toolbar
-  shows an **Edit** button that switches it to the full editor. Body deep
-  links and the fileOpener keep opening editable.~~ Superseded by 0.2.0: that
-  flag is silently ignored by draw.io, and the in-tab Edit unlock is gone —
-  read-only now means read-only.
 
 - **Diagrams inside threads**: a Diagram button in the thread header opens the
   Draw.io Browser in the thread's right panel (also available in that panel's
@@ -70,7 +76,7 @@
   readiness check, `--check`/`--dry-run`/`--uninstall` modes.
 
 - Embedded self-hosted draw.io editor (embed + JSON postMessage protocol) with
-  origin validation and mixed-content detection.
+  origin validation.
 - **Diagrams** nav panel: home state (import XML, recent vault diagrams, kept
   drafts) routing to a full-bleed editor via `open/…` deep links.
 - Vault persistence over the bundled Docs plugin's RPC: cached `.drawio`

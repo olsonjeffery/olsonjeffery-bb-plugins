@@ -410,6 +410,7 @@ export function DiagramView({ refValue, starterXml, onSavedAs, onBack, readOnly,
         readOnly={readOnlySurface}
         compact={compact === true}
         fullscreen={fullscreen}
+        onBack={onBack}
         onSave={save}
         onOpenInEditor={onOpenInEditor}
         onReload={reload}
@@ -519,6 +520,7 @@ function DiagramToolbar({
   readOnly,
   compact,
   fullscreen,
+  onBack,
   onSave,
   onOpenInEditor,
   onReload,
@@ -535,6 +537,8 @@ function DiagramToolbar({
   readOnly: boolean;
   compact: boolean;
   fullscreen: boolean;
+  /** Back affordance for surfaces stacked above a list (the plugin body). */
+  onBack: (() => void) | undefined;
   onSave: () => void;
   onOpenInEditor: (() => void) | undefined;
   onReload: () => void;
@@ -544,7 +548,22 @@ function DiagramToolbar({
   onToggleFullscreen: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
+    <div className="flex shrink-0 items-center gap-1.5 border-b border-border px-2 py-1.5">
+      {onBack !== undefined ? (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 px-1.5 text-muted-foreground hover:text-foreground"
+            onClick={onBack}
+            aria-label="All diagrams"
+          >
+            <Icon name="ArrowLeft" className="size-3.5" />
+            {!compact ? <span className="pr-1 text-xs">All diagrams</span> : null}
+          </Button>
+          <div className="h-4 w-px shrink-0 bg-border" aria-hidden />
+        </>
+      ) : null}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <Icon name="Workflow" className="size-4 shrink-0 text-muted-foreground" />
         <span className={cn("truncate font-medium", compact ? "text-xs" : "text-sm")}>{title}</span>

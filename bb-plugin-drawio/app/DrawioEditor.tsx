@@ -24,7 +24,7 @@ import {
 } from "react";
 import type { ExportFormat, ExportResult } from "./drawio.js";
 import { embedOrigin, embedUrl } from "./drawio.js";
-import { FrameFallback, MixedContentBanner } from "./FrameFallback.js";
+import { FrameFallback } from "./FrameFallback.js";
 import { cn } from "@/lib/utils";
 
 /** Outbound messages to the editor. */
@@ -242,7 +242,6 @@ export const DrawioEditor = forwardRef<DrawioEditorHandle, DrawioEditorProps>(
 
     return (
       <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>
-        <MixedContentBanner instanceUrl={instanceUrl} />
         <iframe
           key={reloadNonce}
           ref={iframeRef}
