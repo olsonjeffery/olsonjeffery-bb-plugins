@@ -88,6 +88,14 @@ on every turn.
   `text` = the file's current content (or `[Docs file is unavailable]`) and
   `docVaultId` + `docPath` carrying the link. `contributeInstructions`
   resolves through the cache the same way.
+- The cache holds the file's PROMPT BODY, not its raw bytes:
+  `docsPromptBody` (personas.ts) strips a leading `---`-fenced YAML front
+  matter block — the metadata note exports synced into vaults carry (id,
+  kind, tags, color, timestamps) — at both readNote sites (refresh + import
+  seeding). Conservative: the block must start on line 1 AND have a closing
+  `---`/`...`; the match stops at the first closing delimiter, so `---`
+  dividers inside the body survive. A front-matter-only file contributes an
+  empty string, which the pool renderer and joinedPromptText skip.
 - The picker reads Docs' `listNotes` RPC: one call without a vault id to
   discover the vaults (the docs plugin THROWS "No vault configured" when
   zero vaults — the picker reads that as an empty list), then one per vault

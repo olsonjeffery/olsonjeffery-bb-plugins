@@ -505,6 +505,28 @@ export function docPromptRefKey(vaultId: string, path: string): string {
   return `${vaultId}\u0000${path}`;
 }
 
+/**
+ * The prompt body of a Docs vault file: the file's content with a leading
+ * YAML front matter block removed. Vault documents — note exports synced
+ * into vaults especially — carry file metadata (ids, kinds, tags, colors,
+ * timestamps) in a `---`-fenced YAML block at the very top; that is metadata
+ * about the file, not instructions for a persona, so it never reaches the
+ * pool entry's display or the agent's injected text.
+ *
+ * Conservative on purpose: only a block that starts on the file's first line
+ * AND carries a closing `---` (or `...`) delimiter counts — a file that
+ * merely opens with a thematic break keeps its full content, and the match
+ * ends at the FIRST closing delimiter, so `---` dividers inside the body
+ * (like a template's) are never eaten.
+ */
+export function docsPromptBody(content: string): string {
+  const match = /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(
+    content,
+  );
+  if (match === null) return content;
+  return content.slice(match[0].length).replace(/^[\r\n]+/, "");
+}
+
 /** What a doc prompt contributes when its file can't be read. */
 export const DOC_UNAVAILABLE_TEXT = "[Docs file is unavailable]";
 

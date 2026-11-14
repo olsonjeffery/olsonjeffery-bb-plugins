@@ -14,6 +14,7 @@ import {
   encodeNotePromptRef,
   EMOJI_GROUPS,
   EMOJIS,
+  docsPromptBody,
   INSTRUCTION_LIMIT,
   isPersonaColor,
   isSingleEmoji,
@@ -682,6 +683,69 @@ describe("encodeDocPromptRef / decodeDocPromptRef", () => {
 
   it("keeps 'doc' among the extensible prompt types", () => {
     expect(PROMPT_TYPES).toContain("doc");
+  });
+});
+
+describe("docsPromptBody", () => {
+  it("strips a floating-note-style front matter block, metadata and all", () => {
+    const raw = [
+      "---",
+      "id: b99f0fd724",
+      "kind: note",
+      "tags: []",
+      "color: lavender",
+      "pinned: false",
+      "dateKey: null",
+      "originThreadId: null",
+      "createdAt: 2026-09-25T12:23:14.688Z",
+      "updatedAt: 2026-10-02T12:22:17.750Z",
+      "---",
+      "",
+      "# PERSONA: Plan",
+      "",
+      "Ask the user what GitHub Issue URL they would like to work from.",
+    ].join("\n");
+    const body = docsPromptBody(raw);
+    expect(body).toBe(
+      "# PERSONA: Plan\n\nAsk the user what GitHub Issue URL they would like to work from.",
+    );
+  });
+
+  it("strips a docs-style title front matter with a ... terminator", () => {
+    expect(docsPromptBody("---\ntitle: Plan\n...\nBody line")).toBe("Body line");
+  });
+
+  it("passes content without front matter through untouched", () => {
+    expect(docsPromptBody("# Just a heading\n\nBody.")).toBe(
+      "# Just a heading\n\nBody.",
+    );
+  });
+
+  it("keeps a file whose leading --- has no closing delimiter", () => {
+    // A thematic break or divider is ordinary text, not front matter.
+    expect(docsPromptBody("---\n# Heading after a rule")).toBe(
+      "---\n# Heading after a rule",
+    );
+  });
+
+  it("eats only the FIRST closing delimiter, so --- dividers in the body survive", () => {
+    const raw = "---\nid: n1\n---\n\n**Template:**\n\n---\n\n# Issue\n";
+    expect(docsPromptBody(raw)).toBe("**Template:**\n\n---\n\n# Issue\n");
+  });
+
+  it("drops the blank separator line after the closing delimiter", () => {
+    expect(docsPromptBody("---\ntitle: t\n---\n\n\nBody")).toBe("Body");
+  });
+
+  it("yields an empty body when the file is front matter only", () => {
+    expect(docsPromptBody("---\nid: n1\n---")).toBe("");
+    expect(docsPromptBody("---\nid: n1\n---\n")).toBe("");
+  });
+
+  it("tolerates CRLF line endings and trailing spaces on the delimiters", () => {
+    expect(docsPromptBody("--- \r\ntitle: t\r\n--- \r\nBody\r\n")).toBe(
+      "Body\r\n",
+    );
   });
 });
 

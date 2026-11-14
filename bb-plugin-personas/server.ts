@@ -17,6 +17,7 @@ import {
   draftBlockers,
   encodeDocPromptRef,
   encodeNotePromptRef,
+  docsPromptBody,
   MAX_DEFAULT_USER_MESSAGE,
   MAX_NAME,
   MAX_PROMPT_TEXT,
@@ -786,7 +787,13 @@ export default async function plugin(bb: BbPluginApi) {
               outputSchema: DocsReadNoteOutput,
             });
             if (file.contentEncoding === "utf8") {
-              docBodiesByRef.set(docPromptRefKey(ref.vaultId, ref.path), file.content);
+              // The cache holds the prompt body: raw content minus any
+              // leading front matter block, which is file metadata, not
+              // persona text.
+              docBodiesByRef.set(
+                docPromptRefKey(ref.vaultId, ref.path),
+                docsPromptBody(file.content),
+              );
             } else {
               docBodiesByRef.delete(docPromptRefKey(ref.vaultId, ref.path));
             }
@@ -1640,7 +1647,7 @@ export default async function plugin(bb: BbPluginApi) {
                   importableDocRefs.add(docPromptRefKey(ref.vaultId, ref.path));
                   docBodiesByRef.set(
                     docPromptRefKey(ref.vaultId, ref.path),
-                    file.content,
+                    docsPromptBody(file.content),
                   );
                 }
               } catch {

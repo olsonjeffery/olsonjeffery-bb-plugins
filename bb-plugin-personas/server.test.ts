@@ -486,6 +486,56 @@ describe("instruction routing", () => {
     );
   });
 
+  it("strips front matter from a Docs file before it reaches the display or the agent", async () => {
+    // A note export synced into a vault carries its metadata in a --- fenced
+    // YAML block at the top of the file; that is file metadata, not persona
+    // text, so neither the pool entry nor the injected instructions see it.
+    stubCrossPluginRpc({
+      "simple-notes:readNote": () => ({
+        content: [
+          "---",
+          "id: b99f0fd724",
+          "kind: note",
+          "tags: []",
+          "color: lavender",
+          "pinned: false",
+          "createdAt: 2026-09-25T12:23:14.688Z",
+          "updatedAt: 2026-10-02T12:22:17.750Z",
+          "---",
+          "",
+          "# PERSONA: Plan",
+          "",
+          "Ask the user what GitHub Issue URL they would like to work from.",
+        ].join("\n"),
+        contentEncoding: "utf8",
+      }),
+    });
+    const personaId = await createPublishedPersona();
+    await host.harness.behavior.callRpc("addPersonaPrompt", {
+      personaId,
+      type: "doc",
+      vaultId: "personal",
+      path: "PERSONA/persona-plan-b99f0fd7.md",
+    });
+    const threadId = dispatchThreadStart(personaId);
+
+    const { persona } = (await host.harness.behavior.callRpc("getPersona", {
+      personaId,
+    })) as { persona: { prompts: { type: string; text: string }[] } };
+    const entry = persona!.prompts.find((prompt) => prompt.type === "doc")!;
+    expect(entry.text).not.toContain("id: b99f0fd724");
+    expect(entry.text).not.toContain("kind: note");
+    expect(entry.text).not.toContain("color: lavender");
+    expect(entry.text.startsWith("# PERSONA: Plan")).toBe(true);
+
+    const provide = host.harness.registrations.instructionProvider!;
+    const instructions = provide({ threadId, projectId: "proj_personal" });
+    expect(instructions).toContain(
+      "Ask the user what GitHub Issue URL they would like to work from.",
+    );
+    expect(instructions).not.toContain("kind: note");
+  });
+
   it("contributes the unavailable marker when the Docs file can't be read", async () => {
     // No readNote stub at all: every refresh fails, so the cache stays empty.
     stubCrossPluginRpc({});
