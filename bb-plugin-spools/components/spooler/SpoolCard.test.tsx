@@ -232,6 +232,62 @@ describe("SpoolCard", () => {
     expect(card().className).not.toContain("spooler-spool-card-active");
   });
 
+  describe("attention pills", () => {
+    it("a folded card carries the section caption's pill grammar", () => {
+      renderEl(
+        makeProps({
+          collapsed: true,
+          data: { ...makeProps().data, needsUser: 2, failed: 1 },
+        }),
+      );
+      const needs = document.querySelector(
+        ".spooler-group-pill-needs",
+      ) as HTMLElement;
+      expect(needs?.textContent).toContain("2 needs you");
+      // The amber dot rides the pill and pulses (motion-gated like every dot).
+      expect(
+        needs?.querySelector(".spooler-dot-attention.spooler-dot-pulse"),
+      ).toBeTruthy();
+      const failed = document.querySelector(
+        ".spooler-group-pill-failed",
+      ) as HTMLElement;
+      expect(failed?.textContent).toContain("1 failed");
+      // Working already owns two slots on this caption (meta line + pip
+      // spinner) — the pill lane must not repeat it a third time.
+      expect(document.querySelector(".spooler-group-pill-working")).toBeNull();
+      // The lane rides the header, right-justified ahead of the trail.
+      const header = document.querySelector(
+        ".spooler-spool-header",
+      ) as HTMLElement;
+      const kids = Array.from(header.children).map((el) => el.className);
+      expect(
+        kids.findIndex((c) => c.includes("spooler-group-pills")),
+      ).toBe(kids.findIndex((c) => c.includes("spooler-spool-trail")) - 1);
+    });
+
+    it("an expanded card drops the pills — the member rows carry the attention", () => {
+      renderEl(
+        makeProps({
+          collapsed: false,
+          data: { ...makeProps().data, needsUser: 2, failed: 1 },
+        }),
+      );
+      expect(document.querySelector(".spooler-group-pill-needs")).toBeNull();
+      expect(document.querySelector(".spooler-group-pill-failed")).toBeNull();
+      expect(document.querySelector(".spooler-group-pills")).toBeNull();
+    });
+
+    it("no attention, no lane — even folded", () => {
+      renderEl(
+        makeProps({
+          collapsed: true,
+          data: { ...makeProps().data, needsUser: 0, failed: 0 },
+        }),
+      );
+      expect(document.querySelector(".spooler-group-pills")).toBeNull();
+    });
+  });
+
   describe("collapsed badges", () => {
     it("keeps no project/branch chips on the header — the meta line is Spool", () => {
       const props = makeProps({

@@ -11,6 +11,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { type SpoolGroupData } from "./useThreadGroups";
 import { Fold } from "./Fold";
+import { AttentionPills } from "./AttentionPills";
 import {
   TAG_ROLLUP_LIMIT,
   type RolledUpTag,
@@ -216,6 +217,19 @@ export function SpoolCardImpl({
             </button>
           )}
         </span>
+        {/* Attention pills while the roster is folded: the SAME lane the
+            section caption uses (failed / needs you), reusing its markup —
+            the working count stays in the card's own meta + pip slots.
+            Expanded, the lane drops: the member rows carry the attention
+            themselves, and a caption that repeats it says every state
+            twice. */}
+        {collapsed ? (
+          <AttentionPills
+            failed={data.failed}
+            needsUser={data.needsUser}
+            live={0}
+          />
+        ) : null}
         {/* Rolled-up member tags, between the title and the trailing meta:
             the spool title bar's priority lane. Distinct tags only,
             attention first, the rest rides an overflow chip. */}

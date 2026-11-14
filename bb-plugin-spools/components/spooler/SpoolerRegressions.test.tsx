@@ -123,6 +123,9 @@ describe("sidebar behavior regressions", () => {
   it("shows an approval-only group's attention pill instead of running", () => {
     const slot = mount([makeThread({ id: "waiting", indicator: "waiting-for-input",
       hasPendingInteraction: true, indicatorLabel: "Thread needs user input" })]);
+    // Pills live on the FOLDED caption: expanded, the row itself carries the
+    // attention and the container must not repeat it.
+    fireEvent.click(screen.getByRole("button", { name: /Today/ }));
     const needs = slot.container.querySelector(".spooler-group-pill-needs");
     expect(needs?.textContent).toContain("1 needs you");
     expect(slot.container.querySelector(".spooler-group-pill-working")).toBeNull();
@@ -151,6 +154,8 @@ describe("sidebar behavior regressions", () => {
       makeThread({ id: "parent", status: "active", indicator: "runtime" }),
       makeThread({ id: "child", parentThreadId: "parent", indicator }),
     ]);
+    // Folded-caption pills: expanded, the rows own the attention.
+    fireEvent.click(screen.getByRole("button", { name: /Today/ }));
     expect(slot.container.querySelector(".spooler-group-pill-needs") !== null).toBe(
       expected === "needs you",
     );
@@ -168,6 +173,8 @@ describe("sidebar behavior regressions", () => {
       grouping: "time", projectOrder: [], projects: [], sections: [], now: NOW }));
     expect(hook.result.current.groups[0]).toMatchObject({ live: 0, needsUser: 3, failed: 3 });
     const slot = mount(threads);
+    // Folded-caption pills: expanded, the rows own the attention.
+    fireEvent.click(screen.getByRole("button", { name: /Today/ }));
     const failedPill = slot.container.querySelector(".spooler-group-pill-failed");
     expect(failedPill?.textContent).toContain("3 failed");
   });

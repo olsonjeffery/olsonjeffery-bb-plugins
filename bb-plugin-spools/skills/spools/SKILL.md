@@ -49,11 +49,14 @@ reference.
   stored preferences keep working with no migration.
 - **Groups**, time / project / section: caption rows — chevron, marker
   icon (section's chosen icon; project's folder; pinned's pin), label,
-  quiet total — with **action pills only when a count is above zero**:
-  "N failed" on the destructive surface, "N needs you" on the attention
-  surface with its amber dot, "N working" as success text with a spinner.
-  Section identity is **icon-only**: colour dots, hue vars and colour
-  pickers are gone; stored colour values are ignored, not migrated.
+  quiet total — with **attention pills only while the group is FOLDED**
+  (shared `AttentionPills` lane; expanded, the group's own rows carry the
+  attention and the caption would say every state twice): "N failed" on
+  the destructive surface, "N needs you" on the attention surface with
+  its pulsing amber dot, "N working" as success text with a spinner —
+  each pill only when its count is above zero. Section identity is
+  **icon-only**: colour dots, hue vars and colour pickers are gone;
+  stored colour values are ignored, not migrated.
 
 ## Navigation
 
@@ -218,7 +221,11 @@ collapsed and expanded, so the outer row never duplicates the panel:
 grouping only (other groupings keep ordinary rows): the SpoolIcon glyph owns the icon
 rail (there is no grip — dragging retired), the title sits above one muted meta line
 reading **"Spool · N working"**, and the trailing cluster reads ⋯ · label · count pip
-(the pip is a passive count now) — stored entirely in per-thread plugin metadata
+(the pip is a passive count now). While the roster is folded, the caption carries the
+SAME **AttentionPills** lane the section caption uses — "N failed" / "N needs you"
+(pulsing amber dot), no working pill (the meta line + pip spinner own that count);
+expanded, the lane drops and the member rows carry the attention. Membership is stored
+entirely in per-thread plugin metadata
 (pluginId `spools`; keys `spool`, `spoolJoined`, `spoolLead`, `spoolTitle` served
 by the spool's *lead* thread). Details:
 

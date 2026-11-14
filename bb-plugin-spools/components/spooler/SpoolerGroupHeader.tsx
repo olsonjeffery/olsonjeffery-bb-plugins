@@ -3,6 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useSortable } from "@dnd-kit/sortable";
 import { Icon } from "@/components/ui/icon";
 import { SectionIconGlyph } from "./SectionIcon";
+import { AttentionPills, plural } from "./AttentionPills";
 import { cn } from "@/lib/utils";
 
 /** The group shape the header needs; kept structural so callers stay loose. */
@@ -34,10 +35,6 @@ export function groupGlyph(
   return group.icon;
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
 interface HeaderProps {
   group: GroupHeaderData;
   isCollapsed: boolean;
@@ -60,10 +57,11 @@ interface HeaderProps {
 
 /** The group header row, shared by the plain and sortable group sections.
  *  Anatomy (the mock's one-line caption): chevron, marker icon, label and
- *  total on the left; pills only for the states that need action on the
- *  right. No colour dots anywhere. Pills: "N failed" (destructive surface),
- *  "N needs you" (attention surface, ink text, amber dot), and a plain
- *  success text count with a spinner for running work. */
+ *  total on the left; attention pills on the right — the shared
+ *  AttentionPills lane, rendered ONLY while the group is folded. Expanded
+ *  content shows the attention on its own rows (row pills, status
+ *  glyphs), so the caption would say every state twice; the folded
+ *  caption is what keeps a collapsed container from hiding it. */
 export function GroupHeader({
   group,
   isCollapsed,
@@ -124,40 +122,13 @@ export function GroupHeader({
         <span className="spooler-group-label">{group.label}</span>
         <span className="spooler-group-total">{group.total}</span>
       </button>
-      <span className="spooler-group-pills">
-        {group.failed > 0 ? (
-          <span
-            className="spooler-group-pill spooler-group-pill-failed"
-            title={plural(group.failed, "failed thread")}
-          >
-            <span className="spooler-dot spooler-dot-error" aria-hidden="true" />
-            {group.failed} failed
-          </span>
-        ) : null}
-        {group.needsUser > 0 ? (
-          <span
-            className="spooler-group-pill spooler-group-pill-needs"
-            title={plural(group.needsUser, "thread waiting for input")}
-          >
-            <span
-              className="spooler-dot spooler-dot-attention"
-              aria-hidden="true"
-            />
-            {group.needsUser} needs you
-          </span>
-        ) : null}
-        {group.live > 0 ? (
-          <span
-            className="spooler-group-pill spooler-group-pill-working"
-            title={plural(group.live, "running thread")}
-          >
-            <span className="spooler-spinner spooler-tone-success spooler-group-pill-spinner">
-              <Icon name="Loading" aria-hidden="true" />
-            </span>
-            {group.live} working
-          </span>
-        ) : null}
-      </span>
+      {isCollapsed ? (
+        <AttentionPills
+          failed={group.failed}
+          needsUser={group.needsUser}
+          live={group.live}
+        />
+      ) : null}
       {onNewThread ? (
         <button
           type="button"
