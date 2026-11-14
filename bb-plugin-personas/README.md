@@ -126,14 +126,16 @@ be edited in the pool — only removed.
 The dropdown's other item, **Add Docs document**, sources prompts from BB's
 built-in **Docs** plugin (Settings → Docs vaults): a modal lists every vault
 with its Markdown documents — a vault selector appears when you have more
-than one — and picking a document adds a live entry that keeps the vault id
-and the file's path. The entry reads the file's **current** content exactly
-like a note entry reads its note, so editing the document (by you or by an
-agent) updates every chat that receives it. A leading YAML front matter
-block — file metadata such as ids, tags, or colors, as note exports synced
-into vaults carry — is stripped: only the document body reaches the entry's
-display and the persona's chats. Docs entries can't be edited in the pool —
-only removed.
+than one — and it is multi-select: click rows to check them, switch vaults or
+narrow the search freely (the checks stay), then commit them all with **Add n
+documents**; the pool receives one live entry per document, in the order you
+checked them. Each entry keeps the vault id and the file's path and reads the
+file's **current** content exactly like a note entry reads its note, so
+editing a document (by you or by an agent) updates every chat that receives
+it. A leading YAML front matter block — file metadata such as ids, tags, or
+colors, as note exports synced into vaults carry — is stripped: only the
+document body reaches the entry's display and the persona's chats. Docs
+entries can't be edited in the pool — only removed.
 
 While neither source plugin is available, the dropdown (and any Add-source
 affordance) disappears entirely and **+ Add** stays a plain typed-text

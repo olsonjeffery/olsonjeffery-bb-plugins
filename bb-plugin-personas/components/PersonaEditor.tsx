@@ -564,21 +564,26 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
   }
 
   /**
-   * Attaches a Docs vault document as a live reference, not a copy: the pool
-   * entry keeps the vault id + vault-relative path, and its displayed and
-   * injected text always reads the file's current content. Selecting the
-   * document is what dismisses the picker.
+   * Attaches Docs vault documents as live references, not copies: each pool
+   * entry keeps its vault id + vault-relative path, and its displayed and
+   * injected text always reads the file's current content. The whole
+   * selection (one or many — the picker's confirm commits them together)
+   * dismisses the picker and lands in the pool in the order it was checked;
+   * one reload follows the batch.
    */
-  function attachDoc(doc: AttachableDoc): void {
+  function attachDocs(docs: AttachableDoc[]): void {
     setPicker(null);
     setIsPoolBusy(true);
-    rpc
-      .call("addPersonaPrompt", {
-        personaId,
-        type: "doc",
-        vaultId: doc.vaultId,
-        path: doc.path,
-      })
+    Promise.all(
+      docs.map((doc) =>
+        rpc.call("addPersonaPrompt", {
+          personaId,
+          type: "doc",
+          vaultId: doc.vaultId,
+          path: doc.path,
+        }),
+      ),
+    )
       .then(() => reload())
       .catch((cause) => {
         toast.error(cause instanceof Error ? cause.message : String(cause));
@@ -1095,7 +1100,7 @@ export function PersonaEditor({ personaId }: { personaId: string }) {
       ) : null}
       {picker === "doc" ? (
         <DocsPickerDialog
-          onSelectDoc={attachDoc}
+          onSelectDocs={attachDocs}
           onClose={() => setPicker(null)}
         />
       ) : null}

@@ -1101,10 +1101,21 @@ describe("personas nav panel", () => {
       target: { value: "standup" },
     });
     expect(slot.queryByText("Pirate playbook")).toBeNull();
-    fireEvent.click(await slot.findByRole("button", { name: /Standup notes/ }));
 
-    // Selecting the document dismissed the modal and attached it BY vault id
-    // and path — a live reference, not a copy of the file's current content.
+    // Multi-select: the row toggles its checkbox; the confirm bar commits.
+    const row = await slot.findByRole("option", { name: /Standup notes/ });
+    expect(row.getAttribute("aria-selected")).toBe("false");
+    fireEvent.click(row);
+    expect(
+      slot.getByRole("option", { name: /Standup notes/ }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    await slot.findByText("1 selected");
+    fireEvent.click(slot.getByRole("button", { name: "Add 1 document" }));
+
+    // Committing the selection dismissed the modal and attached the document
+    // BY vault id and path — a live reference, not a copy of the content.
     await waitFor(() => {
       const addCall = slot.inspection.rpcCalls.find(
         (call) => call.method === "addPersonaPrompt",
@@ -1118,7 +1129,7 @@ describe("personas nav panel", () => {
     });
     expect(
       slot.queryByText(
-        "Pick one vault document to add to this persona's prompt pool.",
+        "Pick one or more vault documents to add to this persona's prompt pool.",
       ),
     ).toBeNull();
 
@@ -1153,7 +1164,8 @@ describe("personas nav panel", () => {
     await slot.findByText("Handbook");
     expect(slot.queryByText("Pirate playbook")).toBeNull();
 
-    fireEvent.click(await slot.findByRole("button", { name: /Handbook/ }));
+    fireEvent.click(await slot.findByRole("option", { name: /Handbook/ }));
+    fireEvent.click(slot.getByRole("button", { name: "Add 1 document" }));
     await waitFor(() => {
       const addCall = slot.inspection.rpcCalls.find(
         (call) => call.method === "addPersonaPrompt",
@@ -1165,6 +1177,100 @@ describe("personas nav panel", () => {
         path: "handbook/intro.md",
       });
     });
+
+    slot.lifecycle.unmount();
+  });
+
+  it("attaches several Docs documents in one confirm, including across vaults", async () => {
+    // Radix's Select needs these; jsdom ships neither.
+    Element.prototype.scrollIntoView = () => {};
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
+
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_3/edit" }, { rpc: RPC });
+
+    fireEvent.click(
+      await slot.findByRole("button", { name: "More add options" }),
+    );
+    fireEvent.click(
+      await slot.findByRole("menuitem", { name: "Add Docs document" }),
+    );
+
+    // Nothing checked yet: the confirm bar shows the count and stays off.
+    await slot.findByText("0 selected");
+    expect(
+      (slot.getByRole("button", { name: "Add 0 documents" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+
+    // Two documents from the default vault, in a deliberate order.
+    fireEvent.click(await slot.findByRole("option", { name: /Pirate playbook/ }));
+    fireEvent.click(slot.getByRole("option", { name: /Standup notes/ }));
+    // A third from the other vault.
+    fireEvent.click(slot.getByLabelText("Vault"));
+    fireEvent.click(await slot.findByText("Work"));
+    fireEvent.click(await slot.findByRole("option", { name: /Handbook/ }));
+
+    // The selection survived the vault switch — all three commit together.
+    await slot.findByText("3 selected");
+    fireEvent.click(slot.getByRole("button", { name: "Add 3 documents" }));
+
+    await waitFor(() => {
+      const addCalls = slot.inspection.rpcCalls.filter(
+        (call) => call.method === "addPersonaPrompt",
+      );
+      expect(addCalls.map((call) => call.input)).toEqual([
+        {
+          personaId: "persona_3",
+          type: "doc",
+          vaultId: "personal",
+          path: "playbooks/pirate.md",
+        },
+        {
+          personaId: "persona_3",
+          type: "doc",
+          vaultId: "personal",
+          path: "plans/standup.md",
+        },
+        {
+          personaId: "persona_3",
+          type: "doc",
+          vaultId: "work",
+          path: "handbook/intro.md",
+        },
+      ]);
+    });
+
+    slot.lifecycle.unmount();
+  });
+
+  it("lets a Docs selection be toggled back off before the confirm", async () => {
+    const panel = await loadPanel();
+    const slot = renderSlot(panel, { subPath: "persona_3/edit" }, { rpc: RPC });
+
+    fireEvent.click(
+      await slot.findByRole("button", { name: "More add options" }),
+    );
+    fireEvent.click(
+      await slot.findByRole("menuitem", { name: "Add Docs document" }),
+    );
+
+    const row = await slot.findByRole("option", { name: /Pirate playbook/ });
+    fireEvent.click(row);
+    fireEvent.click(slot.getByRole("option", { name: /Pirate playbook/ }));
+
+    // Unchecking returns the confirm bar to its empty, disabled state.
+    await slot.findByText("0 selected");
+    expect(
+      (slot.getByRole("button", { name: "Add 0 documents" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      slot.inspection.rpcCalls.filter(
+        (call) => call.method === "addPersonaPrompt",
+      ),
+    ).toHaveLength(0);
 
     slot.lifecycle.unmount();
   });

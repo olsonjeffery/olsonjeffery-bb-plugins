@@ -102,6 +102,13 @@ on every turn.
   for its markdown documents (`notes`: path, title, preview, modifiedAtMs),
   each vault degrading to empty rather than sinking the picker. Two or more
   vaults get a vault `Select` above the search field.
+- The picker is MULTI-SELECT: rows toggle (`role="option"` + `aria-selected`,
+  decorative checkbox), the checked set is keyed by the same vault+path pair
+  the pool stores (`docPromptRefKey`), and it survives vault switches and
+  search narrowing inside the open dialog. The confirm bar ("n selected" +
+  "Add n documents", disabled at zero) commits the whole selection at once —
+  `attachDocs` fans one `addPersonaPrompt` per document (in check order) and
+  reloads once for the batch. The Floating Note picker stays single-select.
 - Doc entries render badged ("Docs") in the editor and are only removable —
   `updatePersonaPrompt` rejects them server-side; remove and re-attach
   instead.

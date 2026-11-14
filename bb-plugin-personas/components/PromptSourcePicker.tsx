@@ -7,6 +7,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import {
   Select,
   SelectContent,
@@ -14,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { promptPreview } from "@/personas";
+import { docPromptRefKey, promptPreview } from "@/personas";
 import { usePersonasRpc, useQuery } from "@/components/use-query";
 
 /** One selectable row in a prompt-source picker. */
@@ -22,6 +24,18 @@ interface PickerItem {
   id: string;
   label: string;
   secondary: string | null;
+}
+
+/** How the dialog behaves when the caller wants several rows committed together. */
+interface MultiSelect {
+  /** The selected rows, by item id. Owned by the caller — the dialog toggles. */
+  checkedIds: ReadonlySet<string>;
+  /** One row click: check or uncheck that item. */
+  onToggle: (id: string) => void;
+  /** The commit button's label, count already interpolated ("Add 2 documents"). */
+  confirmLabel: string;
+  /** Committing the selection; the caller closes the dialog from here. */
+  onCommit: () => void;
 }
 
 interface SourcePickerDialogProps {
@@ -34,13 +48,18 @@ interface SourcePickerDialogProps {
   error: string | null;
   /** Optional control row between the description and the search field. */
   toolbar?: ReactNode;
-  onSelect: (id: string) => void;
+  /** Single-select mode: one click picks and closes. Absent in multi mode. */
+  onSelect?: (id: string) => void;
+  /** Multi-select mode: rows toggle, a confirm bar commits them together. */
+  multiSelect?: MultiSelect;
   onClose: () => void;
 }
 
 /**
- * The shared single-select picker modal behind "Add Floating Note": a search
- * field filtering the list inline, one click to pick.
+ * The shared picker modal behind the prompt sources: a search field filtering
+ * the list inline. Single-select mode ("Add Floating Note") picks and closes
+ * on one click; multi-select mode ("Add Docs document") toggles checked rows
+ * and commits them all through the confirm bar.
  * Mounted only while open, so the source list loads lazily per open.
  */
 function SourcePickerDialog({
@@ -53,6 +72,7 @@ function SourcePickerDialog({
   error,
   toolbar,
   onSelect,
+  multiSelect,
   onClose,
 }: SourcePickerDialogProps) {
   const [search, setSearch] = useState("");
@@ -92,26 +112,76 @@ function SourcePickerDialog({
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">No matches.</p>
         ) : (
-          <ul className="max-h-72 divide-y divide-border overflow-y-auto rounded-md border border-border">
-            {filtered.map((item) => (
-              <li key={item.id}>
-                <button
+          <>
+            <ul
+              {...(multiSelect
+                ? { role: "listbox", "aria-multiselectable": true }
+                : {})}
+              className="max-h-72 divide-y divide-border overflow-y-auto rounded-md border border-border"
+            >
+              {filtered.map((item) => {
+                const checked = multiSelect?.checkedIds.has(item.id) ?? false;
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      {...(multiSelect
+                        ? { role: "option", "aria-selected": checked }
+                        : {})}
+                      onClick={() =>
+                        multiSelect
+                          ? multiSelect.onToggle(item.id)
+                          : onSelect?.(item.id)
+                      }
+                      className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      {multiSelect ? (
+                        // The checkbox is decorative; aria-selected on the
+                        // option is the state a screen reader hears.
+                        <span
+                          aria-hidden
+                          className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border ${
+                            checked
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input"
+                          }`}
+                        >
+                          {checked ? (
+                            <Icon name="Check" className="size-3" />
+                          ) : null}
+                        </span>
+                      ) : null}
+                      <span className="min-w-0 flex-1">
+                        <span className="block w-full truncate text-sm font-medium">
+                          {item.label}
+                        </span>
+                        {item.secondary === null ? null : (
+                          <span className="block w-full truncate text-xs text-muted-foreground">
+                            {item.secondary}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {multiSelect ? (
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span aria-live="polite" className="text-xs text-muted-foreground">
+                  {multiSelect.checkedIds.size} selected
+                </span>
+                <Button
                   type="button"
-                  onClick={() => onSelect(item.id)}
-                  className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+                  size="sm"
+                  disabled={multiSelect.checkedIds.size === 0}
+                  onClick={multiSelect.onCommit}
                 >
-                  <span className="w-full truncate text-sm font-medium">
-                    {item.label}
-                  </span>
-                  {item.secondary === null ? null : (
-                    <span className="w-full truncate text-xs text-muted-foreground">
-                      {item.secondary}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
+                  {multiSelect.confirmLabel}
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </DialogContent>
     </Dialog>
@@ -179,16 +249,18 @@ interface DocsSourceVault {
 
 /**
  * The picker modal behind "Add Docs document": a vault selector over a
- * search field filtering the selected vault's documents inline, one click to
- * pick. Mounted only while open, so the source list loads lazily per open.
- * The vault choice lives in the dialog — switching vaults re-filters in
- * place, no extra round trip.
+ * search field filtering the selected vault's documents inline, multi-select
+ * — rows toggle, and a confirm bar attaches every checked document at once.
+ * Mounted only while open, so the source list loads lazily per open. The
+ * vault choice lives in the dialog — switching vaults re-filters in place,
+ * no extra round trip, and the selection survives the switch (and the
+ * search filter), so documents from several vaults can ride one commit.
  */
 export function DocsPickerDialog({
-  onSelectDoc,
+  onSelectDocs,
   onClose,
 }: {
-  onSelectDoc: (doc: AttachableDoc) => void;
+  onSelectDocs: (docs: AttachableDoc[]) => void;
   onClose: () => void;
 }) {
   const rpc = usePersonasRpc();
@@ -204,17 +276,51 @@ export function DocsPickerDialog({
   const selectedVault =
     vaults.find((vault) => vault.id === selectedVaultId) ?? null;
   const notes = selectedVault?.notes ?? [];
+  // The checked set, keyed by the same vault+path pair the pool stores —
+  // identical paths in two vaults are different documents. Selection state
+  // outlives vault switches and search narrowing within the open dialog.
+  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
+
+  // Every attachable document across ALL vaults, by its checked-set key, so
+  // the commit can resolve the whole selection even when most of it is in
+  // vaults the list isn't showing right now.
+  const docsByKey = new Map<string, AttachableDoc>();
+  for (const vault of vaults) {
+    for (const note of vault.notes) {
+      docsByKey.set(docPromptRefKey(vault.id, note.path), {
+        vaultId: vault.id,
+        path: note.path,
+        title: note.title,
+        preview: note.preview,
+      });
+    }
+  }
+
+  function toggle(key: string): void {
+    setChecked((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // List order, most recently checked first: the pool entries land in the
+  // order the user picked them.
+  const selectedDocs = [...checked]
+    .map((key) => docsByKey.get(key))
+    .filter((doc) => doc !== undefined);
 
   return (
     <SourcePickerDialog
       title="Add Docs document"
-      description="Pick one vault document to add to this persona's prompt pool."
+      description="Pick one or more vault documents to add to this persona's prompt pool."
       searchLabel="Search documents"
       searchPlaceholder="Search documents…"
       items={notes.map((note) => ({
         // The vault id + path pair identifies the document; the title (or the
         // bare path when untitled) is what the row and the search filter on.
-        id: `${note.path}`,
+        id: selectedVaultId === null ? note.path : docPromptRefKey(selectedVaultId, note.path),
         label: note.title.trim().length > 0 ? note.title : note.path,
         secondary: promptPreview(note.preview),
       }))}
@@ -236,16 +342,13 @@ export function DocsPickerDialog({
           </Select>
         ) : null
       }
-      onSelect={(path) => {
-        const note = notes.find((candidate) => candidate.path === path);
-        if (note !== undefined && selectedVaultId !== null) {
-          onSelectDoc({
-            vaultId: selectedVaultId,
-            path: note.path,
-            title: note.title,
-            preview: note.preview,
-          });
-        }
+      multiSelect={{
+        checkedIds: checked,
+        onToggle: toggle,
+        confirmLabel: `Add ${selectedDocs.length} document${
+          selectedDocs.length === 1 ? "" : "s"
+        }`,
+        onCommit: () => onSelectDocs(selectedDocs),
       }}
       onClose={onClose}
     />
