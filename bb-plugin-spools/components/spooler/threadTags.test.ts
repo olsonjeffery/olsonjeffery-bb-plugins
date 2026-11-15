@@ -1,5 +1,5 @@
 // threadTags helpers: per-thread lookup, the spool rollup's dedupe +
-// priority order, and the Plugin-health readout. No React here.
+// alphabetical order, and the Plugin-health readout. No React here.
 import { describe, expect, it } from "vitest";
 import {
   TAG_ROLLUP_LIMIT,
@@ -42,32 +42,52 @@ describe("tagForThread", () => {
 
 describe("rollupThreadTags", () => {
   const members: RollupThread[] = [
-    { id: "t1", indicator: "unread-error", isUnread: true }, // urgent, failed
-    { id: "t3", indicator: "none", isUnread: false },        // urgent, idle
-    { id: "t2", indicator: "waiting-for-input", isUnread: true }, // review, needs you
-    { id: "t4", indicator: "none" }, // untagged
+    { id: "t1" }, // urgent 🔥, failed
+    { id: "t3" }, // urgent 🔥, idle
+    { id: "t2" }, // review 👀, needs you
+    { id: "t4" }, // untagged
   ];
 
-  it("dedupes, counts wearers, and orders attention first", () => {
+  it("dedupes, counts wearers, and orders alphabetically", () => {
     const rolled = rollupThreadTags(state, members);
-    expect(rolled.map((entry) => entry.tag.id)).toEqual(["urgent", "review"]);
-    expect(rolled[0]!.wornBy).toBe(2);
-    expect(rolled[0]!.priority).toBe(4); // failed outranks needs-you
-    expect(rolled[1]!.wornBy).toBe(1);
-    expect(rolled[1]!.priority).toBe(3);
+    // 👀 (U+1F440) sorts by codepoint ahead of 🔥 (U+1F525): the failed
+    // wearer no longer drags 🔥 to the front.
+    expect(rolled.map((entry) => entry.tag.id)).toEqual(["review", "urgent"]);
+    expect(rolled[0]!.wornBy).toBe(1); // review
+    expect(rolled[1]!.wornBy).toBe(2); // urgent
   });
 
-  it("breaks priority ties deterministically: wearers first, then label order", () => {
-    const rolled = rollupThreadTags(
-      state,
-      [
-        { id: "t2", indicator: "none" },
-        { id: "t1", indicator: "none" },
+  it("shows the same tag set in the same order from any two spools", () => {
+    // The same two tags, worn through different attention states and
+    // gathered in different orders: the rollups must come out identical.
+    const loud = rollupThreadTags(state, [{ id: "t1" }, { id: "t2" }]);
+    const quiet = rollupThreadTags(state, [{ id: "t3" }, { id: "t2" }]);
+    expect(loud.map((entry) => entry.tag.id)).toEqual(["review", "urgent"]);
+    expect(quiet.map((entry) => entry.tag.id)).toEqual(["review", "urgent"]);
+    expect(loud).toEqual(quiet);
+  });
+
+  it("alphabetizes text labels case-insensitively, emoji by codepoint", () => {
+    const mixed = {
+      tags: [
+        { id: "hot", label: "Hotfix", color: "#f97316" },
+        { id: "bug", label: "bug", color: "#ef4444" },
+        { id: "fire", label: "🔥", color: "#ef4444" },
       ],
-    );
-    // Both idle, both single wearers: the pair sorts by label collation —
-    // stable across renders rather than arrival order.
-    expect(rolled.map((entry) => entry.tag.label)).toEqual(["👀", "🔥"]);
+      assignments: { a: "hot", b: "bug", c: "fire" },
+    };
+    const rolled = rollupThreadTags(mixed, [
+      { id: "a" },
+      { id: "b" },
+      { id: "c" },
+    ]);
+    // "bug" beats "Hotfix" regardless of case; the 🔥 surrogate pair rides
+    // the BMP labels' codepoints last.
+    expect(rolled.map((entry) => entry.tag.label)).toEqual([
+      "bug",
+      "Hotfix",
+      "🔥",
+    ]);
   });
 
   it("shows nothing without the plugin or with no members", () => {

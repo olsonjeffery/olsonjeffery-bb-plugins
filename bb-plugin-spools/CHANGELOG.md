@@ -4,6 +4,16 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.1 — 2026-11-15
+
+### Changed
+- **Spool card tag rollups order alphabetically** instead of by their
+  wearers' attention. The order now depends only on the tag set itself —
+  two spools (or threads) wearing the same tags always show them in the
+  same order — with text labels compared case-insensitively and emoji
+  falling to plain codepoint order (👀 U+1F440 ahead of 🔥 U+1F525). The
+  worn-by tooltips and the `+N` overflow chip stay as they were.
+
 ## 0.13.0 — 2026-11-10
 
 ### Added
@@ -33,6 +43,7 @@ All notable changes to Spools are documented here. The format follows
     items: deduped, ordered by the wearers' attention (failed > needs-
     you > unread > working > idle, then wearers, then label), top four
     plus a `+N` chip; the tooltips name how many of the roster wear it.
+    (0.13.1 replaces the ordering with alphabetical.)
   - The settings page carries the **Plugin health** block — the same
     Thread Tags readout the Personas page shows: green check when the
     plugin runs (state + version), red X otherwise, and a one-click

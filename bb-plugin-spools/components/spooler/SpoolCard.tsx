@@ -24,8 +24,8 @@ import { ThreadTagBadge } from "./ThreadTagBadge";
  */
 export interface SpoolCardProps {
   data: SpoolGroupData;
-  /** Every member's distinct tag, priority-ordered (failed first) and
-   *  deduped — the title bar shows the lead ones and a "+N" chip. */
+  /** Every member's distinct tag, alphabetically ordered and deduped —
+   *  the title bar shows the lead ones and a "+N" chip. */
   tagRollup?: RolledUpTag[];
   /** Single-click toggles via onToggle. */
   collapsed: boolean;
@@ -231,8 +231,9 @@ export function SpoolCardImpl({
           />
         ) : null}
         {/* Rolled-up member tags, between the title and the trailing meta:
-            the spool title bar's priority lane. Distinct tags only,
-            attention first, the rest rides an overflow chip. */}
+            the spool title bar's tag lane. Distinct tags only, alphabetical
+            — the same run any two spools with the same tags agree on — and
+            the rest rides an overflow chip. */}
         {tagRollup.length > 0 ? (
           <span className="spooler-spool-tags" aria-label="Thread tags">
             {tagRollup.slice(0, TAG_ROLLUP_LIMIT).map(({ tag, wornBy }) => (

@@ -432,18 +432,14 @@ describe("SpoolCard — tag rollup", () => {
     queued: { id: "queued", label: "🧠", color: "#10b981" },
   };
 
-  function rollupTag(
-    id: string,
-    wornBy: number,
-    priority: number,
-  ): RolledUpTag {
-    return { tag: tags[id as keyof typeof tags]!, wornBy, priority };
+  function rollupTag(id: string, wornBy: number): RolledUpTag {
+    return { tag: tags[id as keyof typeof tags]!, wornBy };
   }
 
   it("rides the rolled-up badges on the title bar before the meta cluster", () => {
     renderEl(
       makeProps({
-        tagRollup: [rollupTag("urgent", 2, 4), rollupTag("review", 1, 0)],
+        tagRollup: [rollupTag("urgent", 2), rollupTag("review", 1)],
       }),
     );
     const lane = document.querySelector(".spooler-spool-tags") as HTMLElement;
@@ -461,11 +457,11 @@ describe("SpoolCard — tag rollup", () => {
     renderEl(
       makeProps({
         tagRollup: [
-          rollupTag("urgent", 1, 4),
-          rollupTag("review", 1, 3),
-          rollupTag("done", 1, 2),
-          rollupTag("blocked", 1, 1),
-          rollupTag("queued", 1, 0),
+          rollupTag("urgent", 1),
+          rollupTag("review", 1),
+          rollupTag("done", 1),
+          rollupTag("blocked", 1),
+          rollupTag("queued", 1),
         ],
       }),
     );

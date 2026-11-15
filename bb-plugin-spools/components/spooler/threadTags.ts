@@ -91,44 +91,33 @@ export function tagForThread(state: TagState, threadId: string): TagInfo | null 
 /** Minimal thread shape the rollup reads (PluginSidebarThread rows). */
 export interface RollupThread {
   id: string;
-  indicator?: string | null;
-  isUnread?: boolean;
 }
 
 /**
- * Attention rank for the rollup's priority order — the same axes the
- * family rollup uses on the row sub-head: failed > needs you > unread >
- * working > idle. A tag worn by loudest members leads the spool's title bar.
+ * Alphabetical order for a displayed tag run — the one order two spools
+ * (or threads) wearing the same tags must agree on. Text labels compare
+ * case-insensitively; emoji case-fold to themselves, so the tiebreak's
+ * plain codepoint comparison decides (👀 U+1F440 ahead of 🔥 U+1F525).
  */
-export function tagWearerPriority(thread: RollupThread): number {
-  switch (thread.indicator) {
-    case "unread-error":
-    case "queued-failed":
-      return 4;
-    case "waiting-for-input":
-    case "queued-waiting":
-      return 3;
-    case "runtime":
-    case "working-draft":
-      // Working outranks plain IDLE but yields to attention states.
-      return thread.isUnread ? 2 : 1;
-    default:
-      return thread.isUnread ? 2 : 0;
-  }
+function compareTags(a: TagInfo, b: TagInfo): number {
+  const al = a.label.toLowerCase();
+  const bl = b.label.toLowerCase();
+  if (al !== bl) return al < bl ? -1 : 1;
+  if (a.label !== b.label) return a.label < b.label ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 export interface RolledUpTag {
   tag: TagInfo;
   /** Threads in the group wearing this tag. */
   wornBy: number;
-  /** The loudest attention any wearer carries (4 failed … 0 idle). */
-  priority: number;
 }
 
 /**
- * Roll up every group member's tag into one deduped, priority-ordered list:
- * attention first, more wearers next, then the tag's label for stability.
- * Stale assignments and untagged members contribute nothing.
+ * Roll up every group member's tag into one deduped, alphabetically
+ * ordered list. The order is a function of the tag set alone — nothing
+ * about the wearers — so the same tags always read the same. Stale
+ * assignments and untagged members contribute nothing.
  */
 export function rollupThreadTags(
   state: TagState | null,
@@ -139,21 +128,14 @@ export function rollupThreadTags(
   for (const thread of members) {
     const tag = tagForThread(state, thread.id);
     if (!tag) continue;
-    let entry = rolled.get(tag.id);
-    if (!entry) {
-      entry = { tag, wornBy: 0, priority: 0 };
-      rolled.set(tag.id, entry);
+    const entry = rolled.get(tag.id);
+    if (entry) {
+      entry.wornBy += 1;
+    } else {
+      rolled.set(tag.id, { tag, wornBy: 1 });
     }
-    entry.wornBy += 1;
-    entry.priority = Math.max(entry.priority, tagWearerPriority(thread));
   }
-  return [...rolled.values()].sort(
-    (a, b) =>
-      b.priority - a.priority ||
-      b.wornBy - a.wornBy ||
-      a.tag.label.localeCompare(b.tag.label) ||
-      a.tag.id.localeCompare(b.tag.id),
-  );
+  return [...rolled.values()].sort((a, b) => compareTags(a.tag, b.tag));
 }
 
 /** Minimal sdk surface this hook needs (tests stub just these). */
