@@ -59,6 +59,15 @@ reference.
   Section identity is
   **icon-only**: colour dots, hue vars and colour pickers are gone;
   stored colour values are ignored, not migrated.
+- **Section captions and the drawn tree** (0.13.2): a section caption leads
+  **icon-first at the shallow rail** — icon axis 15px, label 26px, clearly
+  shallower than the spool names it governs (46px) — and its collapse
+  chevron right-justifies at the caption's far end (other grouping modes
+  keep the leading chevron). A **1px trunk** drops from the caption icon
+  through the bucket's children and elbows to each child's icon (33px);
+  the spool roster guide stubs to each member icon (57px); family rows
+  keep their shipped elbows — every segment terminates at a glyph, so
+  nothing dangles. Pure CSS: no DOM or a11y changes.
 
 ## Navigation
 

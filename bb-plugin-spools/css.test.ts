@@ -192,7 +192,14 @@ describe("app.css", () => {
       /\.spooler-spool-member \.spooler-row-child::(before|after)/.test(rule.selector),
     );
     expect(guides.map((rule) => rule.selector.split("::")[1])).toEqual(["after", "before"]);
-    expect(guides[0]?.body).toMatch(/display:\s*none/);
+    // C: the once-retired ::after returns as the roster stub — the guide
+    // elbows out to each member's provider icon (33px → 57px), behind the
+    // row's own paint so tubes and glyphs cover it.
+    const stub = guides[0];
+    expect(stub?.body).toMatch(/left:\s*-15px/);
+    expect(stub?.body).toMatch(/width:\s*24px/);
+    expect(stub?.body).toMatch(/top:\s*15px/);
+    expect(stub?.body).toMatch(/z-index:\s*-1/);
     const guide = rules().find((rule) =>
       rule.selector === ".spooler-spool-member .spooler-row-child::before",
     );
@@ -353,14 +360,21 @@ describe("app.css", () => {
     expect(tone?.body).toMatch(/animation:\s*none/);
   });
 
-  it("puts the chevron at the left of every group header, even sections", () => {
-    // §2(d): the section-mode chevron moved from the far right to the left
-    // of the label, while the section rail stays between them.
+  it("right-justifies the section caption's chevron; other modes keep it leading", () => {
+    // C: the section caption reads icon-first at the shallow rail — the
+    // collapse chevron parks at the far end by flex order (no DOM change,
+    // so the toggle keeps its aria-expanded target), while every other
+    // grouping keeps the shipped leading chevron.
     const toggle = rules().find((rule) => rule.selector === ".spooler-group-toggle");
     expect(toggle?.body).toMatch(/display:\s*flex/);
     const chevron = rules().find((rule) => rule.selector === ".spooler-group-chevron");
     expect(chevron?.body).toMatch(/width:\s*14px/);
-    // No far-right chevron variant may come back.
+    const right = rules().find(
+      (rule) => rule.selector === ".spooler-group-header-right .spooler-group-chevron",
+    );
+    expect(right?.body).toMatch(/order:\s*10/);
+    expect(right?.body).toMatch(/margin-left:\s*auto/);
+    // The relocation rides the shared chevron class — no far-right variant.
     expect(rules().filter((rule) => /spooler-group-chevron-right/.test(rule.selector)))
       .toEqual([]);
   });
@@ -412,6 +426,72 @@ describe("app.css", () => {
         ".spooler-list-sections .spooler-fold-inner > :first-child",
     );
     expect(first?.body).toMatch(/margin-top:\s*0/);
+  });
+
+  it("draws the section tree: caption-axis trunk, child elbows, member stubs", () => {
+    // C: the trunk drops from the caption icon's shallow axis (15px)
+    // through every bucket child, terminating at the last child's icon —
+    // every segment ends at a glyph, nothing dangles.
+    const trunk = rules().find((rule) =>
+      rule.selector.includes("spooler-thread-cluster::after") &&
+      rule.selector.includes("spooler-spool-slot::after"),
+    );
+    expect(trunk?.selector.split(",").map((part) => part.trim())).toEqual([
+      ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster::after",
+      ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-spool-slot::after",
+    ]);
+    expect(trunk?.body).toMatch(/left:\s*15px/);
+    expect(trunk?.body).toMatch(/width:\s*1px/);
+    expect(trunk?.body).toMatch(/z-index:\s*-1/);
+    // Later children reach back across the fold's 2px gap; the last child
+    // trims to its icon's centre (17px = 15px + the bridged gap), and an
+    // only child bridges nothing.
+    const bridge = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > :not(:first-child)::after",
+    );
+    expect(bridge?.body).toMatch(/top:\s*-2px/);
+    const trim = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > :last-child::after",
+    );
+    expect(trim?.body).toMatch(/height:\s*17px/);
+    const only = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > :first-child:last-child::after",
+    );
+    expect(only?.body).toMatch(/height:\s*15px/);
+    // Loose rows and spool headers elbow out to the shared 33px child axis.
+    const rowStub = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster > .spooler-row-root::before",
+    );
+    expect(rowStub?.body).toMatch(/left:\s*-9px/);
+    expect(rowStub?.body).toMatch(/width:\s*18px/);
+    expect(rowStub?.body).toMatch(/top:\s*15px/);
+    const cardStub = rules().find(
+      (rule) => rule.selector === ".spooler-group-bucket .spooler-spool-card::before",
+    );
+    expect(cardStub?.body).toMatch(/left:\s*15px/);
+    expect(cardStub?.body).toMatch(/top:\s*15px/);
+    expect(cardStub?.body).toMatch(/width:\s*18px/);
+    // The negative layers stay local to each child (no sinking behind the
+    // list's own surfaces), and compact rows pull the icon meeting points
+    // up with the gutter.
+    const isolate = rules().find((rule) =>
+      rule.selector.includes("> .spooler-thread-cluster,") &&
+      rule.selector.endsWith(" > .spooler-spool-slot"),
+    );
+    expect(isolate?.body).toMatch(/isolation:\s*isolate/);
+    expect(
+      rules().filter((rule) =>
+        /spooler-row-compact\.spooler-row-(root|child)::(before|after)$/.test(rule.selector),
+      ).length,
+    ).toBe(2); // loose-row stub + member stub compact overrides
   });
 
   it("paints only with host tokens — no literal colours", () => {

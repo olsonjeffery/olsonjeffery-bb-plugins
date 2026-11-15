@@ -446,13 +446,13 @@
   cursor: grabbing;
 }
 
-/* Section headers read title-left, controls-right: the rail replaces the
-   chevron on the left (the collapse chevron sits at the far right), the
-   color dot marks the section, and the title clamps to two rows before it
-   ellipsizes. The rail's 14px icon box starts 26px in, so the section icon
-   sits on the same vertical axis as spool marks and thread provider icons.
-   Shannon style: the header is a translucent sticky caption like every
-   other grouping's — the tinted slab and its darkened rim are retired. */
+/* Section captions (C) read icon-first at the shallow rail: the section
+   icon leads at the left edge (its 14px box centres on the 15px axis the
+   drawn tree drops from), the label follows at 26px — clearly shallower
+   than the spool names it governs (46px) — and the collapse chevron
+   right-justifies at the caption's far end. Shannon style: the header is a
+   translucent sticky caption like every other grouping's — the tinted slab
+   and its darkened rim are retired. */
 /* Section headers keep the same one-line anatomy; only their titles may
    clamp to two rows (section names outgrow the column). */
 .spooler-group-header-right .spooler-group-label {
@@ -466,7 +466,9 @@
 }
 
 /* The marker rail (section's chosen icon, Inbox's glyph, or the group
-   folder): centered on the shared icon axis after the chevron. */
+   folder): leads the caption at the shallow rail in section mode — the
+   drawn section tree drops from this axis (15px) — and rides after the
+   chevron on the shared icon axis in every other mode. */
 .spooler-group-rail {
   display: inline-flex;
   align-items: center;
@@ -501,6 +503,14 @@
 .spooler-group-header [data-icon-root] {
   width: 14px;
   height: 14px;
+}
+
+/* Section mode right-justifies the collapse chevron by flex order — no DOM
+   change, so the toggle keeps its aria-expanded target; every other mode
+   keeps the shipped leading chevron. */
+.spooler-group-header-right .spooler-group-chevron {
+  order: 10;
+  margin-left: auto;
 }
 
 .spooler-group-icon {
@@ -3019,8 +3029,25 @@ a.spooler-row-main:hover {
   margin-left: 48px;
 }
 
+/* The roster guide elbows out to each member's provider icon: one 24px
+   stub per member from the guide's axis (33px) to the icon's centre (57px
+   in), on the icon's centre line. It rides z-index -1 inside the card's
+   stacking context, so the row's tube and the glyph paint over it. */
 .spooler-spool-member .spooler-row-child::after {
-  display: none;
+  content: "";
+  position: absolute;
+  left: -15px;
+  top: 15px;
+  width: 24px;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Compact rows lift the gutter's icon (4px padding): the stub follows. */
+.spooler-spool-member .spooler-row-compact.spooler-row-child::after {
+  top: 11px;
 }
 
 .spooler-spool-member .spooler-row-child::before {
@@ -3385,6 +3412,99 @@ a.spooler-row-main:hover {
 
 .spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster + .spooler-thread-cluster::before {
   content: none;
+}
+
+/* ==========================================================================
+   The drawn section tree (C): the caption's icon leads at the shallow rail
+   (axis 15px) and a 1px trunk drops through the bucket's children, elbowing
+   out to each child's leading icon (33px) — spool headers and loose rows
+   alike — while the spool roster guide stubs to each member icon (57px).
+   Every segment terminates at a glyph, so nothing dangles (the reason the
+   v2 straight bucket guide was retired).
+   ========================================================================== */
+
+/* The trunk lives on each child's ::after so it spans the child's full
+   height (a cluster's family rows included); isolation keeps the negative
+   layers local, so the trunk paints behind the entries but above the list. */
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster,
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-spool-slot {
+  position: relative;
+  isolation: isolate;
+}
+
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster::after,
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-spool-slot::after {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* The fold's 2px entry gap would notch the trunk at every boundary: each
+   later child's segment reaches back across the gap. */
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > :not(:first-child)::after {
+  top: -2px;
+}
+
+/* The trunk ends at the LAST child's leading icon — 15px down to the
+   centre, plus the 2px gap the segment bridges above. A first-and-only
+   child bridges nothing. */
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > :last-child::after {
+  bottom: auto;
+  height: 17px;
+}
+
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > :first-child:last-child::after {
+  top: 0;
+  height: 15px;
+}
+
+/* Compact pulls the gutter's icon up (4px padding): a trailing cluster's
+   trim follows. Spool headers keep their 30px rail in both densities. */
+.spooler-density-compact .spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster:last-child::after {
+  height: 13px;
+}
+
+.spooler-density-compact .spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster:first-child:last-child::after {
+  height: 11px;
+}
+
+/* Each child elbows out to its own leading icon on the icon's centre line:
+   loose rows stub from the trunk (15px) to the provider axis (33px); the
+   spool card stubs the same run from the card's own edge. Both ride
+   z-index -1 inside their stacking context, so the row's tube and the
+   header's glyph paint over them. */
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster > .spooler-row-root::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 15px;
+  width: 18px;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.spooler-group-bucket > .spooler-fold > .spooler-fold-inner > .spooler-thread-cluster > .spooler-row-compact.spooler-row-root::before {
+  top: 11px;
+}
+
+.spooler-group-bucket .spooler-spool-card::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 15px;
+  width: 18px;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* ==========================================================================

@@ -4,6 +4,26 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.2 — 2026-11-15
+
+### Changed
+- **Section mode reads as a drawn tree** (the approved variant C of the
+  section-legibility mockups, `docs-vault: plugins/spools/section-legibility`):
+  - **Section captions lead icon-first at the shallow rail** — icon axis
+    15px, label 26px, clearly shallower than the spool names they govern
+    (46px) — and the collapse chevron right-justifies at the caption's far
+    end (flex order; the DOM and the toggle's aria-expanded target are
+    unchanged). Other grouping modes keep the leading chevron.
+  - **A 1px trunk drops from the caption icon** through the bucket's
+    children and elbows out to each child's leading icon (33px) — spool
+    headers and loose rows alike; the spool roster guide gains stubs to
+    each member icon (57px); family rows keep their shipped elbows. Every
+    segment terminates at a glyph, so nothing dangles (the reason the v2
+    straight bucket guide was retired).
+  - The trunk bridges the fold's 2px entry gap, trims at the last child's
+    icon, and follows compact density's lifted gutter icons. Pure CSS — no
+    DOM, a11y or interaction changes.
+
 ## 0.13.1 — 2026-11-15
 
 ### Changed

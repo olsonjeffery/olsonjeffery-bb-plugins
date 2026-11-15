@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-spools",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "type": "module",
   "engines": {
     "bb": ">=0.46",
