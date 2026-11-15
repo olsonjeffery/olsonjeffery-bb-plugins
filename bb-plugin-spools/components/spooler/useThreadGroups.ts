@@ -26,6 +26,10 @@ export interface SpoolGroupData {
   leadThreadId: string;
   /** Members in join order, limited to row-visible threads. */
   members: PluginSidebarThread[];
+  /** The roster's top-level rows: members minus those nested under another
+   *  member's family (they render inside it, with the working fold chevron).
+   *  The hook always sets it; test literals may omit it. */
+  rosterRows?: PluginSidebarThread[];
   /** Attention rollup over members. The card rides INSIDE a section bucket
    *  (no standalone entry anymore), so the section folds these into its own
    *  counts to keep header badges honest. */
@@ -435,7 +439,13 @@ export function useThreadGroups(args: {
   );
 
   const assembleSpoolGroup = useCallback(
-    (spool: Spool): { anchor: string; spool: SpoolGroupData } | null => {
+    (
+      spool: Spool,
+      /** The section view's replacement children map: what renders nested
+       *  under a member inside the card (same-spool members + non-member
+       *  children; cross-spool members strip to their own card). */
+      familyChildren: Map<string, PluginSidebarThread[]> | null,
+    ): { anchor: string; spool: SpoolGroupData } | null => {
       // Pinned members render as ordinary rows in the Pinned group, so the
       // card shows only unpinned visible members; if none remain the card is
       // skipped for now (the join metadata is untouched).
@@ -445,6 +455,23 @@ export function useThreadGroups(args: {
         if (row && shownIds.has(id) && !row.isPinned) memberRows.push(row);
       }
       if (memberRows.length === 0) return null;
+      // The roster hangs families now: a member whose parent is another
+      // shown, unpinned member of THIS spool renders nested under it, not as
+      // a top-level roster row.
+      const memberIds = new Set(memberRows.map((row) => row.id));
+      const rosterRows: PluginSidebarThread[] = [];
+      for (const row of memberRows) {
+        const parentId = parentOf.get(row.id);
+        const parent = parentId === undefined ? null : rowById.get(parentId);
+        const nestedUnderRoster =
+          parent !== null &&
+          parent !== undefined &&
+          memberIds.has(parent.id) &&
+          shownIds.has(parent.id) &&
+          !parent.isPinned &&
+          spoolIdByThreadId.get(parent.id) === spool.id;
+        if (!nestedUnderRoster) rosterRows.push(row);
+      }
       let total = 0;
       let unread = 0;
       let live = 0;
@@ -459,6 +486,31 @@ export function useThreadGroups(args: {
           failed += 1;
         }
       }
+      // The card's counts cover its whole rendered population: the member
+      // families that hang inside it (non-member children and their kin;
+      // nested members are already counted above). A failing reply inside a
+      // folded card must still surface on the card's pills.
+      if (familyChildren) {
+        const walkFamily = (id: string, depth: number) => {
+          if (depth > 25) return;
+          for (const kid of familyChildren.get(id) ?? []) {
+            if (!memberIds.has(kid.id)) {
+              total += 1;
+              if (kid.isUnread) unread += 1;
+              if (isRunningThread(kid)) live += 1;
+              if (kid.indicator === "waiting-for-input") needsUser += 1;
+              if (
+                kid.indicator === "unread-error" ||
+                kid.indicator === "queued-failed"
+              ) {
+                failed += 1;
+              }
+            }
+            walkFamily(kid.id, depth + 1);
+          }
+        };
+        for (const row of rosterRows) walkFamily(row.id, 0);
+      }
       const anchorMember =
         memberRows.find((member) => member.id === spool.leadThreadId) ?? memberRows[0];
       const anchor =
@@ -471,6 +523,7 @@ export function useThreadGroups(args: {
         customTitle: spool.customTitle,
         leadThreadId: spool.leadThreadId ?? "",
         members: memberRows,
+        rosterRows,
         total,
         unread,
         live,
@@ -479,34 +532,35 @@ export function useThreadGroups(args: {
       };
       return { anchor, spool: spoolData };
     },
-    [rowById, shownIds, sectionById],
+    [rowById, shownIds, sectionById, parentOf, spoolIdByThreadId],
   );
 
   /**
    * Section-view spool artifacts. Member threads are lifted out of ordinary
-   * nesting (a spool card renders them flat in join order), non-member
-   * children of a member promote to roots so they never vanish beneath the
-   * card, and assembled cards remember which section group they anchor to.
+   * nesting so the card owns them; inside the card, a member's family hangs
+   * NESTED under it with the working fold chevron: same-spool member
+   * children and non-member children stay in the family map, while a child
+   * that belongs to a DIFFERENT spool (or is pinned — pinned rows render in
+   * the Pinned group) strips to where it renders. Assembled cards remember
+   * which section group they anchor to.
    */
   const spoolSectionData = useMemo(() => {
     if (grouping !== "section" || spools.length === 0) {
       return {
-        extraRoots: [] as PluginSidebarThread[],
         byAnchor: new Map<string, SpoolGroupData[]>(),
         /** Replacement children map when spool members are lifted. */
         children: null as Map<string, PluginSidebarThread[]> | null,
       };
     }
-    const extraRoots: PluginSidebarThread[] = [];
     const children = new Map<string, PluginSidebarThread[]>();
     for (const [parentId, kids] of shownChildren) {
-      const parentSpooled = spoolIdByThreadId.has(parentId);
+      const parentSpoolId = spoolIdByThreadId.get(parentId);
       const kept: PluginSidebarThread[] = [];
       for (const kid of kids) {
-        if (spoolIdByThreadId.has(kid.id)) {
-          if (parentSpooled) continue; // member under member: card renders flat
-          extraRoots.push(kid); // non-member child escapes the spooled parent
-          continue;
+        const kidSpoolId = spoolIdByThreadId.get(kid.id);
+        if (kid.isPinned) continue; // pinned rows render in the Pinned group
+        if (kidSpoolId !== undefined && kidSpoolId !== parentSpoolId) {
+          continue; // member of another spool: renders in its own card
         }
         kept.push(kid);
       }
@@ -514,13 +568,13 @@ export function useThreadGroups(args: {
     }
     const byAnchor = new Map<string, SpoolGroupData[]>();
     for (const spool of spools) {
-      const assembled = assembleSpoolGroup(spool);
+      const assembled = assembleSpoolGroup(spool, children);
       if (!assembled) continue;
       const list = byAnchor.get(assembled.anchor);
       if (list) list.push(assembled.spool);
       else byAnchor.set(assembled.anchor, [assembled.spool]);
     }
-    return { extraRoots, byAnchor, children };
+    return { byAnchor, children };
   }, [grouping, spools, spoolIdByThreadId, shownChildren, assembleSpoolGroup]);
 
   /** The Settled shelf: recently archived threads as their own bucket, drawn
@@ -639,7 +693,6 @@ export function useThreadGroups(args: {
       const sectionRest = spoolIdByThreadId
         ? rest.filter((root) => !spoolIdByThreadId.has(root.id))
         : rest;
-      const promotedSpoolChildren = spoolSectionData.extraRoots;
       // The fixed Inbox bucket rides FIRST — above every server section — so
       // freshly sent threads are the first thing the eye lands on. Empty
       // sections still render so there is always somewhere to drop a thread.
@@ -647,7 +700,7 @@ export function useThreadGroups(args: {
       // section, or Inbox when it has none).
       const bySection = new Map<string, PluginSidebarThread[]>();
       const unfiled: PluginSidebarThread[] = [];
-      for (const root of [...sectionRest, ...promotedSpoolChildren]) {
+      for (const root of sectionRest) {
         if (root.sectionId && sectionById.has(root.sectionId)) {
           const list = bySection.get(root.sectionId);
           if (list) list.push(root);

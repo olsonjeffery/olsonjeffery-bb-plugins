@@ -4,6 +4,37 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.3 — 2026-11-15
+
+### Fixed
+- **Spooled threads hang their families now.** A member's replies (member or
+  not) render NESTED beneath it inside the spool card, on the same per-thread
+  fold chevron the ordinary rows use — the reported jank (a chevron that
+  appeared but expanded nothing, replies showing as flat siblings) is gone.
+  The roster dedupes: a reply that is itself a member of the same spool
+  renders only inside the family, never as a second roster row, while a
+  reply that belongs to a DIFFERENT spool still renders in its own card.
+- **No more escaped replies after unspooling.** A non-member child of a
+  member no longer promotes to a loose root row when the thread leaves the
+  card (the "always shown between the parent thread" bug): it stays in the
+  family, nested under its parent, folded and unfolded by the chevron.
+- **Card counts cover the nested families**: non-member replies inside the
+  card fold into its attention counts (and the section header's), so a
+  failing reply inside a folded card still surfaces on the pills. The pip
+  stays membership-based.
+- **Roster geometry is pinned again**: the bucket's own family steps
+  (40/52px) had been outbidding the member rules on source order, silently
+  pulling the roster to 40px and its guide off the section icon's axis; the
+  member rules now name the bucket (48px roster, 64px family step, family
+  elbows landing exactly on the member's provider axis at 57px), and the
+  roster guide runs unbroken behind nested families.
+
+### Added
+- Tests: the section family policy (same-spool/non-member children stay
+  nested, cross-spool members strip, pinned kids render in the Pinned
+  group), family-aware card counts, and a render regression for the
+  reported fold behavior inside spool rosters.
+
 ## 0.13.2 — 2026-11-15
 
 ### Changed

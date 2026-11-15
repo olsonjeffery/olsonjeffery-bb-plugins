@@ -112,6 +112,10 @@ export function SpoolCardImpl({
   // behind the numeral).
   const memberStatuses = data.members.map(memberStatusFor);
   const nWorking = memberStatuses.filter((s) => s === "working").length;
+  // The roster's top-level rows: members nested under another member's
+  // family render inside it (the hook's rosterRows), so they don't double
+  // here. Counts and the tag rollup stay member-based.
+  const roster = data.rosterRows ?? data.members;
 
   // In-place rename. Seeds once per rename start, like the ordinary row.
   const [renameValue, setRenameValue] = useState("");
@@ -308,13 +312,13 @@ export function SpoolCardImpl({
       <Fold collapsed={collapsed} role="list" label={`${data.label} members`}>
         {() => (
           <div className="spooler-spool-members">
-            {data.members.map((member, index) => (
+            {roster.map((member, index) => (
               <div
                 key={member.id}
                 className="spooler-spool-member"
                 data-member-id={member.id}
               >
-                {renderMember(member, index, index === data.members.length - 1)}
+                {renderMember(member, index, index === roster.length - 1)}
               </div>
             ))}
           </div>

@@ -149,6 +149,62 @@ describe("spool groups (section view only)", () => {
     expect(spoolGroup?.failed).toBe(1);
   });
 
+  it("hangs a member's family nested: same-spool and non-member children stay, cross-spool strip", () => {
+    const lead = makeThread({ id: "l", sectionId: "sec_1" });
+    const sameSpoolKid = makeThread({ id: "c1", parentThreadId: "l", sectionId: "sec_1" });
+    const looseKid = makeThread({ id: "c2", parentThreadId: "l", sectionId: "sec_1" });
+    const otherSpoolKid = makeThread({ id: "c3", parentThreadId: "l", sectionId: "sec_1" });
+    const pinnedKid = makeThread({ id: "c4", parentThreadId: "l", sectionId: "sec_1", isPinned: true });
+    const hook = renderHook(() => useThreadGroups(
+      argsForSection([lead, sameSpoolKid, looseKid, otherSpoolKid, pinnedKid], {
+        spools: [
+          { id: "spool_a", members: ["l", "c1"], leadThreadId: "l", leadElected: false, customTitle: null, title: "A" },
+          { id: "spool_b", members: ["c3"], leadThreadId: "c3", leadElected: false, customTitle: null, title: "B" },
+        ],
+        spoolIdByThreadId: new Map([["l", "spool_a"], ["c1", "spool_a"], ["c3", "spool_b"]]),
+      }),
+    ));
+    const shown = hook.result.current.shownChildren.get("l")?.map((t) => t.id) ?? [];
+    // Same-spool member + plain child hang nested under the member; the
+    // other-spool member and the pinned child render where they belong.
+    expect(shown).toEqual(["c1", "c2"]);
+    // The roster dedupes the nested member: l's top-level row only.
+    const spoolA = hook.result.current.groups
+      .flatMap((g) => g.spools ?? [])
+      .find((s) => s.id === "spool_a");
+    expect(spoolA?.members.map((m) => m.id)).toEqual(["l", "c1"]);
+    expect(spoolA?.rosterRows?.map((m) => m.id)).toEqual(["l"]);
+    // Card counts cover the nested family: l + c1 (members) + c2 (extra).
+    expect(spoolA?.total).toBe(3);
+    const spoolB = hook.result.current.groups
+      .flatMap((g) => g.spools ?? [])
+      .find((s) => s.id === "spool_b");
+    expect(spoolB?.members.map((m) => m.id)).toEqual(["c3"]);
+    expect(spoolB?.rosterRows?.map((m) => m.id)).toEqual(["c3"]);
+  });
+
+  it("counts a failing non-member reply inside the card so folded pills stay honest", () => {
+    const lead = makeThread({ id: "l", sectionId: "sec_1" });
+    const failer = makeThread({
+      id: "f", parentThreadId: "l", sectionId: "sec_1",
+      indicator: "unread-error", isUnread: true,
+    });
+    const hook = renderHook(() => useThreadGroups(
+      argsForSection([lead, failer], {
+        spools: [{ id: "spool_a", members: ["l"], leadThreadId: "l", leadElected: false, customTitle: null, title: "A" }],
+        spoolIdByThreadId: new Map([["l", "spool_a"]]),
+      }),
+    ));
+    const spoolA = hook.result.current.groups
+      .flatMap((g) => g.spools ?? [])
+      .find((s) => s.id === "spool_a");
+    // The member plus its failing reply: the reply hides inside the card's
+    // family fold, so the card (and the section that folds it in) counts it.
+    expect(spoolA?.total).toBe(2);
+    expect(spoolA?.failed).toBe(1);
+    expect(spoolA?.unread).toBe(1);
+  });
+
   it("leaves members that are not spooled by the caller as ordinary rows", () => {
     const lead = makeThread({ id: "l", sectionId: "sec_1" });
     const member = makeThread({ id: "m", parentThreadId: "l", sectionId: "sec_1" });

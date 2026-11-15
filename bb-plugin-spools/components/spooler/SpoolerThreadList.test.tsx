@@ -422,6 +422,71 @@ describe("actions", () => {
     );
   });
 
+  it("hangs a member's replies nested in the roster with a working fold", async () => {
+    // The reported jank: a spooled thread's replies rendered flat (or not at
+    // all) inside the card, and a chevron that expanded nothing. The roster
+    // hangs families now, on the same per-thread fold state as loose rows.
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const meta: Record<string, Record<string, unknown>> = {
+      p: { spool: "spool_a", spoolJoined: 10, spoolLead: true },
+      c1: { spool: "spool_a", spoolJoined: 20 },
+    };
+    const sdk = {
+      ...sdkFakes(),
+      threads: {
+        ...(sdkFakes().threads as Record<string, unknown>),
+        experimental_listPluginMetadata: async ({ threadIds }: any) => ({
+          threads: threadIds
+            .filter((id: string) => meta[id])
+            .map((id: string) => ({ threadId: id, metadata: meta[id] })),
+        }),
+      },
+    };
+    const slot = renderThreads(
+      [
+        makeThread({ id: "p", title: "Spooled parent", sectionId: "s1" }),
+        makeThread({ id: "c1", title: "Member reply", parentThreadId: "p", sectionId: "s1" }),
+        makeThread({ id: "c2", title: "Plain reply", parentThreadId: "p", sectionId: "s1" }),
+      ],
+      { sdk, sections: [makeSection({ id: "s1", name: "Work" })] },
+    );
+
+    // The card rides in once the membership fetch resolves — and a spool
+    // that first appears after mount starts collapsed (new-join hygiene),
+    // so settle that fold and open the card before reading the roster.
+    await waitFor(() =>
+      expect(
+        slot.container.querySelector(".spooler-spool-card-collapsed"),
+      ).not.toBeNull(),
+    );
+    fireEvent.click(slot.container.querySelector(".spooler-spool-title-btn")!);
+    await waitFor(() =>
+      expect(
+        slot.container.querySelector(".spooler-spool-card-collapsed"),
+      ).toBeNull(),
+    );
+
+    // The parent's roster row carries both replies nested beneath it — the
+    // member reply included (it renders in the family, not as a sibling).
+    const memberWrap = slot.container.querySelector(".spooler-spool-member")!;
+    const nested = Array.from(
+      memberWrap.querySelectorAll("[data-sidebar-thread-id]"),
+    ).map((node) => node.getAttribute("data-sidebar-thread-id"));
+    expect(nested).toEqual(["p", "c1", "c2"]);
+    // No sibling copy of the member reply anywhere else in the list.
+    expect(
+      slot.container.querySelectorAll('[data-sidebar-thread-id="c1"]'),
+    ).toHaveLength(1);
+
+    // The chevron folds the family with the same control as loose rows.
+    fireEvent.click(screen.getByRole("button", { name: "Collapse replies" }));
+    await waitFor(() =>
+      expect(visibleRowIds(slot.container)).not.toContain("c1"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Expand replies" }));
+    await waitFor(() => expect(visibleRowIds(slot.container)).toContain("c1"));
+  });
+
   it("a member's menu carries Move to top right above Remove from spool", async () => {
     const meta: Record<string, Record<string, unknown>> = {
       t1: { spool: "spool_a", spoolJoined: 10, spoolLead: true },

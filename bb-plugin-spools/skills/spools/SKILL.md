@@ -260,10 +260,15 @@ by the spool's *lead* thread). Details:
   `+N` overflow chip whose tooltip lists the rest; each badge's tooltip names how many
   of N members wear it. The spool header carries no project/branch/PR chips any more —
   those are member-row facts, in Details.
-- Member rows are flat: they hang one stock depth step deeper than the bucket's own
-  rows (a shared left edge), carry one straight roster guide instead of tree
-  elbows, and no person glyph. Every member still renders at depth 1 for its row
-  logic (no branch or section chip).
+- Member rows are flat at the top level: they hang one stock depth step deeper than
+  the bucket's own rows (a shared left edge), carry one straight roster guide
+  instead of tree elbows, and no person glyph. Every member still renders at depth 1
+  for its row logic (no branch or section chip). A member's **family hangs nested
+  under it** (0.13.3): replies (member or not) render beneath the member at the
+  family step, on the same per-thread fold chevron the ordinary rows use — the
+  roster's straight guide runs unbroken behind the nested families, and a reply
+  that is itself a member of a DIFFERENT spool renders in its own card instead.
+  Filing a thread never drags its replies in: membership is per-thread.
 - Spools behave like families for sorting and navigation: open the lead via the
   card's glyph, jump to members, and the View menu's **Jump to spool…** lists
   every spool and its members for one-click navigation.

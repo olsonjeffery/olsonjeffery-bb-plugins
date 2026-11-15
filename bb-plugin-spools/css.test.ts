@@ -180,31 +180,61 @@ describe("app.css", () => {
     // Members render at depth 1 for their row logic; the roster hangs one
     // stock step (48px) deeper than the bucket's own rows, with no elbow
     // tree guides — ONE straight hairline per member dropping back to the
-    // section icon's axis, plus one 2px gap between members.
+    // section icon's axis, plus one 2px gap between members. The member
+    // rules name the bucket so the bucket's own family steps (40/52px)
+    // can't outbid them on source order again (that tie once silently
+    // pulled the roster to 40px and its guide off the section axis).
     const members = rules().find((rule) => rule.selector === ".spooler-spool-members");
     expect(members?.body).toMatch(/padding:\s*0/);
     expect(members?.body).toMatch(/margin-top:\s*0/);
     expect(members?.body).toMatch(/border-top:\s*none/);
     expect(members?.body).toMatch(/gap:\s*2px/);
-    const member = rules().find((rule) => rule.selector === ".spooler-spool-member .spooler-row-child");
+    const member = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-group-bucket .spooler-spool-member .spooler-row-child",
+    );
     expect(member?.body).toMatch(/margin-left:\s*48px/);
+    const deep = rules().find(
+      (rule) =>
+        rule.selector ===
+        ".spooler-group-bucket .spooler-spool-member .spooler-row-deep",
+    );
+    // Member families hang nested (0.13.3): replies step to 64px so the
+    // family elbow lands on the member's provider axis (64 - 7 = 57px).
+    expect(deep?.body).toMatch(/margin-left:\s*64px/);
     const guides = rules().filter((rule) =>
       /\.spooler-spool-member \.spooler-row-child::(before|after)/.test(rule.selector),
     );
-    expect(guides.map((rule) => rule.selector.split("::")[1])).toEqual(["after", "before"]);
+    expect(guides.map((rule) => rule.selector.split("::")[1])).toEqual(["before", "after"]);
     // C: the once-retired ::after returns as the roster stub — the guide
     // elbows out to each member's provider icon (33px → 57px), behind the
     // row's own paint so tubes and glyphs cover it.
-    const stub = guides[0];
+    const stub = guides[1];
     expect(stub?.body).toMatch(/left:\s*-15px/);
     expect(stub?.body).toMatch(/width:\s*24px/);
     expect(stub?.body).toMatch(/top:\s*15px/);
     expect(stub?.body).toMatch(/z-index:\s*-1/);
+    // The row-level roster guide is retired: the member wrapper carries the
+    // line now, unbroken behind nested families (33px, bridging the 2px
+    // roster gap; first starts at its top, last ends at the roster's end).
     const guide = rules().find((rule) =>
       rule.selector === ".spooler-spool-member .spooler-row-child::before",
     );
-    expect(guide?.body).toMatch(/left:\s*-15px/);
-    expect(guide?.body).toMatch(/width:\s*1px/);
+    expect(guide?.body).toMatch(/content:\s*none/);
+    const wrapperGuide = rules().find(
+      (rule) => rule.selector === ".spooler-spool-member::before",
+    );
+    expect(wrapperGuide?.body).toMatch(/left:\s*33px/);
+    expect(wrapperGuide?.body).toMatch(/top:\s*-2px/);
+    expect(wrapperGuide?.body).toMatch(/bottom:\s*-2px/);
+    expect(wrapperGuide?.body).toMatch(/z-index:\s*-1/);
+    expect(
+      rules().find((rule) => rule.selector === ".spooler-spool-member:first-child::before")?.body,
+    ).toMatch(/top:\s*0/);
+    expect(
+      rules().find((rule) => rule.selector === ".spooler-spool-member:last-child::before")?.body,
+    ).toMatch(/bottom:\s*0/);
   });
 
   it("gives no row a person glyph or a grid inset", () => {

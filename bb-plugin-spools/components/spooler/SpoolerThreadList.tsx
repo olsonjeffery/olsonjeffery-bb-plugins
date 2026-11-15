@@ -988,13 +988,14 @@ export function SpoolerThreadList({
       }
       // Spool members render BEFORE the section's ordinary rows (their cards
       // sit at the top of the bucket) and their rows show hover cards too.
+      // The roster walks its top-level rows' families: nested members and
+      // non-member children render inside the card, so they join the visible
+      // order (and fold with the same per-thread collapse state).
       for (const spool of group.spools ?? []) {
         if (collapsedGroupIds.has(`spool:${spool.id}`)) {
           continue;
         }
-        for (const member of spool.members) {
-          list.push(member.id);
-        }
+        walk(spool.rosterRows ?? spool.members);
       }
       walk(group.roots);
     }
@@ -1872,7 +1873,19 @@ export function SpoolerThreadList({
             onRenameCancel={() => setEditingSpoolId(null)}
             startRename={() => setEditingSpoolId(spool.id)}
             renderMember={(thread, index, isLast) =>
-              renderRow(thread, 1, null, isLast, false)
+              // The roster hangs families: the member row plus its shown
+              // children, folded by the same per-thread collapse state the
+              // ordinary rows use — the chevron works as-is in here.
+              renderSubtree(
+                thread,
+                1,
+                renderRow,
+                shownChildren,
+                null,
+                collapseIds,
+                isLast,
+                false,
+              )
             }
             projectNameFor={projectNameFor}
             hasActiveThread={

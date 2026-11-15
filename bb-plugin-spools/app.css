@@ -3018,15 +3018,60 @@ a.spooler-row-main:hover {
 
 .spooler-spool-member {
   min-width: 0;
+  /* The wrapper anchors the roster guide (below): one segment per member
+     that runs behind the member's row AND its nested family, so the roster
+     line reads unbroken through expanded families. */
+  position: relative;
 }
 
-/* Members render at depth 1 for their row logic, but a spool roster is a
-   flat hanging list under its card: no tree elbows — ONE straight guide.
-   The roster hangs one stock depth step deeper than the bucket's own rows
-   (48px), so its guide drops from under the header's rail back to the
-   section icon's axis (48px - 15px = 33px in). */
-.spooler-spool-member .spooler-row-child {
+/* The roster guide: drops from under the header's rail on the section
+   icon's axis (33px) and spans its member's whole wrapper — row plus
+   nested family — bridging the 2px roster gap; the first member starts at
+   its own top and the last ends at the roster's bottom. */
+.spooler-spool-member::before {
+  content: "";
+  position: absolute;
+  left: 33px;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.spooler-spool-member:first-child::before {
+  top: 0;
+}
+
+.spooler-spool-member:last-child::before {
+  bottom: 0;
+}
+
+/* Members render at depth 1 for their row logic, and the roster hangs one
+   stock depth step deeper than the bucket's own rows (48px), so its guide
+   drops from under the header's rail back to the section icon's axis
+   (48px - 15px = 33px in). The bucket's own family steps (40/52px) are
+   flat-out outbid here — an equal-specificity tie the bucket block used to
+   win on source order, silently pulling the roster to 40px and its guide
+   off the section axis; the member selector names the bucket so the
+   roster's geometry can't drift again. The row-level guide is retired —
+   the wrapper carries the line (above) — and the row-level family elbow
+   is off for member rows. */
+.spooler-group-bucket .spooler-spool-member .spooler-row-child {
   margin-left: 48px;
+}
+
+.spooler-spool-member .spooler-row-child::before {
+  content: none;
+}
+
+/* A member's family hangs nested under it: replies step one deeper than
+   the roster (48 → 64px), so the family guide's elbow lands exactly on the
+   member's provider axis (64px - 7px = 57px in) — the same tree grammar
+   the ordinary rows use, working folds included. Same outbid as above. */
+.spooler-group-bucket .spooler-spool-member .spooler-row-deep {
+  margin-left: 64px;
 }
 
 /* The roster guide elbows out to each member's provider icon: one 24px
@@ -3048,18 +3093,6 @@ a.spooler-row-main:hover {
 /* Compact rows lift the gutter's icon (4px padding): the stub follows. */
 .spooler-spool-member .spooler-row-compact.spooler-row-child::after {
   top: 11px;
-}
-
-.spooler-spool-member .spooler-row-child::before {
-  content: "";
-  position: absolute;
-  left: -15px;
-  top: -2px;
-  bottom: -2px;
-  width: 1px;
-  background: var(--border);
-  pointer-events: none;
-  z-index: -1;
 }
 
 /* The roster guide is part of the spool's identity, and the provider icon
