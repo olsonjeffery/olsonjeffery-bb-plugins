@@ -881,7 +881,10 @@ export function SpoolerThreadList({
           ),
       );
     },
-    [actions],
+    // spoolById must be in the deps: without it the closure sees the first
+    // render's empty map and Archive Spool Threads silently does nothing —
+    // the same stale-closure bug the spool drag hit (moveSpoolToSection).
+    [actions, spoolById],
   );
 
   /** Release every member: destructive — the spool simply stops existing. */

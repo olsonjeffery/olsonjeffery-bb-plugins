@@ -4,6 +4,16 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.5 — 2026-11-16
+
+### Fixed
+- **"Archive Spool Threads" from the card menu works again.** The menu item
+  ran through a callback that still closed over the first render's (empty)
+  spool map, so the batch resolved over zero members: nothing archived, no
+  toast — the same stale-closure the spool drag already hit. The callback
+  now tracks the current map, and a regression test drives the card menu
+  and asserts both members archive with the batch toast.
+
 ## 0.13.4 — 2026-11-16
 
 ### Changed

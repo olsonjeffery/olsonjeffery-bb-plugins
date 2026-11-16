@@ -7,6 +7,7 @@ import {
   renderSlot,
   type RenderedSlot,
 } from "@get-bb/plugin-sdk/testing/app";
+import { toast } from "sonner";
 import * as pluginSdk from "@get-bb/plugin-sdk/app";
 import type { PluginSidebarThread, PluginSidebarThreadsState } from "@get-bb/plugin-sdk/app";
 import { DAY, HOUR, NOW, makeProject, makeSection, makeThread } from "./fixtures";
@@ -485,6 +486,59 @@ describe("actions", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Expand replies" }));
     await waitFor(() => expect(visibleRowIds(slot.container)).toContain("c1"));
+  });
+
+  it("Archive Spool Threads archives every member from the card menu", async () => {
+    // The reported no-op: the menu item ran against the first render's
+    // (empty) spoolById closure, so the batch resolved over zero members —
+    // nothing archived, no toast. The card menu must act on the spool map
+    // as it stands when the menu runs.
+    // Spool cards render in section grouping only; the suite's afterEach
+    // resets the stored choice to the legacy time grouping.
+    localStorage.setItem("spooler-sidebar:grouping:v1", "section");
+    const meta: Record<string, Record<string, unknown>> = {
+      t1: { spool: "spool_a", spoolJoined: 10, spoolLead: true },
+      t2: { spool: "spool_a", spoolJoined: 20 },
+    };
+    const updatePluginMetadata = vi.fn(
+      async (_write: { threadId: string; pluginId: string; set?: Record<string, unknown> }) => ({}),
+    );
+    const sdk = {
+      ...sdkFakes(),
+      threads: {
+        ...(sdkFakes().threads as Record<string, unknown>),
+        updatePluginMetadata,
+        experimental_listPluginMetadata: async ({ threadIds }: any) => ({
+          threads: threadIds
+            .filter((id: string) => meta[id])
+            .map((id: string) => ({ threadId: id, metadata: meta[id] })),
+        }),
+      },
+    };
+    const slot = renderThreads(
+      [makeThread({ id: "t1", title: "Lead" }), makeThread({ id: "t2", title: "Member" })],
+      { sdk },
+    );
+
+    // The card rides in once the membership fetch resolves.
+    await waitFor(() =>
+      expect(slot.container.querySelector(".spooler-spool-card")).not.toBeNull(),
+    );
+    const success = vi.spyOn(toast, "success");
+    fireEvent.click(screen.getByLabelText("Spool actions"));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Archive Spool Threads" }),
+    );
+    await waitFor(() => {
+      expect(actionCalls(slot)).toEqual([
+        { method: "archive", threadId: "t1" },
+        { method: "archive", threadId: "t2" },
+      ]);
+    });
+    // And the batch said so.
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith("Archived 2 threads from the spool."),
+    );
   });
 
   it("a member's menu carries Move to top right above Remove from spool", async () => {
