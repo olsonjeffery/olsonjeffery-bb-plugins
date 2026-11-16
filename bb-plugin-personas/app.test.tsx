@@ -2,8 +2,14 @@
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, waitFor, within } from "@testing-library/react";
-import type { ComposerMention, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import type {
+  ComposerMention,
+  PluginSidebarThread,
+  PluginThreadActionRegistration,
+  PluginThreadActionTarget,
+} from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import type { RenderSlotOptions } from "@get-bb/plugin-sdk/testing/app";
 import { EMOJIS } from "./personas";
 
 const PERSONA_WITH_CHATS = {
@@ -498,6 +504,7 @@ function sidebarThread(
     titleFallback: "New chat",
     displayTitle: "New chat",
     parentThreadId: null,
+    parentNotifications: "auto",
     lifecycleOwnerThreadId: null,
     sourceThreadId: null,
     sectionId: null,
@@ -513,7 +520,6 @@ function sidebarThread(
       backgroundAgents: 0,
       backgroundCommands: 0,
       planMode: 0,
-      goals: 0,
     },
     indicator: "none",
     indicatorLabel: null,
@@ -2617,77 +2623,114 @@ describe("persona inline action & picker", () => {
   });
 });
 
-describe("persona thread chip", () => {
-  it("registers one thread header action (and nothing else has a persona title)", async () => {
+describe("persona thread header action", () => {
+  /** The action target the host evaluates a header action for. */
+  const targetFor = (threadId: string): PluginThreadActionTarget => ({
+    id: threadId,
+    projectId: "proj_work",
+    parentThreadId: null,
+    parentNotifications: "auto",
+    archivedAt: null,
+    pinnedAt: null,
+    sectionId: null,
+    isUnread: false,
+    status: "idle",
+    environment: null,
+  });
+
+  /** The registration's data type, spelled out once for the probes. */
+  type PersonaSummaries = Record<
+    string,
+    { id: string; name: string; emoji: string } | null
+  >;
+
+  /**
+   * Evaluates the header action for one thread inside the harness: a probe
+   * component runs the registration's useData hook, then renders the item's
+   * label on a button whose click runs the action. Returns the slot plus the
+   * navigate calls the action's run recorded.
+   */
+  function renderHeaderAction(
+    registration: PluginThreadActionRegistration<PersonaSummaries>,
+    threadId: string,
+    rpcHandlers: NonNullable<RenderSlotOptions>["rpc"],
+  ) {
+    const navigateCalls: Array<{ path: string; options?: unknown }> = [];
+    const navigate = {
+      toPluginPanel: (path: string, options?: unknown) => {
+        navigateCalls.push({ path, options });
+      },
+    };
+    function Probe() {
+      const data = registration.useData!({ threadIds: [threadId] });
+      const action = registration.item!({
+        thread: targetFor(threadId),
+        data,
+        sdk: null as never,
+        navigate: navigate as never,
+        experimental_panel: null as never,
+      });
+      if (action === null) return null;
+      return createElement(
+        "button",
+        {
+          onClick: () => {
+            void action.run({ requestRename: () => {} });
+          },
+        },
+        action.label,
+      );
+    }
+    const slot = renderSlot({ component: Probe }, {}, { rpc: rpcHandlers });
+    return { slot, navigateCalls };
+  }
+
+  it("registers one header thread action", async () => {
     const app = await loadPluginApp(() => import("./app"));
-    expect(app.threadHeaderActions).toHaveLength(1);
-    expect(app.threadHeaderActions[0]).toMatchObject({
+    expect(app.threadActions).toHaveLength(1);
+    expect(app.threadActions[0]).toMatchObject({
       id: "persona-chip",
       title: "Persona",
+      icon: "personas/robot",
+      placement: "header",
     });
   });
 
-  it("shows the mapped persona's avatar and name; clicking opens its settings", async () => {
+  it("labels the mapped persona; running it opens its settings", async () => {
     const app = await loadPluginApp(() => import("./app"));
-    const chip = app.threadHeaderActions[0]!.component;
-    const slot = renderSlot(
-      { component: chip },
-      { threadId: "thr_1", projectId: "proj_work", isCompactViewport: false },
+    const registration = app.threadActions[0]! as PluginThreadActionRegistration<PersonaSummaries>;
+    const { slot, navigateCalls } = renderHeaderAction(
+      registration,
+      "thr_1",
       {
-        rpc: {
-          getPersonaForThread: () => ({
-            persona: {
-              id: "persona_1",
-              name: "Pirate",
-              emoji: "🏴‍☠️",
-              color: "blue" as const,
-            },
-          }),
-        },
+        getPersonaForThread: () => ({
+          persona: {
+            id: "persona_1",
+            name: "Pirate",
+            emoji: "🏴‍☠️",
+            color: "blue",
+          },
+        }),
       },
     );
-    await slot.findByText("Pirate");
-    (await slot.findByTitle("Chatting as Pirate — open persona settings")).click();
-    expect(slot.navigateCalls).toContainEqual({
-      method: "toPluginPanel",
+    await slot.findByText(/Pirate/);
+    slot.container.querySelector("button")!.click();
+    expect(navigateCalls).toContainEqual({
       path: "personas",
       options: { subPath: "persona_1/edit" },
     });
     slot.lifecycle.unmount();
   });
 
-  it("renders nothing for an unmapped thread and no name on compact viewports", async () => {
+  it("evaluates to nothing for an unmapped thread", async () => {
     const app = await loadPluginApp(() => import("./app"));
-    const chip = app.threadHeaderActions[0]!.component;
-
-    const unmapped = renderSlot(
-      { component: chip },
-      { threadId: "thr_other", projectId: "proj_work", isCompactViewport: false },
-      { rpc: { getPersonaForThread: () => ({ persona: null }) } },
-    );
+    const registration = app.threadActions[0]! as PluginThreadActionRegistration<PersonaSummaries>;
+    const { slot } = renderHeaderAction(registration, "thr_other", {
+      getPersonaForThread: () => ({ persona: null }),
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(unmapped.container.textContent).toBe("");
-    unmapped.lifecycle.unmount();
-
-    const compact = renderSlot(
-      { component: chip },
-      { threadId: "thr_1", projectId: "proj_work", isCompactViewport: true },
-      {
-        rpc: {
-          getPersonaForThread: () => ({
-            persona: {
-              id: "persona_1",
-              name: "Pirate",
-              emoji: "🏴‍☠️",
-              color: null,
-            },
-          }),
-        },
-      },
-    );
-    await compact.findByTitle("Chatting as Pirate — open persona settings");
-    expect(compact.queryByText("Pirate")).toBeNull();
-    compact.lifecycle.unmount();
+    expect(slot.container.textContent).toBe("");
+    slot.lifecycle.unmount();
   });
 });
 

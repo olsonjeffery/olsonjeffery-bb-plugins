@@ -79,7 +79,6 @@ function memberStatusFor(thread: PluginSidebarThread): MemberStatus {
     case "background-agent":
     case "background-command":
     case "workflow":
-    case "goal":
     case "plan-mode":
     case "working-draft":
       return "working";

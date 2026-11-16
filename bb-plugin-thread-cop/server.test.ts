@@ -138,16 +138,25 @@ function commandCompletedRow(
 function turnFailedPayload(
   overrides: Partial<PluginTurnFailedEvent> = {},
 ): PluginTurnFailedEvent {
-  return {
+  // A typed base merged with Object.assign, not a spread: spreading a
+  // `Partial` makes every event field undefined-able, which the event's
+  // required `originPluginId: string | null` rejects. No test overrides
+  // originPluginId, so the base's null always stands.
+  const base: PluginTurnFailedEvent = {
     threadId: "th_1",
     requestId: "req_1",
     turnId: "turn_1",
-    errorInfo: { category: "bad-request", httpStatusCode: 400, providerCode: null },
+    errorInfo: {
+      category: "bad-request",
+      httpStatusCode: 400,
+      providerCode: null,
+    },
     inputAccepted: false,
     rateLimits: null,
     attemptNumber: 1,
-    ...overrides,
+    originPluginId: null,
   };
+  return Object.assign(base, overrides);
 }
 
 async function emitTurnFailed(host: Host, payload: TurnFailedPayload): Promise<void> {

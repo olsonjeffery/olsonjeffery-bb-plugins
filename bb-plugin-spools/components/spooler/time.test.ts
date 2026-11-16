@@ -25,7 +25,6 @@ describe("isLiveThread", () => {
         backgroundAgents: 1,
         backgroundCommands: 0,
         planMode: 0,
-        goals: 0,
       },
     });
     expect(isLiveThread(thread)).toBe(true);
@@ -57,7 +56,7 @@ describe("isRunningThread", () => {
     }
     expect(isRunningThread(makeThread({ id: "run", status: "active" }))).toBe(true);
     expect(isRunningThread(makeThread({ id: "background", activity: {
-      workflows: 1, backgroundAgents: 0, backgroundCommands: 0, planMode: 0, goals: 0,
+      workflows: 1, backgroundAgents: 0, backgroundCommands: 0, planMode: 0,
     } }))).toBe(true);
   });
 });

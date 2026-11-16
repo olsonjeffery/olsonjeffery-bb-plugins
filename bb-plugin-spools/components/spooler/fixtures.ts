@@ -1,4 +1,5 @@
 import type {
+  PluginProvidersState,
   PluginSidebarProject,
   PluginSidebarSection,
   PluginSidebarThread,
@@ -25,6 +26,7 @@ export function makeThread(fixture: ThreadFixture): PluginSidebarThread {
     titleFallback: fixture.titleFallback ?? null,
     displayTitle: fixture.displayTitle ?? fixture.title ?? `Thread ${fixture.id}`,
     parentThreadId: fixture.parentThreadId ?? null,
+    parentNotifications: fixture.parentNotifications ?? "auto",
     lifecycleOwnerThreadId: fixture.lifecycleOwnerThreadId ?? null,
     sourceThreadId: fixture.sourceThreadId ?? null,
     sectionId: fixture.sectionId ?? null,
@@ -40,7 +42,6 @@ export function makeThread(fixture: ThreadFixture): PluginSidebarThread {
       backgroundAgents: 0,
       backgroundCommands: 0,
       planMode: 0,
-      goals: 0,
     },
     indicator: fixture.indicator ?? "none",
     indicatorLabel: fixture.indicatorLabel ?? null,
@@ -92,5 +93,42 @@ export function makeSection(
     name: fixture.name,
     createdAt: fixture.createdAt ?? NOW - DAY,
     updatedAt: fixture.updatedAt ?? NOW,
+  };
+}
+
+/** One row of `PluginProvidersState.providers` — the runtime provider info
+ *  the details panel resolves a row's provider name and icon through. Every
+ *  field is spelled out on purpose, like `makeThread`: when the host adds a
+ *  required field, the type errors here instead of a test passing against a
+ *  stale shape. */
+export function makeProvider(
+  fixture: Partial<PluginProvidersState["providers"][number]> & {
+    id: string;
+  },
+): PluginProvidersState["providers"][number] {
+  return {
+    id: fixture.id,
+    displayName: fixture.displayName ?? `Provider ${fixture.id}`,
+    logoUrl: fixture.logoUrl ?? null,
+    icon: fixture.icon,
+    pluginId: fixture.pluginId ?? fixture.id,
+    available: fixture.available ?? true,
+    capabilities: fixture.capabilities ?? {
+      modelCatalogScope: "workspace",
+      permissionModes: ["full"],
+      supportsFork: false,
+      supportsNativeUserQuestion: false,
+      supportsServiceTier: false,
+      supportsSessionRewind: false,
+      supportsThreadArchive: false,
+      supportsThreadRename: false,
+    },
+    completedTurnDisplay: fixture.completedTurnDisplay ?? "collapse",
+    composerActions: fixture.composerActions ?? [],
+    maintenance: fixture.maintenance ?? {
+      health: false,
+      installation: false,
+      usage: false,
+    },
   };
 }

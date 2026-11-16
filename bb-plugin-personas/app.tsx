@@ -6,6 +6,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   definePluginApp,
+  experimental_THREAD_ACTION_GROUPS,
   useBbNavigate,
 } from "@get-bb/plugin-sdk/app";
 import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
@@ -21,14 +22,48 @@ import {
   PersonaRobotGlyph,
   PERSONA_PICKER_POPUP_ID,
 } from "@/components/PersonaComposerPicker";
-import { PersonaThreadChip } from "@/components/PersonaThreadChip";
 import { PersonaRail } from "@/components/PersonaRail";
 import { PluginHealthSection } from "@/components/PluginHealthSection";
 import { PANEL_PATH } from "@/components/panel-path";
 import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "@/components/ui/coarse-pointer-sizing";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
 import { Icon } from "@/components/ui/icon";
-import { usePersonasRpc } from "@/components/use-query";
+import { usePersonasRpc, useQuery } from "@/components/use-query";
+
+/** The persona summary `getPersonaForThread` returns for one thread. */
+interface PersonaSummary {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
+/**
+ * `useData` for the header's persona action: one summary per on-screen
+ * thread id, fetched through the plugin's realtime-backed `useQuery` so
+ * renames and emoji changes land without a remount. A header action only
+ * ever sees the open thread's id, so this stays one small query.
+ */
+function usePersonaSummaries(
+  threadIds: readonly string[],
+): Record<string, PersonaSummary | null> {
+  const rpc = usePersonasRpc();
+  const key = threadIds.join("\n");
+  const { data } = useQuery(
+    async () => {
+      const entries = await Promise.all(
+        threadIds.map(async (threadId) => {
+          const { persona } = await rpc.call("getPersonaForThread", {
+            threadId,
+          });
+          return [threadId, persona] as const;
+        }),
+      );
+      return Object.fromEntries(entries);
+    },
+    key,
+  );
+  return data ?? {};
+}
 
 /** A document-style pane (root empty state, transient create, the editor). */
 function DocumentPane({
@@ -209,13 +244,33 @@ export default definePluginApp((app) => {
     ],
   });
 
-  // The Thread Info chip: an always-visible control in the thread header's
-  // action row showing which persona is active for this session (the mapped
-  // one), with a click-through into the persona's settings page.
-  app.slots.experimental_threadHeaderAction({
+  // The header's persona action: bb's header thread action — the retired
+  // experimental_threadHeaderAction slot's replacement. A button in the open
+  // thread's header showing which persona this session chats as (emoji and
+  // name for a mapped thread, nothing otherwise); on compact viewports the
+  // host folds it into the header's thread menu. Clicking opens the
+  // persona's settings page.
+  app.slots.experimental_threadAction({
     id: "persona-chip",
     title: "Persona",
-    component: PersonaThreadChip,
+    icon: "personas/robot",
+    group: experimental_THREAD_ACTION_GROUPS.settings,
+    placement: "header",
+    useData: ({ threadIds }) => usePersonaSummaries(threadIds),
+    item: ({ thread, data, navigate }) => {
+      const persona = data[thread.id];
+      if (persona === undefined || persona === null) return null;
+      const name = persona.name.trim() || "Untitled persona";
+      return {
+        label: persona.emoji ? `${persona.emoji} ${name}` : name,
+        icon: "personas/robot",
+        run: () => {
+          navigate.toPluginPanel(PANEL_PATH, {
+            subPath: `${persona.id}/edit`,
+          });
+        },
+      };
+    },
   });
 
   // The Personas settings page: an install-source row (local in-progress

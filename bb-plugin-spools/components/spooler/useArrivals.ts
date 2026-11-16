@@ -8,7 +8,6 @@ const LIVE_INDICATORS: ReadonlySet<string> = new Set([
   "background-agent",
   "background-command",
   "workflow",
-  "goal",
   "plan-mode",
   "working-draft",
 ]);

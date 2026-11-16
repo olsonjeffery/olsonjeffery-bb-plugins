@@ -29,8 +29,7 @@ export function isRunningThread(thread: PluginSidebarThread): boolean {
     activity.workflows +
       activity.backgroundAgents +
       activity.backgroundCommands +
-      activity.planMode +
-      activity.goals >
+      activity.planMode >
     0
   ) {
     return true;

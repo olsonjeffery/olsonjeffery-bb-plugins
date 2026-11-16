@@ -15,7 +15,7 @@ import type {
   PluginSidebarThread,
   PluginSidebarThreadsState,
 } from "@get-bb/plugin-sdk/app";
-import { makeProject, makeSection, makeThread } from "./fixtures";
+import { makeProject, makeProvider, makeSection, makeThread } from "./fixtures";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => ({
   ...await importOriginal<typeof pluginSdk>(),
@@ -86,7 +86,7 @@ function renderThreads(
     {
       sdk: options.sdk ?? sdkFakes(),
       ...options,
-      providers: { status: "ready", providers: [{ id: "pi", displayName: "Pi", logoUrl: null, icon: { glyph: "π" } }] },
+      providers: { status: "ready", providers: [makeProvider({ id: "pi", displayName: "Pi", icon: { glyph: "π" } })] },
       sidebarThreads: state,
     },
   );

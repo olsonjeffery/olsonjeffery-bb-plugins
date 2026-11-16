@@ -135,7 +135,7 @@ function actionCalls(slot: RenderedSlot): LegacySidebarActionCall[] {
 
 /** Row anchors are the stable handle: ThreadTitle renders empty in the
  * harness, so title text is not queryable — the id attribute is. */
-function visibleRowIds(container: HTMLElement): string[] {
+function visibleRowIds(container: HTMLElement | Document): string[] {
   return Array.from(
     container.querySelectorAll("[data-sidebar-thread-id]"),
   ).map((node) => node.getAttribute("data-sidebar-thread-id") ?? "");

@@ -27,7 +27,7 @@ works best for code.
 - A sidebar badge on every chat a persona starts when the Thread Tags plugin is installed: the persona picks one of the plugin's tags (or gets a default built from its own emoji or title), and the Plugin health box offers a one-click **Install This Plugin** button while Thread Tags is missing
 - A project connection when a persona needs repository context, and projectless personas for everyday conversations
 - A persona button on the New Thread composer: pick a persona for this session from a popup of your published fleet — a persona chip rides along in the draft, and the message you send starts a thread owned by that persona
-- A persona chip in every thread header showing who the conversation is chatting as, with a click-through into that persona's settings
+- A persona button in every thread header showing who the conversation is chatting as — the persona's emoji and name — with a click-through into that persona's settings; on compact viewports it folds into the thread menu
 - A Default User Message per persona (max 500 characters) that seeds the New Thread composer when you arm a persona against an empty draft
 - A settings-first persona page: selecting a persona in the rail opens its settings directly (everything autosaves); its chat history lives at the bottom of the same page
 - A draft-before-publish workflow: set up the prompt pool, provider, and model, then click **Publish** to make the persona available

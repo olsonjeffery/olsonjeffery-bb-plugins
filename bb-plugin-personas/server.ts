@@ -379,8 +379,8 @@ export const rpcContract = defineRpcContract({
       ),
     }),
   },
-  // The Thread Info chip's lookup: the persona one thread belongs to (the
-  // persona-pill mapping below), or null for an ordinary thread.
+  // The thread header action's lookup: the persona one thread belongs to
+  // (the persona-pill mapping below), or null for an ordinary thread.
   getPersonaForThread: {
     input: z.object({ threadId: z.string() }).strict(),
     output: z.object({
@@ -1460,10 +1460,10 @@ export default async function plugin(bb: BbPluginApi) {
       return { personas };
     },
 
-    // The Thread Info chip (PersonaThreadChip) asks which persona one thread
-    // belongs to. The mapping is the same one contributeInstructions reads,
-    // written by the dispatch hook when a message carrying this plugin's
-    // persona-pill mention first dispatches.
+    // The thread header action (app.tsx's persona-chip) asks which persona
+    // one thread belongs to. The mapping is the same one contributeInstructions
+    // reads, written by the dispatch hook when a message carrying this
+    // plugin's persona-pill mention first dispatches.
     getPersonaForThread: async ({ threadId }) => {
       const personaId = personaIdByThreadId.get(threadId);
       if (personaId === undefined) return { persona: null };

@@ -51,14 +51,16 @@ export interface RowChat {
 /**
  * The wire shape for `experimental_useThreadActions`: pin, rename, archive,
  * and delete all read only id/archivedAt/pinnedAt plus identity fields the
- * chat list snapshot doesn't carry (parent, section, read state, environment
- * are consulted by other actions this row never renders).
+ * chat list snapshot doesn't carry (parent wiring, section, read state,
+ * environment are consulted by other actions this row never renders, and a
+ * persona chat started from the New Thread composer is a root thread).
  */
 function toActionTarget(chat: RowChat): PluginThreadActionTarget {
   return {
     id: chat.threadId,
     projectId: chat.projectId,
     parentThreadId: null,
+    parentNotifications: "off",
     archivedAt: chat.archivedAt,
     pinnedAt: chat.pinnedAt,
     sectionId: null,

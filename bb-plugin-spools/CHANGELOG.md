@@ -4,6 +4,23 @@ All notable changes to Spools are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.4 — 2026-11-16
+
+### Changed
+- **bb 0.49 SDK.** `@get-bb/plugin-sdk` repinned to 0.6.132 (the SDK this bb
+  release ships) and the `engines.bbPluginSdk` floor raised to match. bb's
+  sidebar API no longer carries goal activity or the "goal" indicator, so
+  the row and card status mapping, the live-arrival set, and the
+  running-work sum drop their `goal` cases. Thread action targets carry the
+  new required `parentNotifications` field (read straight off the sidebar
+  row), and the test fixtures build the current thread and provider shapes
+  (`makeProvider` joins `makeThread`).
+
+### Fixed
+- `tsc --noEmit` is clean again: the tsconfig gains `DOM.Iterable` for the
+  status-chip tests' NodeList spreads, and `visibleRowIds` accepts the
+  `document` calls two status-filter tests make.
+
 ## 0.13.3 — 2026-11-15
 
 ### Fixed

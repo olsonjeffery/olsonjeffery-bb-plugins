@@ -107,12 +107,6 @@ function statusVisualFor(indicator: string): StatusVisual {
         name: "Workflow",
         className: "spooler-tone-success spooler-icon-pulse",
       };
-    case "goal":
-      return {
-        kind: "icon",
-        name: "Target",
-        className: "spooler-tone-success spooler-icon-pulse",
-      };
     case "plan-mode":
       return {
         kind: "icon",
@@ -239,12 +233,6 @@ function statusMetaFor(
     case "workflow":
       return {
         text: "Working · Workflow",
-        tone: "spooler-tone-success",
-        pill: false,
-      };
-    case "goal":
-      return {
-        text: "Working · Goal",
         tone: "spooler-tone-success",
         pill: false,
       };
