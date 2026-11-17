@@ -12,7 +12,9 @@ import {
   DECISION_MODELS_PATH,
   SYSTEMONE_REQUEST_PATH,
   DmError,
+  describeBadHeaderChar,
   endpointUrl,
+  invalidHeaderChar,
   listDecisionModels,
   postDecisionRequest,
   prepareRequest,
@@ -97,7 +99,16 @@ function authLine(
   settings: DecisionSettings,
   profile: DecisionProviderProfile | null,
 ): string {
-  if (settings.apiKey !== "") return "Bearer API key set";
+  if (settings.apiKey !== "") {
+    const bad = invalidHeaderChar(settings.apiKey);
+    if (bad !== null) {
+      return (
+        "Bearer API key set — but it is NOT sendable: it contains " +
+        `${describeBadHeaderChar(bad)}; re-set it with --api-key-stdin`
+      );
+    }
+    return "Bearer API key set";
+  }
   if (profile === null) return "No API key set";
   return profile.auth === "none"
     ? "No auth (open endpoint)"
@@ -279,8 +290,24 @@ export function buildSystemoneCli(deps: SystemoneCliDeps) {
             );
           }
           const patch: DesignationPatch = { providerId, modelId, baseUrl };
-          if (input.options["clear-api-key"]) patch.apiKey = null;
-          else if (input.options["api-key"] !== undefined) patch.apiKey = input.options["api-key"];
+          if (input.options["clear-api-key"]) {
+            patch.apiKey = null;
+          } else if (input.options["api-key"] !== undefined) {
+            const bad = invalidHeaderChar(input.options["api-key"]);
+            if (bad !== null) {
+              throw new PluginCliError(
+                "The API key cannot be sent in an HTTP Authorization header: it contains " +
+                  `${describeBadHeaderChar(bad)}.`,
+                {
+                  code: "invalid_value",
+                  hint:
+                    "Paste the raw credential only — typographic dashes or smart quotes from " +
+                    "copied text break HTTP headers; pipe it with --api-key-stdin.",
+                },
+              );
+            }
+            patch.apiKey = input.options["api-key"];
+          }
           const settings = await deps.patchSettings(patch);
           const effectiveBase =
             settings.baseUrl !== "" ? settings.baseUrl : (providerProfile(providerId)?.baseUrl ?? "");

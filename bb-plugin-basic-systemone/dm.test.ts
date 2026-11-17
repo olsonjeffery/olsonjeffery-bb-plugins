@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   DmError,
   endpointUrl,
+  invalidHeaderChar,
   listDecisionModels,
   normalizeModelList,
   postDecisionRequest,
@@ -14,6 +15,45 @@ import {
   resolveDesignation,
   emptyDecisionSettings,
 } from "./dm.js";
+
+describe("invalidHeaderChar", () => {
+  it("accepts ASCII and Latin-1 keys", () => {
+    expect(invalidHeaderChar("sk-abc_123.Base64==")).toBeNull();
+    expect(invalidHeaderChar("café\u00ff")).toBeNull();
+  });
+
+  it("rejects non-Latin-1 characters (typographic dashes) with position", () => {
+    const bad = invalidHeaderChar("x".repeat(43) + "\u2014" + "y");
+    expect(bad).toEqual({ char: "\u2014", codePoint: 8212, index: 43 });
+  });
+
+  it("rejects line breaks and NUL", () => {
+    expect(invalidHeaderChar("a\nb")).toEqual({ char: "\n", codePoint: 10, index: 1 });
+    expect(invalidHeaderChar("a\rb")).toEqual(expect.objectContaining({ codePoint: 13 }));
+    expect(invalidHeaderChar("a\0b")).toEqual(expect.objectContaining({ codePoint: 0 }));
+  });
+});
+
+describe("assertApiKeyHeaderSafe via postDecisionRequest", () => {
+  it("fails before any fetch when the stored key is not header-safe", async () => {
+    let called = false;
+    await expect(
+      postDecisionRequest({
+        url: REQUEST_URL,
+        request: REQUEST,
+        apiKey: "x".repeat(43) + "\u2014",
+        fetchImpl: () => {
+          called = true;
+          return jsonResponse(RESPONSE);
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_api_key",
+      message: expect.stringContaining("U+2014"),
+    });
+    expect(called).toBe(false);
+  });
+});
 
 describe("resolveDesignation", () => {
   it("stays disabled without a provider", () => {
@@ -122,6 +162,15 @@ describe("endpointUrl", () => {
     );
   });
 
+  it("does not double a base stored as the full endpoint URL", () => {
+    expect(endpointUrl("https://opencode.ai/inference/systemone/v1/systemone", "/v1/systemone")).toBe(
+      "https://opencode.ai/inference/systemone/v1/systemone",
+    );
+    expect(endpointUrl("https://opencode.ai/inference/systemone/v1/systemone/", "/v1/systemone")).toBe(
+      "https://opencode.ai/inference/systemone/v1/systemone",
+    );
+  });
+
   it("throws endpoint_unresolved when the base is empty", () => {
     expect(() => endpointUrl("", "/v1/systemone")).toThrow(
       expect.objectContaining({ code: "endpoint_unresolved" }),
@@ -211,6 +260,20 @@ describe("postDecisionRequest", () => {
         fetchImpl: () => jsonResponse({ detail: "bad criteria" }, 422),
       }),
     ).rejects.toMatchObject({ code: "invalid_request", message: expect.stringContaining("bad criteria") });
+  });
+
+  it("maps 400 (OpenAI-style error body) to invalid_request too", async () => {
+    await expect(
+      postDecisionRequest({
+        url: REQUEST_URL,
+        request: REQUEST,
+        fetchImpl: () =>
+          jsonResponse({ error: { message: "`model` must be a non-empty string" } }, 400),
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining("must be a non-empty string"),
+    });
   });
 
   it("maps 429 to rate_limited and 5xx to upstream_error", async () => {

@@ -145,7 +145,10 @@ export function endpointUrl(baseUrl: string, path: string): string {
       { code: "invalid_value" },
     );
   }
-  const base = trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+  const base = trimmed.replace(/\/+$/, "");
+  // Tolerate a base stored as the full endpoint URL: if it already ends with
+  // the path (e.g. a pasted https://host/…/v1/systemone), do not double it.
+  if (base.endsWith(path)) return base;
   return `${base}${path}`;
 }
 
@@ -198,6 +201,54 @@ export function prepareRequest(payload: unknown, modelId: string): JsonObject {
   const request: JsonObject = { ...payload };
   if (request["model"] === undefined) request["model"] = modelId;
   return request;
+}
+
+/**
+ * The first character of `value` that cannot ride in an HTTP header value,
+ * or null when the value is header-safe: HTTP headers are ByteStrings
+ * (Latin-1) and reject line breaks and NUL.
+ */
+export function invalidHeaderChar(
+  value: string,
+): { char: string; codePoint: number; index: number } | null {
+  for (let index = 0; index < value.length; index++) {
+    const codePoint = value.charCodeAt(index);
+    if (
+      codePoint > 0xff ||
+      codePoint === 0x00 ||
+      codePoint === 0x0a ||
+      codePoint === 0x0d
+    ) {
+      return { char: value[index], codePoint, index };
+    }
+  }
+  return null;
+}
+
+/** Describe one header-unsafe character for error messages. */
+export function describeBadHeaderChar(bad: {
+  char: string;
+  codePoint: number;
+  index: number;
+}): string {
+  const hex = bad.codePoint.toString(16).toUpperCase().padStart(4, "0");
+  return `${JSON.stringify(bad.char)} (U+${hex}) at position ${bad.index}`;
+}
+
+const API_KEY_HINT =
+  "Re-set the key with the raw credential only (typographic dashes or smart quotes from " +
+  "copied text break HTTP headers): `printf '%s\\n' \"$KEY\" | bb systemone model set " +
+  "<provider> <model> --api-key-stdin`.";
+
+/** The stored API key must be sendable as an Authorization header value. */
+export function assertApiKeyHeaderSafe(apiKey: string): void {
+  const bad = invalidHeaderChar(apiKey);
+  if (bad !== null) {
+    throw new DmError(
+      `The stored API key cannot be sent in an HTTP Authorization header: it contains ${describeBadHeaderChar(bad)}.`,
+      { code: "invalid_api_key", hint: API_KEY_HINT },
+    );
+  }
 }
 
 /** Compose an abort signal with a timeout into one signal. */
@@ -259,6 +310,7 @@ export async function postDecisionRequest(
     accept: "application/json",
   };
   if (input.apiKey !== undefined && input.apiKey !== "") {
+    assertApiKeyHeaderSafe(input.apiKey);
     headers["authorization"] = `Bearer ${input.apiKey}`;
   }
   let response: Response;
@@ -320,8 +372,8 @@ export function mapHttpError(status: number, body: string, json?: unknown): DmEr
         "(pipe the key in), or clear a stale one with --clear-api-key.",
     });
   }
-  if (status === 422) {
-    return new DmError(withDetail(`The decision endpoint rejected the request payload (HTTP 422).`), {
+  if (status === 400 || status === 422) {
+    return new DmError(withDetail(`The decision endpoint rejected the request payload (HTTP ${status}).`), {
       code: "invalid_request",
       hint:
         "Check the request payload against the request schema the caller " +
@@ -429,6 +481,7 @@ export async function listDecisionModels(
   const { signal, cancel } = withTimeout(input.signal, timeoutMs);
   const headers: Record<string, string> = { accept: "application/json" };
   if (input.apiKey !== undefined && input.apiKey !== "") {
+    assertApiKeyHeaderSafe(input.apiKey);
     headers["authorization"] = `Bearer ${input.apiKey}`;
   }
   let response: Response;
